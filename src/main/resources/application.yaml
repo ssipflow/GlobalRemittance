@@ -1,0 +1,59 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: GlobalRemittance
+
+  main:
+    allow-bean-definition-overriding: true
+
+  web:
+    resources:
+      add-mappings: false
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  datasource:
+    driver-class-name: org.h2.Driver
+    url: jdbc:h2:file:~/tmp/data/testdb;TIME ZONE=UTC
+    username: sa
+    password:
+
+  sql:
+    init:
+      mode: always
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        jdbc:
+          time_zone: UTC
+    hibernate:
+      ddl-auto: create-drop
+    defer-datasource-initialization: true
+
+logging:
+  level:
+    org:
+      hibernate:
+        SQL: debug
+        type:
+          descriptor:
+            sql:
+              BasicBinder: trace
+
+variables:
+  security:
+    aes:
+      secret-key: dOJk0ix87Ws1DD0UyIXpqKFsVORbDix4
+  jwt:
+    secret: ZE9KazBpeDg3V3MxREQwVXlJWHBxS0ZzVk9SYkRpeDQ=
+    expiration: 1800000
+  api:
+    forex:
+      url: https://quotation-api-cdn.dunamu.com:443/v1/forex/recent
