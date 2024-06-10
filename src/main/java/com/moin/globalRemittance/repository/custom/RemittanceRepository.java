@@ -1,6 +1,5 @@
 package com.moin.globalRemittance.repository.custom;
 
-import com.moin.globalRemittance.dto.IQuoteDto;
 import com.moin.globalRemittance.dto.IRemittanceDto;
 import com.moin.globalRemittance.entities.QRemittance;
 import com.moin.globalRemittance.entities.Remittance;
@@ -11,6 +10,7 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -28,7 +28,7 @@ public class RemittanceRepository {
 
     private final QRemittance remittance = QRemittance.remittance;
 
-    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.REPEATABLE_READ, propagation = Propagation.REQUIRES_NEW)
     public Integer createRemittance(IRemittanceDto dto) {
         Remittance remittance = RemittanceDto.builder()
                 .userId(dto.getUserId())
@@ -130,7 +130,7 @@ public class RemittanceRepository {
                 .collect(Collectors.toList());
     }
 
-    @Transactional(isolation = Isolation.REPEATABLE_READ)
+    @Transactional(isolation = Isolation.REPEATABLE_READ, propagation = Propagation.REQUIRES_NEW)
     public Long updateRequestedTime(Integer id) {
         return queryFactory.update(remittance)
                 .set(remittance.requestedTime, Instant.now())

@@ -19,7 +19,7 @@ spring:
 
   datasource:
     driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:~/tmp/data/testdb;TIME ZONE=UTC
+    url: jdbc:h2:file:~/tmp/data/testdb;TIME ZONE=UTC;AUTOCOMMIT=OFF
     username: sa
     password:
 
@@ -37,15 +37,34 @@ spring:
       ddl-auto: create-drop
     defer-datasource-initialization: true
 
+#logging:
+#  level:
+#    org:
+#      hibernate:
+#        SQL: debug
+#        type:
+#          descriptor:
+#            sql:
+#              BasicBinder: trace
 logging:
   level:
-    org:
-      hibernate:
-        SQL: debug
-        type:
-          descriptor:
-            sql:
-              BasicBinder: trace
+    root: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type: TRACE
+    org.hibernate.engine.transaction.internal: DEBUG
+    org.springframework.transaction: DEBUG
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"
+  file:
+    name: application.log
+    path: /path/to/your/application.log # 로그 파일을 저장할 경로
+  output:
+    console:
+      enabled: true # 콘솔에 로그 출력
+    file:
+      enabled: true # 파일에 로그 출력
+
+
 
 variables:
   security:
