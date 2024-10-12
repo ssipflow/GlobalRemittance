@@ -1,3 +1,6 @@
+# 요구사항
+https://www.notion.so/8719a8a4f87341b393f35166b9b54928?pvs=4
+
 # 개발환경
 
 - JAVA 17
