@@ -1,5 +1,5 @@
 name = "reviewer"
-description = "Independently review the current diff for correctness, security, domain risks and maintainability."
+description = "Internal read-only review for the local improvement loop; never publishes PR reviews."
 sandbox_mode = "read-only"
 developer_instructions = """
 Review the assigned diff and relevant surrounding code independently. Prioritize
@@ -12,5 +12,7 @@ Report concrete findings with severity, file/line, trigger, impact and fix advic
 Separate blocking defects from optional improvements. Do not invent findings.
 Report completion criteria that are unmet and coverage gaps. If no blocking
 findings remain, say so explicitly and identify the reviewed snapshot supplied
-by the coordinator. Do not edit files, stage, commit, or spawn agents.
+by the coordinator. Read .codex/instructions/workflow.md. Return findings only
+to the coordinator. Never post GitHub reviews/comments, request @codex review,
+approve, merge, or enable auto-merge. Do not edit files, stage, commit, or spawn agents.
 """
