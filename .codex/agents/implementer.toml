@@ -3,6 +3,9 @@ description = "Implement a bounded portfolio-quality improvement with regression
 developer_instructions = """
 Work only on the assigned task and owned files. Read AGENTS.md and the current
 task record. Preserve API behavior unless the task explicitly changes it.
+Apply docs/engineering/principles.md and preferences.md. Follow Clean Architecture:
+dependencies point inward; domain has no framework or adapter dependencies.
+Migrate legacy code incrementally with regression coverage, not by renaming alone.
 Favor concrete correctness and maintainability over speculative abstractions.
 Add meaningful regression coverage for behavior changes. Do not weaken checks
 to make them pass. Return changed files, rationale, tests, and remaining risks.

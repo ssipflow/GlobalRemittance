@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import signal
 import subprocess
 import sys
@@ -18,6 +19,21 @@ def git(*args, root=None):
 
 def root_path():
     return Path(git('rev-parse', '--show-toplevel').decode().strip())
+
+
+def current_branch(root):
+    result = subprocess.run(['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'],
+                            cwd=root, capture_output=True, text=True)
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def require_work_branch(root, task=None):
+    branch = current_branch(root)
+    if not branch or not re.fullmatch(r'(feature|hotfix)/[a-z0-9]+(?:-[a-z0-9]+)*', branch):
+        raise ValueError('Work requires feature/<kebab-name> or hotfix/<kebab-name>, not main/dev/test or detached HEAD.')
+    if task is not None and task.get('branch') != branch:
+        raise ValueError('Task branch changed. Return to the recorded task branch before continuing.')
+    return branch
 
 
 def load(root):
@@ -37,6 +53,7 @@ def save(root, task):
 def snapshot(root, include_index=True):
     # Include tracked and untracked, nonignored files, plus index state and HEAD.
     digest = hashlib.sha256()
+    digest.update((current_branch(root) or 'DETACHED').encode())
     digest.update(git('rev-parse', 'HEAD', root=root))
     if include_index:
         digest.update(git('diff', '--cached', '--binary', root=root))
@@ -94,7 +111,9 @@ def hook(root):
     output = {}
     if name == 'SessionStart':
         output = {'hookSpecificOutput': {'hookEventName': name,
-                  'additionalContext': 'Read AGENTS.md and docs/harness/state.md. '
+                  'additionalContext': 'Read AGENTS.md, docs/engineering/principles.md, '
+                  'docs/engineering/preferences.md, docs/engineering/branches.md, '
+                  'and docs/harness/state.md. '
                   'Run python3 scripts/harness.py status. Resume only the active task.'}}
     elif task and task['status'] == 'active':
         current = snapshot(root)
@@ -149,9 +168,15 @@ def main():
     task = load(root)
     if args.command == 'status':
         print(json.dumps({'task': task, 'snapshot': snapshot(root),
+                          'branch': current_branch(root),
                           'changed_files': sorted(changed(root))}, ensure_ascii=False, indent=2))
         return
     if args.command == 'begin':
+        branch = require_work_branch(root)
+        ancestry = subprocess.run(['git', 'merge-base', '--is-ancestor', 'dev', 'HEAD'],
+                                  cwd=root, capture_output=True)
+        if ancestry.returncode != 0:
+            raise ValueError('Task branch must include current local dev. Update from dev before begin.')
         if task and task['status'] in ('active', 'blocked'):
             raise ValueError('Existing task must be finished or resumed; do not overwrite it.')
         if changed(root):
@@ -165,6 +190,7 @@ def main():
                 raise ValueError('Specify individual files, not directories or internal state.')
             files.append(path.as_posix())
         task = {'id': args.id, 'goal': args.goal, 'files': sorted(set(files)),
+                'branch': branch, 'dev_base': git('rev-parse', 'dev', root=root).decode().strip(),
                 'checks': args.check, 'status': 'active', 'continuations': 0,
                 'started_at': time.time(), 'observed': snapshot(root)}
         save(root, task)
@@ -173,6 +199,7 @@ def main():
     if args.command == 'resume':
         if not task or task['status'] != 'blocked':
             raise ValueError('Only a blocked task can be resumed.')
+        require_work_branch(root, task)
         task.update(status='active', continuations=0)
         task.pop('review', None)
         task.pop('verification', None)
@@ -183,6 +210,7 @@ def main():
         task.update(status='blocked', reason=args.reason)
         save(root, task)
         return
+    require_work_branch(root, task)
     if args.command == 'attest-review':
         current = snapshot(root)
         if args.snapshot != current:
@@ -231,8 +259,10 @@ def main():
         subprocess.run(['git', 'diff', '--cached', '--check'], cwd=root, check=True)
         staged = snapshot(root)
         expected_tree = git('write-tree', root=root).strip()
+        require_work_branch(root, task)
         subprocess.run(['git', 'commit', '-m', args.message], cwd=root, check=True)
-        if git('rev-parse', 'HEAD^{tree}', root=root).strip() != expected_tree or changed(root):
+        if (git('rev-parse', 'HEAD^{tree}', root=root).strip() != expected_tree
+                or changed(root) or current_branch(root) != task['branch']):
             task.update(status='blocked', reason='Git hooks or concurrent writes changed the reviewed tree. '
                         'Inspect the created commit and working tree; no automatic rollback.')
             task.pop('review', None)
