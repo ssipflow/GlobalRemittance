@@ -33,3 +33,13 @@ feature/test-isolation: 테스트 DB를 메모리 H2로 격리하고 실제 환�
 고정 응답으로 대체한다. Java 실행 환경을 확인하고 전체 테스트의 성공/실패 기준선을 기록한다.
 이 작업 PR의 사람 확인/병합 후 최신 dev에서 분기한다. PR URL은 .harness/task.json과
 GitHub에서 확인하고 다음 작업이 tracked state를 갱신한다.
+
+## PR 충돌 해결
+
+- PR #1이 사람이 dev에 병합된 뒤 state.md가 PR #2와 충돌했다.
+- origin/dev의 50dde9d를 feature/agent-pr-workflow로 병합하고 smoke 문서를 보존한다.
+- state.md에는 최신 에이전트 역할과 PR #1 병합 사실을 함께 기록한다.
+- 이번에는 기존 PR의 Git 병합 충돌 복구다. 일반 finish는 비어 있는 index를
+  요구하므로 병합 index를 보존하고 독립 리뷰·검증 후 Git 병합 커밋으로 마무리한다.
+  기존 완료된 작업의 하네스 증거를 새 병합 검증으로 재사용하지 않는다.
+- 작업 브랜치만 push하여 기존 PR #2를 갱신한다. 승인과 dev 병합은 사람이 한다.
