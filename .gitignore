@@ -34,3 +34,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# Local harness execution evidence (durable summaries live in docs/harness).
+.harness/
+__pycache__/
+*.pyc
