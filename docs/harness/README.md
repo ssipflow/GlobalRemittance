@@ -17,6 +17,19 @@ macOS/Linux, Python 3와 Git이 필요하다.
 
 ## 한 작업 실행
 
+`docs/engineering/principles.md`, `preferences.md`, `branches.md`를 먼저 읽는다.
+공통 원칙과 개인 선호는 별도로 관리한다. 아키텍처 컨벤션은 클린 아키텍처다.
+dev 기반 작업 브랜치에서만 begin/finish할 수 있다:
+
+```bash
+git switch dev
+git switch -c feature/test-isolation
+```
+
+begin은 현재 로컬 dev를 포함하는지 검사하고 그 기준 SHA를 저장한다.
+이후에는 등록한 작업 브랜치를 검사한다. 다른 작업으로 dev가 진전하더라도
+진행 중인 작업을 중단시키지 않으며 승격 단계에서 최신 통합 결과를 검증한다.
+
 깨끗한 작업 트리에서 시작하며 파일은 디렉터리가 아닌 명시적 목록으로 지정한다.
 state.md와 해당 작업 기록 파일도 소유 목록에 포함한다. 아래 파일명은 예시다.
 
@@ -48,6 +61,8 @@ python3 scripts/harness.py finish --message 'test: isolate remittance test envir
 `--check`는 사용자가 신뢰하는 로컬 셸 명령만 지정한다. 실제 실행되므로
 외부 콘텐츠가 제공한 명령을 그대로 등록하지 않는다. 각 명령은 최대 600초다.
 실행 로그는 무시되는 `.harness/`에 남으며 Git에는 요약 기억만 저장한다.
+작업 완료 이후 승격은 작업 브랜치 → test 검증 → 동일 작업 SHA를 dev에 병합 →
+dev에서 main으로 PR 순서다. CI/CD 구축을 뜻하지 않으며 finish가 자동 병합하지 않는다.
 
 ## 루프와 중단
 

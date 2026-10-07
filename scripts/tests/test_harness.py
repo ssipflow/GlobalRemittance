@@ -28,6 +28,9 @@ class HarnessTest(unittest.TestCase):
         (self.root / 'code.txt').write_text('initial\n')
         self.git('add', '.')
         self.git('commit', '-qm', 'initial')
+        self.git('branch', 'dev')
+        self.git('branch', 'test')
+        self.git('switch', '-qc', 'feature/example', 'dev')
 
     def git(self, *args):
         return subprocess.check_output(['git', *args], cwd=self.root).decode().strip()
@@ -149,6 +152,51 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(code, 124)
         time.sleep(0.7)
         self.assertFalse((self.root / 'orphan.txt').exists())
+
+    def test_protected_and_invalid_branches_cannot_begin(self):
+        for branch in ('dev', 'test', 'feature/Bad_Name', 'feature/nested/name'):
+            if branch in ('dev', 'test'):
+                self.git('switch', '-q', branch)
+            else:
+                self.git('switch', '-qc', branch)
+            self.run_harness('begin', '--id', 'bad', '--goal', 'bad', '--files',
+                             'code.txt', '--check', 'true', success=False)
+
+    def test_main_and_detached_head_cannot_begin(self):
+        self.git('switch', '-qc', 'main', 'dev')
+        self.run_harness('begin', '--id', 'bad', '--goal', 'bad', '--files',
+                         'code.txt', '--check', 'true', success=False)
+        self.git('checkout', '-q', '--detach')
+        self.run_harness('begin', '--id', 'bad', '--goal', 'bad', '--files',
+                         'code.txt', '--check', 'true', success=False)
+
+    def test_switching_to_same_head_branch_invalidates_task(self):
+        self.begin()
+        self.review()
+        self.run_harness('verify')
+        old = json.loads(self.run_harness('status').stdout)['snapshot']
+        self.git('switch', '-qc', 'feature/other')
+        new = json.loads(self.run_harness('status').stdout)['snapshot']
+        self.assertNotEqual(old, new)
+        self.run_harness('finish', '--message', 'bad', success=False)
+        self.run_harness('verify', success=False)
+
+    def test_branch_must_contain_current_dev(self):
+        self.git('switch', '-q', 'dev')
+        (self.root / 'code.txt').write_text('dev advancement\n')
+        self.git('add', 'code.txt')
+        self.git('commit', '-qm', 'dev advanced')
+        self.git('switch', '-q', 'feature/example')
+        self.run_harness('begin', '--id', 'bad', '--goal', 'bad', '--files',
+                         'code.txt', '--check', 'true', success=False)
+
+    def test_hotfix_from_dev_can_complete(self):
+        self.git('switch', '-qc', 'hotfix/example', 'dev')
+        self.begin()
+        self.review()
+        self.run_harness('verify')
+        self.run_harness('finish', '--message', 'fix: complete')
+        self.assertEqual(self.git('status', '--porcelain'), '')
 
 
 if __name__ == '__main__':

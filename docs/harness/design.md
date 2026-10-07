@@ -9,6 +9,8 @@ GlobalRemittance의 품질을 재현 가능한 검증과 설명 가능한 설계
 Java 17, Spring Boot, JPA/QueryDSL 기반의 송금 서비스라는 현재 맥락을 유지한다.
 품질은 추상화의 개수가 아니라 정확성, 테스트 재현성, 보안, 운영 가능성,
 설계 근거와 실행 문서로 판단한다. 구체적인 결함은 초기 진단에서 확인한다.
+안정적인 규칙은 `docs/engineering/principles.md`, 개인 선호는
+`docs/engineering/preferences.md`로 분리한다. 클린 아키텍처를 목표로 점진적으로 이전한다.
 
 ## 역할
 
@@ -63,6 +65,8 @@ Reviewer와 Verifier는 독립적으로 병렬 실행할 수 있다.
 - CI와 로컬 검증은 동일한 완료 기준을 사용한다.
 - 커밋은 Coordinator만 수행한다. 사용자 변경을 포함하지 않고 명시적인 파일 목록으로 스테이징한다.
 - 커밋 직전 staged diff가 검토 및 검증한 변경과 같은지 확인한다.
+- dev 기반 feature/hotfix에서만 작업한다. test 검증 후 같은 작업 SHA를 dev에 병합하고,
+  dev → main PR로 승격한다. 세부 기준은 `docs/engineering/branches.md`를 따른다.
 - 자동 push, 배포, 이력 재작성은 이 하네스의 기본 범위에 포함하지 않는다.
 
 ## 도입 순서

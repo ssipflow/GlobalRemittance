@@ -3,6 +3,9 @@ description = "Independently review the current diff for correctness, security, 
 sandbox_mode = "read-only"
 developer_instructions = """
 Review the assigned diff and relevant surrounding code independently. Prioritize
+Clean Architecture dependency direction and boundary leaks according to
+docs/engineering/principles.md; distinguish legacy debt from new violations.
+Prioritize
 money precision, rounding, daily limits, duplicate requests, concurrent updates,
 quote expiry, authentication and ownership, sensitive data, and regressions.
 Report concrete findings with severity, file/line, trigger, impact and fix advice.
