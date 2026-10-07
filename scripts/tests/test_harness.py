@@ -6,6 +6,8 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest.mock import patch
+from types import SimpleNamespace
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'harness.py'
@@ -61,7 +63,7 @@ class HarnessTest(unittest.TestCase):
         self.assertEqual(self.git('status', '--porcelain'), '')
         self.assertEqual(self.git('log', '-1', '--format=%s'), 'test: complete')
         task = json.loads(self.run_harness('status').stdout)['task']
-        self.assertEqual(task['status'], 'completed')
+        self.assertEqual(task['status'], 'committed')
         self.assertEqual(task['commit'], self.git('rev-parse', 'HEAD'))
 
     def test_stale_review_or_verification_rejects_commit(self):
@@ -197,6 +199,128 @@ class HarnessTest(unittest.TestCase):
         self.run_harness('verify')
         self.run_harness('finish', '--message', 'fix: complete')
         self.assertEqual(self.git('status', '--porcelain'), '')
+
+    def prepare_publish(self):
+        self.begin()
+        self.review()
+        self.run_harness('verify')
+        self.run_harness('finish', '--message', 'test: prepare PR')
+        self.git('remote', 'add', 'origin', 'git@github.com:example/remittance.git')
+        body = self.root / '.harness/pr-body.md'
+        body.write_text('Concrete change and validation evidence\n')
+        self.publish_args = SimpleNamespace(repo='example/remittance', title='test: PR', body_file=str(body))
+        self.pr = {'number': 1, 'url': 'https://github.com/example/remittance/pull/1',
+                   'state': 'OPEN', 'headRefOid': self.git('rev-parse', 'HEAD'),
+                   'isCrossRepository': False, 'autoMergeRequest': None}
+
+    def test_publish_creates_pr_without_comment_approval_or_merge(self):
+        self.prepare_publish()
+        with patch.object(HARNESS, 'remote_output', side_effect=['[]', '', self.pr['url'], json.dumps([self.pr])]) as remote:
+            HARNESS.publish(self.root, self.publish_args)
+        commands = [call.args[1:4] for call in remote.call_args_list]
+        self.assertEqual(commands, [('gh', 'pr', 'list'), ('git', 'push', '--set-upstream'),
+                                    ('gh', 'pr', 'create'), ('gh', 'pr', 'list')])
+        task = HARNESS.load(self.root)
+        self.assertEqual(task['status'], 'completed')
+        self.assertEqual(task['pr']['head'], self.pr['headRefOid'])
+
+    def test_publish_reuses_existing_pr(self):
+        self.prepare_publish()
+        with patch.object(HARNESS, 'remote_output', side_effect=[json.dumps([self.pr]), '', json.dumps([self.pr])]) as remote:
+            HARNESS.publish(self.root, self.publish_args)
+        self.assertFalse(any('create' in call.args for call in remote.call_args_list))
+
+    def test_publish_failure_is_retryable_without_new_commit(self):
+        self.prepare_publish()
+        failure = subprocess.CalledProcessError(1, ['gh', 'pr', 'create'])
+        with patch.object(HARNESS, 'remote_output', side_effect=['[]', '', failure]):
+            with self.assertRaises(subprocess.CalledProcessError):
+                HARNESS.publish(self.root, self.publish_args)
+        self.assertEqual(HARNESS.load(self.root)['status'], 'committed')
+        with patch.object(HARNESS, 'remote_output', side_effect=[json.dumps([self.pr]), '', json.dumps([self.pr])]):
+            HARNESS.publish(self.root, self.publish_args)
+        self.assertEqual(self.git('rev-parse', 'HEAD'), self.pr['headRefOid'])
+
+    def test_publish_rejects_wrong_repository_without_network(self):
+        self.prepare_publish()
+        self.publish_args.repo = 'other/repository'
+        with patch.object(HARNESS, 'remote_output') as remote:
+            with self.assertRaises(ValueError):
+                HARNESS.publish(self.root, self.publish_args)
+            remote.assert_not_called()
+
+    def test_publish_rejects_different_push_destination_without_network(self):
+        self.prepare_publish()
+        self.git('config', 'remote.origin.pushurl', 'git@github.com:other/repository.git')
+        with patch.object(HARNESS, 'remote_output') as remote:
+            with self.assertRaises(ValueError):
+                HARNESS.publish(self.root, self.publish_args)
+            remote.assert_not_called()
+
+    def test_publish_rejects_multiple_push_destinations_without_network(self):
+        self.prepare_publish()
+        self.git('config', '--add', 'remote.origin.pushurl', 'git@github.com:example/remittance.git')
+        self.git('config', '--add', 'remote.origin.pushurl', 'git@github.com:other/repository.git')
+        with patch.object(HARNESS, 'remote_output') as remote:
+            with self.assertRaises(ValueError):
+                HARNESS.publish(self.root, self.publish_args)
+            remote.assert_not_called()
+
+    def test_publish_rejects_uncommitted_files_without_network(self):
+        self.prepare_publish()
+        (self.root / 'code.txt').write_text('unreviewed change\n')
+        with patch.object(HARNESS, 'remote_output') as remote:
+            with self.assertRaises(ValueError):
+                HARNESS.publish(self.root, self.publish_args)
+            remote.assert_not_called()
+
+    def test_publish_respects_closed_or_merged_pr(self):
+        self.prepare_publish()
+        for state in ('CLOSED', 'MERGED'):
+            self.pr['state'] = state
+            with patch.object(HARNESS, 'remote_output', return_value=json.dumps([self.pr])) as remote:
+                with self.assertRaises(ValueError):
+                    HARNESS.publish(self.root, self.publish_args)
+                self.assertEqual(remote.call_count, 1)
+
+    def test_publish_rejects_wrong_pr_head(self):
+        self.prepare_publish()
+        self.pr['headRefOid'] = '0' * 40
+        with patch.object(HARNESS, 'remote_output', side_effect=[json.dumps([self.pr]), '', json.dumps([self.pr])]):
+            with self.assertRaises(ValueError):
+                HARNESS.publish(self.root, self.publish_args)
+        self.assertEqual(HARNESS.load(self.root)['status'], 'committed')
+
+    def test_committed_task_stays_unfinished_until_pr(self):
+        self.prepare_publish()
+        payload = {'hook_event_name': 'Stop'}
+        self.assertEqual(json.loads(self.run_harness('hook', payload=payload).stdout)['decision'], 'block')
+        self.run_harness('block', '--reason', 'network unavailable')
+        self.run_harness('resume')
+        self.assertEqual(HARNESS.load(self.root)['status'], 'committed')
+
+    def test_reopen_after_committed_memory_edit_preserves_history(self):
+        self.prepare_publish()
+        old_commit = self.git('rev-parse', 'HEAD')
+        (self.root / 'docs/harness/state.md').write_text('post-commit task correction\n')
+        self.run_harness('reopen')
+        self.assertEqual(HARNESS.load(self.root)['status'], 'active')
+        self.run_harness('finish', '--message', 'bad', success=False)
+        self.review()
+        self.run_harness('verify')
+        self.run_harness('finish', '--message', 'test: follow-up')
+        self.assertEqual(self.git('rev-parse', 'HEAD^'), old_commit)
+        self.pr['headRefOid'] = self.git('rev-parse', 'HEAD')
+        with patch.object(HARNESS, 'remote_output', side_effect=['[]', '', self.pr['url'], json.dumps([self.pr])]):
+            HARNESS.publish(self.root, self.publish_args)
+
+    def test_publish_rejects_existing_auto_merge(self):
+        self.prepare_publish()
+        self.pr['autoMergeRequest'] = {'enabledAt': '2026-10-08'}
+        with patch.object(HARNESS, 'remote_output', return_value=json.dumps([self.pr])) as remote:
+            with self.assertRaises(ValueError):
+                HARNESS.publish(self.root, self.publish_args)
+            self.assertEqual(remote.call_count, 1)
 
 
 if __name__ == '__main__':

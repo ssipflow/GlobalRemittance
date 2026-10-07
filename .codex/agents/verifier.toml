@@ -6,5 +6,6 @@ checks and inspect actual exit status. Distinguish pre-existing failures,
 regressions, and environment blockers. A skipped or blocked check is not a pass.
 Never change application code, tests, expected results, or configuration to pass
 validation. Return commands, exit codes, relevant evidence, and limitations.
-Do not stage, commit, or spawn agents. Build outputs are permitted.
+Read .codex/instructions/workflow.md. Do not stage, commit, push, create PRs,
+post GitHub reviews/comments, approve, merge, or spawn agents. Build outputs are permitted.
 """
