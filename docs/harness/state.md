@@ -3,14 +3,17 @@
 - 목표: 클린 아키텍처 기반의 포트폴리오 개선과 Codex 하네스 운용.
 - 완료: 공통 원칙/개인 선호 분리, 클린 아키텍처 기준, 브랜치 승격 정책,
   작업 브랜치 검사와 브랜치별 snapshot 구현. 초기 하네스 구성은 유지.
-- 진행: 새 세션에서 프로젝트와 훅 신뢰 후 활성화 필요.
+- 진행: feature/pr-review-smoke에서 dev 대상 테스트 PR과 AI 리뷰 코멘트 작성 확인.
+  PR의 approve/merge는 사람에게 남긴다. 훅 최초 신뢰는 별도로 필요하다.
 - 확인: Codex CLI 0.160.1, 로컬 Java 21; 프로젝트 문서상의 기준은 Java 17.
 - 검증: 하네스 회귀 테스트 17개 통과. 독립 코드/정책 리뷰에서 블로킹 결함 없음.
   최종 기억 파일까지 포함하여 리뷰/검증 후 커밋한다. 애플리케이션 테스트는 아직 실행하지 않음.
-- 브랜치: dev와 test를 초기 main에서 생성. 현재 feature/harness-conventions(dev 기반).
-  이번 작업의 test/dev/main 승격은 아직 수행하지 않음.
+- 브랜치: harness-conventions는 dev에 병합하고 원격/로컬 작업 브랜치를 삭제했다.
+  현재 feature/pr-review-smoke(dev 기반). test는 의미상 환경으로 두며 이번에는 거치지 않는다.
 - 다음 작업: 하네스 활성화 후 테스트 환경 격리와 변경 전 테스트 진단.
 - 주의: 현재 application.yaml은 사용자 홈의 H2 파일 DB를 참조함.
-- 작업 기록: docs/harness/tasks/harness-conventions.md (이전: setup.md).
+- 작업 기록: docs/harness/tasks/pr-review-smoke.md. 정책 문서 추가 수정 요청은 취소했다.
+  현재 에이전트 운영 규칙은 작업 브랜치에서 dev로 PR 생성, AI 코멘트 리뷰,
+  사람이 최종 승인/병합이다. 기존 직접 병합 절차보다 현재 사용자 지시를 우선한다.
 
 완료/중단 시 이 파일을 현재 상황으로 교체한다. 과거 상세 기록은 작업별 기록과 Git 이력에 둔다.
