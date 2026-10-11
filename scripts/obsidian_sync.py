@@ -11,13 +11,18 @@ import stat
 import subprocess
 import sys
 import secrets
-from urllib.parse import quote
 
 START = '<!-- codex:globalremittance:start -->'
 END = '<!-- codex:globalremittance:end -->'
-ID = r'[a-z0-9]+(?:-[a-z0-9]+)*'
 REPO = r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*'
 LIMIT = 131072
+# Only reviewed application documentation is exported; harness memory is not a product document.
+DOCUMENTS = {
+    'docs/application/overview.md': '프로젝트 개요.md',
+    'docs/application/architecture.md': '아키텍처.md',
+    'docs/application/api.md': 'API 문서.md',
+    'docs/application/design.md': '주요 설계.md',
+}
 
 
 class SyncError(Exception):
@@ -95,15 +100,16 @@ def atomic_at(fd, name, text):
 
 
 def managed(previous, body):
-    section = START + '\n' + body.rstrip() + '\n' + END
+    section = START + '\n' + body + ('' if body.endswith('\n') else '\n') + END
     if previous is None:
-        return section + '\n'
-    if previous.count(START) != 1 or previous.count(END) != 1:
-        raise SyncError('Existing note needs exactly one managed marker pair; it was preserved.')
-    start, end = previous.index(START), previous.index(END)
-    if start >= end:
-        raise SyncError('Managed marker order is invalid; existing note was preserved.')
-    result = previous[:start] + section + previous[end + len(END):]
+        result = section + '\n'
+    else:
+        if previous.count(START) != 1 or previous.count(END) != 1:
+            raise SyncError('Existing note needs exactly one managed marker pair; it was preserved.')
+        start, end = previous.index(START), previous.index(END)
+        if start >= end:
+            raise SyncError('Managed marker order is invalid; existing note was preserved.')
+        result = previous[:start] + section + previous[end + len(END):]
     if len(result.encode('utf-8')) > LIMIT:
         raise SyncError('Updated note exceeds the bounded export size; existing note was preserved.')
     return result
@@ -177,108 +183,32 @@ def source(root, relative, tracked):
         return read_at(fd, path.name)
 
 
-def summary(text):
-    # Curated repository notes only: headings and bullet summaries, never raw logs/code blocks.
-    lines, fence = [], None
-    for line in text.splitlines():
-        opening = re.match(r'^ {0,3}(`{3,}|~{3,})(.*)$', line)
-        if fence is not None:
-            if (opening and opening[1][0] == fence[0] and len(opening[1]) >= fence[1]
-                    and not opening[2].strip()):
-                fence = None
-            continue
-        if opening:
-            fence = (opening[1][0], len(opening[1]))
-            continue
-        if (line.startswith('#') or line.startswith('- ')):
-            lines.append(line[:240])
-        if len(lines) == 16:
-            break
-    return '\n'.join(lines).replace(START, '&lt;managed-start&gt;').replace(END, '&lt;managed-end&gt;')[:2400] or '요약 항목 없음. 원본 문서를 참조한다.'
+def application_document(text):
+    # Curated API examples/diagrams intentionally keep fences. Escape only our control markers.
+    return text.replace(START, '&lt;!-- codex:globalremittance:start --&gt;').replace(
+        END, '&lt;!-- codex:globalremittance:end --&gt;')
 
 
 def render(root, config):
     import harness
     before = harness.snapshot(root)
     tracked = set(git(root, 'ls-files', '-z').split('\0'))
-    branch = git(root, 'branch', '--show-current')
     revision = git(root, 'rev-parse', 'HEAD')
     base = 'https://github.com/' + config['repo'] + '/blob/' + revision + '/'
-    task = runtime(root, 'task.json')
-    valid = (isinstance(task, dict) and isinstance(task.get('id'), str)
-             and re.fullmatch(ID, task['id']) and task.get('branch') == branch)
-    overview = ['# GlobalRemittance', '', '저장소에서 옵시디언으로 단방향 갱신한 문서다.',
-                '새 개발 목표와 범위는 사용자와 확정한다.', '', '## 현재 상태']
-    state = source(root, 'docs/harness/state.md', tracked)
-    if state is not None:
-        overview += [summary(state), '', f'[저장소 상태 원본]({base}docs/harness/state.md)',
-                     '요약은 현재 작업 트리 기준이며 링크는 현재 HEAD의 커밋 기준이다.']
-    notes = {('프로젝트 개요.md',): '\n'.join(overview)}
-    if valid:
-        task_id = task['id']
-        relative = f'docs/harness/tasks/{task_id}.md'
+    notes = {}
+    for relative, destination in DOCUMENTS.items():
         content = source(root, relative, tracked)
-        if content is not None:
-            body = [f'# 작업: {task_id}', '', summary(content), '', f'[작업 기록 원본]({base}{relative})',
-                    '요약은 현재 작업 트리 기준이며 링크는 현재 HEAD의 커밋 기준이다.', '', '## 실행 근거']
-            verified = False
-            if task.get('status') in ('committed', 'completed') and task.get('commit') == revision:
-                review, verification = task.get('review', {}), task.get('verification', {})
-                verified = (isinstance(review, dict) and isinstance(verification, dict)
-                            and isinstance(review.get('snapshot'), str)
-                            and re.fullmatch(r'[0-9a-f]{64}', review['snapshot'])
-                            and bool(review.get('evidence'))
-                            and verification.get('snapshot') == review['snapshot']
-                            and verification.get('passed') is True
-                            and not harness.changed(root)
-                            and task.get('committed_snapshot') == harness.snapshot(root))
-            if verified:
-                body.append(f'- 검증된 하네스 커밋: `{revision}`')
-                pr = task.get('pr', {})
-                number = pr.get('number') if isinstance(pr, dict) else None
-                if (isinstance(number, int) and not isinstance(number, bool) and number > 0
-                        and pr.get('repo') == config['repo'] and pr.get('head') == revision
-                        and pr.get('base') == 'dev'
-                        and pr.get('url') == f'https://github.com/{config["repo"]}/pull/{number}'):
-                    body.append(f'- 하네스 publish에서 확인한 [PR #{number}]({pr["url"]}) (현재 원격 상태 재조회는 아님)')
-            else:
-                body.append('- 현재 snapshot의 확정된 커밋·PR 근거 없음. 오래된 실행 결과는 표시하지 않는다.')
-            notes[('작업', task_id + '.md')] = '\n'.join(body)
-    for relative in sorted(tracked):
-        if not re.fullmatch(r'docs/decisions/' + ID + r'\.md', relative):
+        if content is None:
             continue
-        content = source(root, relative, tracked)
-        if content is not None:
-            name = Path(relative).name
-            notes[('결정', name)] = '# 결정: ' + name[:-3] + '\n\n' + summary(content) + '\n\n' + f'[설계 결정 원본]({base}{quote(relative)})\n요약은 현재 작업 트리 기준, 링크는 HEAD 기준.'
-    if before != harness.snapshot(root) or task != runtime(root, 'task.json'):
-        raise SyncError('Repository or current task changed during rendering; retry after writes finish.')
+        body = application_document(content)
+        if not body.endswith('\n'):
+            body += '\n'
+        body += ('\n---\n\n' + f'[저장소 원본]({base}{relative})\n'
+                 + '본문은 현재 작업 트리 기준이며 원본 링크는 현재 HEAD의 커밋 기준이다.\n')
+        notes[(destination,)] = body
+    if before != harness.snapshot(root):
+        raise SyncError('Repository changed during rendering; retry after writes finish.')
     return notes
-
-
-@contextmanager
-def child_directory(fd, name, create=False):
-    try:
-        child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
-    except FileNotFoundError:
-        if not create:
-            yield None
-            return
-        os.mkdir(name, mode=0o700, dir_fd=fd)
-        child = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=fd)
-    try:
-        yield child
-    finally:
-        os.close(child)
-
-
-@contextmanager
-def note_parent(fd, parts, create=False):
-    if len(parts) == 1:
-        yield fd
-    else:
-        with child_directory(fd, parts[0], create) as child:
-            yield child
 
 
 def plan(project, notes):
@@ -288,10 +218,9 @@ def plan(project, notes):
         return [(parts, None, managed(None, body)) for parts, body in notes.items()]
     with directory(project) as fd:
         for parts, body in notes.items():
-            with note_parent(fd, parts) as parent:
-                old = None if parent is None else read_at(parent, parts[-1])
-                new = managed(old, body)
-                result.append((parts, old, new))
+            old = read_at(fd, parts[0])
+            new = managed(old, body)
+            result.append((parts, old, new))
     return result
 
 
@@ -327,10 +256,9 @@ def execute(root, args):
         if args.command == 'sync' and changed:
             with directory(project, create=True) as fd:
                 for parts, old, new in changed:
-                    with note_parent(fd, parts, create=True) as parent:
-                        if read_at(parent, parts[-1]) != old:
-                            raise SyncError('A note changed after planning; retry after resolving concurrent edits.')
-                        atomic_at(parent, parts[-1], new)
+                    if read_at(fd, parts[0]) != old:
+                        raise SyncError('A note changed after planning; retry after resolving concurrent edits.')
+                    atomic_at(fd, parts[0], new)
         write_runtime(root, 'obsidian-report.json', report)
         return report
 

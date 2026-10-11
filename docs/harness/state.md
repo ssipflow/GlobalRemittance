@@ -22,3 +22,6 @@
 
 - 현재 후속 작업: feature/nelson-package에서 기본 패키지를 com.nelson.remittance로 변경한다.
   main/test 경로·참조와 Gradle group을 맞추고 전체 check·bootJar 후 dev PR로 전달한다.
+
+- 현재 후속 작업: feature/application-docs. 옵시디언 목적을 앱 아키텍처·API·주요 설계로 정정.
+  docs/application 네 문서가 원본이며 작업 기록·PR 메타데이터는 export하지 않는다.
