@@ -3,23 +3,24 @@
 - 목표: 클린 아키텍처 기반의 포트폴리오 개선과 Codex 하네스 운용.
 - 완료: 공통 원칙/개인 선호 분리, 클린 아키텍처 기준, 작업 브랜치 검사,
   내부 개선 루프와 최신 에이전트 실행 범위 반영.
-- 진행: PR #2 생성 완료. PR #1 병합으로 발생한 state.md 충돌을 작업 브랜치에서 해결하고
-  최신 origin/dev(50dde9d)를 반영하여 내부 리뷰·검증 후 PR #2를 갱신한다.
+- 진행: PR #2는 병합됨. 옵시디언 문서화 절차만 추가한다.
+  Vault/프로젝트 폴더 미설정. 실제 옵시디언 쓰기·동기화는 미실행.
   최신 지침은 .codex/instructions/workflow.md에서 복원한다. 최초 훅 신뢰는 별도로 필요하다.
 - 확인: Codex CLI 0.160.1, 로컬 Java 21; 프로젝트 문서상의 기준은 Java 17.
 - 검증: publish의 실제 원격 실행으로 PR #2 생성을 확인했다.
   기존 회귀 검증에 PR 생성/재사용/실패 재시도/사람의 종료 존중 검증을 추가했다.
   애플리케이션 테스트는 아직 실행하지 않음.
 - 브랜치: harness-conventions는 dev/origin/dev에 반영한 뒤 로컬·원격에서 삭제했다.
-  현재 feature/agent-pr-workflow(dev 기반). test는 의미상 브랜치이며 자동 병합하지 않는다.
+  현재 feature/obsidian-workflow(origin/dev 기반). test는 의미상 브랜치이며 자동 병합하지 않는다.
 - 역할: 로컬 Codex는 PR 생성까지. 로컬 리뷰는 내부 개선용이며 PR 코멘트를 게시하지 않는다.
   GitHub AI가 PR 리뷰를 담당하고 사람만 최종 승인/병합한다.
 - PR 테스트: #1 feature/pr-review-smoke → dev를 생성했고 로컬 리뷰 코멘트도 게시했다.
   사용자가 그 코멘트는 원하지 않는다고 이후 정정했다. #1은 사람이 dev에 병합했다(50dde9d).
   GitHub AI 자동 리뷰 연결은 아직 확인되지 않았다.
-- 다음 작업: 하네스 활성화 후 테스트 환경 격리와 변경 전 테스트 진단.
+- 다음 작업: 새 개발 목표와 범위 확정. 기존 개선 백로그는 자동 실행하지 않는다.
 - 주의: 현재 application.yaml은 사용자 홈의 H2 파일 DB를 참조함.
-- 작업 기록: docs/harness/tasks/agent-pr-workflow.md.
+- 작업 기록: docs/harness/tasks/obsidian-workflow.md.
+- 완료 기준: 문서화 절차·미설정 처리·독립 리뷰/검증 후 dev PR 생성.
   오래된 branches.md의 승격 절차보다 현재 workflow.md의 에이전트 실행 범위를 우선한다.
 
 완료/중단 시 이 파일을 현재 상황으로 교체한다. 과거 상세 기록은 작업별 기록과 Git 이력에 둔다.
