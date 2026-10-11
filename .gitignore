@@ -39,3 +39,7 @@ out/
 .harness/
 __pycache__/
 *.pyc
+
+# Local embedded application database and logs.
+/data/
+/application.log

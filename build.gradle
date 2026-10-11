@@ -1,68 +1,79 @@
-buildscript {
-    ext {
-        queryDslVersion = '5.0.0'
-    }
-}
-
 plugins {
     id 'java'
+    id 'checkstyle'
+    id 'com.diffplug.spotless' version '6.25.0'
     id 'org.springframework.boot' version '3.3.0'
     id 'io.spring.dependency-management' version '1.1.5'
 }
 
 group = 'com.moin'
-version = '0.0.1-SNAPSHOT'
+version = '1.0.0'
 
 java {
-    sourceCompatibility = '17'
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
 }
 
-repositories {
-    mavenCentral()
-}
+repositories { mavenCentral() }
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.jetbrains:annotations:24.0.0'
-    compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'com.h2database:h2'
-    annotationProcessor 'org.projectlombok:lombok'
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.2'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-    // QueryDSL dependencies
-    implementation "com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta"
-    annotationProcessor "com.querydsl:querydsl-apt:${queryDslVersion}:jakarta"
-    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
-    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
-
-    // JWT dependencies
-    implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
-    implementation 'io.jsonwebtoken:jjwt-impl:0.11.2'
-    implementation 'io.jsonwebtoken:jjwt-jackson:0.11.2'
-    implementation 'javax.xml.bind:jaxb-api:2.3.1'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
     testLogging {
-        events "PASSED","SKIPPED","FAILED"
-        showStandardStreams = true
+        events 'passed', 'skipped', 'failed'
         exceptionFormat = 'full'
     }
 }
 
-clean {
-    delete file('src/main/generated')
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat('1.22.0').aosp()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    format 'configuration', {
+        target '.editorconfig', 'build.gradle', 'config/checkstyle/*.xml', 'src/**/*.yaml'
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+checkstyle {
+    toolVersion = '10.17.0'
+    configFile = file('config/checkstyle/checkstyle.xml')
+    ignoreFailures = false
+    maxErrors = 0
+    maxWarnings = 0
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// CI와 로컬 모두 check 하나로 테스트·포맷·lint를 통과해야 한다.
+tasks.named('check') {
+    dependsOn tasks.named('spotlessCheck')
 }

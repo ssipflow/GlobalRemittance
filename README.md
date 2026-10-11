@@ -1,448 +1,148 @@
-# 요구사항
-https://www.notion.so/8719a8a4f87341b393f35166b9b54928?pvs=4
+# GlobalRemittance
 
-# 개발환경
+`Goals Of Project`의 회원·송금 API를 Java 17과 Spring Boot 3로 처음부터 구현한다.
+기존 애플리케이션을 교체하고 개발 컨벤션·하네스·Git 이력은 유지했다.
+요구사항은 [프로젝트 목표](docs/requirements/project-goals.md), 해석과 비용은
+[설계 결정](docs/decisions/remittance-rebuild.md)에서 확인할 수 있다.
 
-- JAVA 17
-- Spring Boot 3.3.0
-- DB: H2 embeded DB
+## 실행
 
-# 실행
+Java 17 이상과 Gradle wrapper를 사용한다. 비밀번호는 BCrypt 해시로 저장하고,
+주민/사업자 번호는 랜덤 nonce를 사용하는 AES-GCM으로 암호화한다.
+실행 키를 저장소에 넣지 않는다. AES 키는 Base64 32바이트, JWT 키는 Base64 32바이트 이상이다.
 
-```bash
-./gradlew clean
+```sh
+export REMITTANCE_AES_KEY="$(openssl rand -base64 32)"
+export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 ./gradlew bootRun
 ```
 
-# 유닛테스트 실행
+위 명령은 개발용 키 생성 예시다. 이미 저장한 데이터의 암호화 키를 유지해야 한다.
+환경변수 누락·잘못된 키는 시작 시 거부한다. H2 파일은 `./data/remittance`에 저장된다.
+테스트는 별도 메모리 H2와 테스트 전용 키·환율·시간을 사용한다.
 
-```bash
-./gradlew clean
-./gradlew test
+환율 기본 설정은 재현 가능한 예시 USD→KRW 1300, JPY→KRW 9다. 실제 시장 환율이 아니다.
+`REMITTANCE_USD_TO_KRW`, `REMITTANCE_JPY_TO_KRW`로 값을 공급할 수 있다.
+외부 시세 제공처가 정해지면 환율 포트의 어댑터를 교체한다.
+
+## API
+
+모든 성공·오류 응답은 JSON이다. 본문이 있는 요청은 `Content-Type: application/json`,
+송금 API는 로그인 응답의 `Authorization: Bearer <token>`을 사용한다.
+
+| API | 입력 | 결과 |
+| --- | --- | --- |
+| POST /user/signup | userId(email), password, name, idType, idValue | resultCode, resultMsg |
+| POST /user/login | userId, password | 기본 응답 + token |
+| POST /transfer/quote | amount(KRW), targetCurrency(USD/JPY) | 기본 응답 + quote |
+| POST /transfer/request | quoteId(문자열) | 기본 응답 |
+| GET /transfer/list | 없음 | 기본 응답 + 사용자, 오늘 집계, 전체 접수 이력 |
+
+성공 응답의 `resultCode=200`, `resultMsg=OK`. JWT는 id/userId/name/expireTime 및
+표준 인증 클레임을 포함하고 발급 후 30분 만료한다. 견적은 10분 유효하다.
+API 날짜 표시는 KST `yyyy-MM-dd HH:mm:ss`, 저장은 UTC Instant다.
+원문 만료 오류의 철자 `QUOTE_EXPRIED`를 계약으로 유지한다.
+
+오류의 `resultCode`는 HTTP 상태와 같으며 `resultMsg`는 고정 코드다.
+
+| HTTP | 대표 오류 |
+| --- | --- |
+| 400 | INVALID_REQUEST, NEGATIVE_NUMBER, QUOTE_EXPRIED, LIMIT_EXCESS |
+| 401 | UNAUTHORIZED |
+| 403 | FORBIDDEN(타인 견적) |
+| 404 | QUOTE_NOT_FOUND, NOT_FOUND |
+| 409 | DUPLICATE_USER, ALREADY_REQUESTED |
+| 405 / 406 / 415 | METHOD_NOT_ALLOWED / NOT_ACCEPTABLE / UNSUPPORTED_MEDIA_TYPE |
+| 500 | UNKNOWN_ERROR(내부 정보 미노출) |
+
+비밀번호는 UTF-8 최대 72바이트(BCrypt 제한), 식별번호는 최대 64바이트(AES 저장 길이)다.
+견적 ID는 양의 INT 범위를 받고, 원화 입력은 정수부 최대 10자리·소수 최대 12자리다.
+
+```sh
+curl -X POST http://localhost:8080/user/signup \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"demo@example.com","password":"example-password","name":"테스트 사용자","idType":"REG_NO","idValue":"example-identity"}'
+curl -X POST http://localhost:8080/user/login \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"demo@example.com","password":"example-password"}'
+curl -X POST http://localhost:8080/transfer/quote \
+  -H 'Content-Type: application/json' -H 'Authorization: Bearer <token>' \
+  -d '{"amount":400000,"targetCurrency":"USD"}'
 ```
 
-# QueryDSL
-* 개발 시 JPA Entity 를 QClass 로 컴파일
- 
-```bash
-./gradlew clean
-./gradlew compileJava
+## 계산과 한도
+
+- BigDecimal과 HALF_UP를 사용한다. KRW/JPY 0자리, USD 2자리는 Java Currency 기준이다.
+- USD 100만원 이하: 고정 1000원 + 0.002, 초과: 고정 3000원 + 0.001.
+- JPY: 고정 3000원 + 0.05. ratedFee를 원화로 반올림한 후 고정 수수료를 더한다.
+- 수취금액=(보내는금액-수수료)/수취통화→KRW 환율. 일일 한도도 순송금 USD 금액으로 계산한다.
+- 견적 생성 시 환율·수수료를 고정한다. REG_NO는 KST 하루 1000 USD, BUSINESS_NO는 5000 USD.
+- 같은 사용자 DB 행 잠금으로 한도 집계와 접수를 원자적으로 처리한다. 같은 견적은 한 번만 접수한다.
+- 소유권을 검사하며 만료 순간도 거부한다. 이력은 접수시간·ID 내림차순이고 견적만 만든 건 제외한다.
+
+## 구조
+
+```text
+domain                         업무 모델·금액 정책 (프레임워크 없음)
+application                    사용 사례·외부 포트
+adapter/web      JSON HTTP와 인증 사용자 변환
+adapter/persistence            JPA 모델·저장소·트랜잭션
+adapter/security, adapter/forex 암호화·토큰·환율 공급
+bootstrap                      Spring 조립·시간 공급
 ```
 
-# DB
+외부 기술이 내부 정책을 의존한다. JPA 객체나 HTTP DTO를 내부 모델로 전달하지 않는다.
+한글 주석은 금액·한도·잠금·암호화의 불변식과 설계 이유를 설명한다.
 
-- H2 임베디드 DB 의 시간관리를 위해 UTC 기준을 사용.
-- `jdbc:h2:file:~/tmp/data/testdb;TIME ZONE=UTC`
-- 테스트 유저 데이터 기본 생성 (data.sql)
+## 요구사항과 검증 연결
 
-    ```sql
-    -- test user
-    -- userId: reg@email.com
-    -- password(Bcrypt encrypted): password1234
-    -- idValue(AES encrypted): 890101-1234567
-    INSERT INTO "USERS" (user_id, password, name, id_type, id_value, updated_at, created_at) VALUES
-     ('reg@email.com', '$2a$10$AmSoXy55b/WDxNkc1wR8GOwPNtDc6GyldVx89J2Sg/cJmtyxum1jK', 'mock', 'REG_NO', 'PsfyWM79htQf+j2kizZF73GLp6xcglPGlGEYvuKPfQazp+48UOll6bR7', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-    ```
+| 요구사항 | 구현 | 검증 |
+| --- | --- | --- |
+| 회원가입·로그인·5개 JSON API | application 사용 사례, web/security 어댑터 | RemittanceApiTest |
+| BCrypt·AES-GCM·30분 JWT | 보안 어댑터, 환경변수 키 | SecurityAdaptersTest, DB 저장/API 테스트 |
+| 수수료 구간·반올림·환율 방향 | 프레임워크 없는 QuotePolicy | QuotePolicyTest |
+| 10분 만료·소유권·중복 | Quote와 접수 사용 사례 | API 만료/타인/중복 테스트 |
+| 개인/법인 한도·KST 오늘 집계 | 견적 USD + 사용자 DB 잠금 | 정확한 한도·자정·동시 접수 테스트 |
+| H2 순차 ID·FK·인덱스·DECIMAL | 외부 JPA 모델 | 실제 H2 스키마/감사 값 테스트 |
+| 클린 아키텍처·한글 주석 | domain/application/adapter/bootstrap | ArchitectureTest + 내부 리뷰 |
 
+## 검증과 회고
 
-## USERS
-
-```sql
-CREATE TABLE "USERS" (
-    "ID" INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    "USER_ID" VARCHAR(255) NOT NULL,
-    "PASSWORD" VARCHAR(255) NOT NULL,
-    "NAME" VARCHAR(128) NOT NULL,
-    "ID_TYPE" VARCHAR(16) NOT NULL CHECK ("ID_TYPE" IN ('REG_NO', 'BUSINESS_NO')),
-    "ID_VALUE" VARCHAR(128) NOT NULL,
-    "UPDATED_AT" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "CREATED_AT" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+```sh
+./gradlew spotlessApply
+./gradlew clean check bootJar --no-daemon
+python3 -m unittest discover -s scripts/tests -v
 ```
 
-- id: primary key 로서 사용하는 sequential id
-- userId: 유저 email 주소
-- password: `BCRYPT` 암호화 패스워드
-- name: 유저 name
-- id_type: `REG_NO, BUSINESS_NO` 로 제한된 유저 타입
-- id_value: `AES-256 GCM` 암호화된 주민번호/사업자번호
+`spotlessApply`는 Java 코드를 자동 정리한다. `check`는 main/test 전체의 포맷과
+Checkstyle 규칙을 검사하고 위반 시 실패한다. 하네스 커밋 게이트도 같은 명령을 사용한다.
 
-## REMITTANCES
+Java 17에서 전체 애플리케이션 테스트 27개, Spotless 포맷 검사와 Checkstyle main/test 검사를
+통과했고 실행 JAR도 빌드했다. 커밋 게이트는 `clean check bootJar`, 하네스 회귀 검사와
+독립 리뷰를 통과한 최신 snapshot만 커밋한다.
 
-```sql
-CREATE TABLE "REMİTTANCES" (
-    "ID" INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    "USER_ID" INTEGER NOT NULL,
-    "SOURCE_AMOUNT" DECIMAL(22, 12) NOT NULL,
-    "TARGET_AMOUNT" DECIMAL(22, 12) NOT NULL,
-    "TARGET_CURRENCY" VARCHAR(3) NOT NULL,
-    "EXCHANGE_RATE" DECIMAL(22, 12) NOT NULL,
-    "FIXED_FEE" DECIMAL(22, 12) NOT NULL,
-    "RATED_FEE" DECIMAL(22, 12) NOT NULL,
-    "FEE_RATIO" DECIMAL(22, 12) NOT NULL,
-    "USD_AMOUNT" DECIMAL(22, 12) NOT NULL,
-    "USD_EXCHANGE_RATE" DECIMAL(22, 12) NOT NULL,
-    "EXPIRE_TIME" TIMESTAMP(6) WITH TIME ZONE NOT NULL,
-    "REQUESTED_TIME" TIMESTAMP(6) WITH TIME ZONE,
-    "UPDATED_AT" TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    "CREATED_AT" TIMESTAMP(6) WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY ("USER_ID") REFERENCES "USERS"("ID")
-);
+포맷은 Google Java Format 1.22.0 AOSP(4칸)를 Spotless 6.25.0으로 적용한다.
+Checkstyle 10.17.0은 wildcard·불필요 import, 중괄호, 제어 흐름과 명명 규칙을 검사한다.
+설정은 `build.gradle`, `config/checkstyle/checkstyle.xml`, `.editorconfig`에 있다.
 
-```
+검증 범위는 금액·수수료·정밀도, 30분 JWT와 암호화, 10분 견적 만료, KST 날짜 변경,
+개인/법인 정확한 한도와 초과, 타인 견적, 중복/동시 접수, 동시 회원가입, 실제 Tomcat의
+JSON 오류 경로, H2 스키마/감사 데이터와 내부 계층 의존성이다. 실제 실행 로그는
+Git에서 제외되는 `.harness/check-*.log`에 남고 PR 본문에는 최종 결과를 요약한다.
+기존 홈 파일 DB/외부 환율 의존 테스트는 기준선으로 실행하지 않았다.
+새 테스트는 도메인, 보안 어댑터, JSON API, H2 영속성·동시성, 계층 의존성을 검증한다.
 
-- id: primary key 로서 사용하는 sequential id
-- user_id: remittance를 생성한 user_id
-    - `users` 테이블의 `id` 필드를 참조하는 외래키
-- source_amount: 원화 송금액
-- target_amount: 수수료를 제외한 수취통화 수취액
-- target_currency: 수취통화
-- exchange_rate: `수취통화/KRW` 환율
-- fixed_fee: 고정수수료
-- rated_fee: 송금액에 따라 계산된 수수료
-- fee_ratio: 송금액에 적용된 수수료율
-- usd_amount: 수수료를 제외한 usd 환산 금액
-- usd_exchange_rate: `USD/KRW` 환율
-- expire_time: 송금 거래 만료 시간 저장
-- request_time: 송금 거래 요청 시간 저장
+목표 문서의 일부 예시와 명시 규칙은 충돌한다. JPY의 소수 예시보다 Currency의
+0자리 규칙, 환율 표기보다 명시된 나눗셈 공식을 우선했다. 과도한 저장 자릿수를
+명시적으로 거부하고, 견적별 반올림된 USD를 합산하여 한도 정책을 재현 가능하게 했다.
 
-# 개발 방식
+현재 환율은 설정 기반 예시이며 실시간 시세 연동은 미구현이다. embedded H2와 DB 잠금은
+과제 조건의 구현이며 다른 운영 DB에서의 잠금·장애 복구 검증을 대신하지 않는다.
+현재 전체 이력을 메모리에 불러 집계하므로 대량 거래에서는 기간별 DB 집계와 페이지네이션을
+도입할 필요가 있다. ORM 유일 제약 오류에 이메일이 포함될 수 있어 SqlExceptionHelper의
+원시 오류 로그를 차단했다. 이로 인해 DB 진단 상세가 줄어들며, 운영에서는 개인정보를
+제거한 오류 관측 체계를 별도로 설계해야 한다.
+데이터 마이그레이션과 실제 금융기관 송금 실행은 제공하지 않는다. 요청 API는 접수 기록을 생성한다.
+실제 배포·CI/CD는 구성하지 않는다. dev 대상 PR의 승인·병합은 사람이 수행한다.
 
-- 각 계층 (Controller, Service, Repository)별 인자/반환 타입을 인터페이스로 선언하여 계층별 의존성 개선
-    - 계층별 모델 선언으로 다형성 구현
-    - 계층 모델별 로직 구현
-    - 도메인 계층 (Service) 가독성 향상
-- QueryDSL 활용
-    - 유연한 쿼리 사용
-    - Entity 객체 의존성 개선
-    - 각각의 메소드가 하나의 쿼리를 책임지면서 유연한 쿼리 운용 가능
-    - 쿼리 가독성 향상
-- 도메인별 Exception 선언
-    - SpringBoot `GlobalExceptionHandler` 를 통한 일괄 예외처리
-- 특정 변수 외부 주입
-    - AES SecretKey, JwtSecretKey 와 같이 보안이 필요한 변수
-    - 외부 API URL 과 같이 변경하기 쉬운 변수
-    - 라이브 환경에서는 특정 Storage 활용
-- 인증
-    - Spring Security FilterChain 사용
-        - `JwtAuthenticationFilter` 를 선언하여 JWT 토큰 인증
-            - `AuthService.authorization`
-                - 유효한 사용자인지 검증
-                - 만료된 토큰인지 검증
-        - 인증에 제외되는 path
-            - `/plublic/**` - 서버 상태 체크용
-            - `/user/signup` - 회원가입
-            - `/user/login` - 로그인
-            - `/h2-console` - `H2 DB console` DB 변경시 제거
-
-## 기능구현
-
-1. **회원가입** (UserController.createUser)
-    - 중복된 이메일은 예외처리
-    - 암호화
-        - password: 원본 문자열을 확인할 수 없도록, Bcrypt 암호화 사용
-        - idValue: 운영 환경에서 확인이 필요한 데이터이며, AES-256 GCM 암호화 사용
-2. **로그인** (UserController.login)
-    - 로그인 성공 시 JWT 토큰 생성
-        - JWT payload
-            - JWT 인증에 사용될 데이터
-                - subject: 사용자 식별번호(id)
-                - expirationTime: 토큰 만료시간 (토큰 발행 시점으로부터 30분)
-            - 클라이언트에서 사용될 데이터
-                - userId: 사용자 이메일
-                - idType: 사용자 타입
-                    - 개인/법인에 따라 분기하여, 각각 다른 클라이언트 기능 제공
-3. **송금견적서** (TransferController.createUser)
-    - 견적서 생성 시점 `환율(Forex) 데이터` 반환
-        - `USD/KRW` 기본 포함
-    - 신청 금액에 따른 수수료 계산
-        - 패키지 `service.model.FeeDto` 의 도메인 메소드 `getFeeData()`
-    - `요청 견적, 환율, 수수료` 기준으로 `송금데이터` 연산
-        - 패키지 `service.model.RemittanceDto` 의 도메인 메소드 `calculateFee()`
-    - Remittance 테이블 저장
-    - 견적서 데이터 반환
-        - 패키지 `service.model.QuoteBaseDto` 의 도메인 메소드 `fromRemittance()`
-4. **송금접수 요청** (TransferController.requestRemittance)
-    - 견적서 ID 기준 `REMITTANCES` 테이블 조회
-        - 접수하지 않은 데이터 기준
-            - `remittance.requestedTime = null`
-        - `remittance.id = 견적서 ID`
-        - 데이터 없을 경우 `UNKNOWN_ERROR`
-    - `remittance`  사용자 검증
-        - `사용자 식별 ID`  - JWT 파싱
-        - `remittance.user_id` 와 `사용자 식별 ID` 가 다를 경우 `UNKNOWN_ERROR`
-            - `service.model.RemittanceDto`  의 도메인 메소드 `isValidUser()`
-    - `remittance` 만료시간 검증
-        - 만료시간 지났을 경우 `QUOTE_EXPIRED`
-        - 패키지 `service.model.RemittanceDto` 의 도메인 메소드 `isExpired`
-    - 하루 요청 송금 리스트 조회
-        - `RemittanceRepository.getDailyRemittanceListByUser`
-        - 송금리스트의 `usdAmount` 연산
-        - Daily 송금 상한 금액 검증
-            - `TransferService.isExceedLimit()`
-            - 상한 금액 초과 시 `LIMIT_EXCESS`
-    - 송금 접수
-        - `remittance.requestedTime` 현재시간 업데이트
-5. **회원거래이력** (TransferController.getUserRemittanceHistory)
-    - 하루 요청 송금 리스트 조회
-        - `RemittanceRepository.getDailyRemittanceListByUser`
-    - `HistoryDto` 로 변환
-
-## API 검증
-
-1. **회원가입**
-
-    ```bash
-    curl --location 'http://localhost:8080/user/signup' \
-    --header 'Content-Type: application/json' \
-    --data-raw '{
-        "userId" : "biz@email.com",
-        "password" :"password1234",
-        "name" : "moin",
-        "idType" : "BUSINESS_NO",
-        "idValue" : "123456789"
-    }'
-    ```
-
-    - 정상 Response
-
-        ```json
-        {
-            "resultCode": 200,
-            "resultMsg": "OK"
-        }
-        ```
-
-    - 지원하지 않는 idType
-
-        ```json
-        {
-            "idType": "idType must be either REG_NO or BUSINESS_NO"
-        }
-        ```
-
-    - 중복된 userId
-
-        ```json
-        {
-            "resultCode": 409,
-            "resultMsg": "DUPLICATE_USERID"
-        }
-        ```
-
-2. **로그인**
-
-    ```bash
-    curl --location 'http://localhost:8080/user/login' \
-    --header 'Content-Type: application/json' \
-    --data-raw '{
-        "userId" : "biz@email.com",
-        "password" :"password1234"
-    }'
-    ```
-
-    - 정상 Response
-
-        ```json
-        {
-          "resultCode": 200,
-          "resultMsg": "OK",
-          "token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyIiwidXNlcklkIjoiYml6QGVtYWlsLmNvbSIsImlkVHlwZSI6IkJVU0lORVNTX05PIiwiaWF0IjoxNzE3NjQ2ODIwLCJleHAiOjE3MTc2NDg2MjB9.0Vo_a4BlITJjhixHP4vWaJ2iuYqTGgKsu6lhNUEuclw"
-        }
-        ```
-
-    - 잘못된 userId
-
-        ```json
-        {
-            "resultCode": 401,
-            "resultMsg": "CHECK_ID_OR_PASSWORD"
-        }
-        ```
-
-    - 잘못된 password
-
-        ```json
-        {
-            "resultCode": 401,
-            "resultMsg": "Check id or password"
-        }
-        ```
-
-3. **송금견적서**
-
-    ```bash
-    curl --location 'http://localhost:8080/transfer/quote' \
-    --header 'Content-Type: application/json' \
-    --header 'Authorization: ••••••' \
-    --data '{
-        "amount": 500000,
-        "targetCurrency" : "USD"
-    }'
-    ```
-
-    - 정상 Response
-
-        ```json
-        {
-            "resultCode": 200,
-            "resultMsg": "OK",
-            "quote": {
-                "quoteId": 1,
-                "exchangeRate": 1370.0,
-                "targetAmount": 72.12,
-                "expireTime": "2024-06-06 13:32:46",
-                "targetCurrency": "USD"
-            }
-        }
-        ```
-
-    - amount 에 소수 입력
-
-        ```json
-        {
-            "amount": "amount must be a positive integer"
-        }
-        ```
-
-    - targetCurrency 에 유효하지 않은 통화 입력
-
-        ```json
-        {
-            "targetCurrency": "targetCurrency must be either USD or JPY"
-        }
-        ```
-
-    - amount 에 음수 입력
-
-        ```json
-        {
-            "resultCode": 409,
-            "resultMsg": "NEGATIVE_NUMBER"
-        }
-        ```
-
-    - 수취금액 연산결과가 음수
-
-        ```json
-        {
-            "resultCode": 409,
-            "resultMsg": "NEGATIVE_NUMBER"
-        }
-        ```
-
-4. **송금접수 요청**
-
-    ```bash
-    curl --location 'http://localhost:8080/transfer/request' \
-    --header 'Content-Type: application/json' \
-    --header 'Authorization: ••••••' \
-    --data '{
-        "quoteId": 1
-    }'
-    ```
-
-    - 정상 Response
-
-        ```json
-        {
-            "resultCode": 200,
-            "resultMsg": "OK"
-        }
-        ```
-
-    - 존재하지 않는 quoteId
-
-        ```json
-        {
-            "resultCode": 409,
-            "resultMsg": "UNKNOWN_ERROR"
-        }
-        ```
-
-    - 일일 송금 한정금액 초과
-
-        ```json
-        {
-            "resultCode": 409,
-            "resultMsg": "LIMIT_EXCESS"
-        }
-        ```
-
-    - 만료된 거래
-
-        ```json
-        {
-            "resultCode": 409,
-            "resultMsg": "QUOTE_EXPIRED"
-        }
-        ```
-
-5. **회원거래이력**
-
-    ```bash
-    curl --location 'http://localhost:8080/transfer/list' \
-    --header 'Authorization: ••••••'
-    ```
-
-    - 정상 Response
-
-        ```json
-        {
-            "resultCode": 200,
-            "resultMsg": "OK",
-            "userId": "reg@email.com",
-            "name": "mock",
-            "todayTransferCount": 4,
-            "todayTransferUsdAmount": 878.53,
-            "history": [
-                {
-                    "sourceAmount": 1000000,
-                    "fee": 3000.0,
-                    "usdExchangeRate": 1370.0,
-                    "usdAmount": 727.74,
-                    "targetCurrency": "USD",
-                    "exchangeRate": 1370.0,
-                    "targetAmount": 727.74,
-                    "requestedDate": "2024-06-06 13:42:56"
-                },
-                {
-                    "sourceAmount": 10000,
-                    "fee": 1020.0,
-                    "usdExchangeRate": 1370.0,
-                    "usdAmount": 6.55,
-                    "targetCurrency": "USD",
-                    "exchangeRate": 1370.0,
-                    "targetAmount": 6.55,
-                    "requestedDate": "2024-06-06 13:48:09"
-                },
-                {
-                    "sourceAmount": 100000,
-                    "fee": 1200.0,
-                    "usdExchangeRate": 1370.0,
-                    "usdAmount": 72.12,
-                    "targetCurrency": "USD",
-                    "exchangeRate": 1370.0,
-                    "targetAmount": 72.12,
-                    "requestedDate": "2024-06-06 13:48:22"
-                },
-                {
-                    "sourceAmount": 100000,
-                    "fee": 1200.0,
-                    "usdExchangeRate": 1370.0,
-                    "usdAmount": 72.12,
-                    "targetCurrency": "USD",
-                    "exchangeRate": 1370.0,
-                    "targetAmount": 72.12,
-                    "requestedDate": "2024-06-06 13:48:37"
-                }
-            ]
-        }
-        ```
-
-
-## 개선점
-
-- 별도 테이블, storage 등을 활용하여 견적서를 관리
-- Cached Storage, DB 인덱스를 추가하여 쿼리 성능 개선
-- Profile 을 분리하여 개발, 테스트 환경 분리
+에이전트 실행은 [AGENTS.md](AGENTS.md), 옵시디언 연결은 [문서화 사용법](docs/harness/obsidian.md)을 따른다.
