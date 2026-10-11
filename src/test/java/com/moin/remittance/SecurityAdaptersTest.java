@@ -1,0 +1,121 @@
+package com.moin.remittance;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.moin.remittance.adapter.security.AesIdentityCipher;
+import com.moin.remittance.adapter.security.JwtTokens;
+import com.moin.remittance.bootstrap.ApplicationConfiguration;
+import com.moin.remittance.domain.BusinessException;
+import com.moin.remittance.domain.User;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Arrays;
+import java.util.Base64;
+import java.util.Date;
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import org.junit.jupiter.api.Test;
+
+class SecurityAdaptersTest {
+    private static final String KEY =
+            Base64.getEncoder()
+                    .encodeToString(
+                            "01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8));
+    private static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
+
+    private static User user() {
+        return new User(
+                1,
+                "test@example.com",
+                "unused",
+                "홍길동",
+                User.IdentityType.REG_NO,
+                "encrypted",
+                NOW,
+                NOW);
+    }
+
+    @Test
+    void aesGcmRoundTripsWithDifferentNonceAndAuthenticatesCiphertext() throws Exception {
+        var cipher = new AesIdentityCipher(KEY);
+        String raw = "1234567890123";
+        String first = cipher.encrypt(raw), second = cipher.encrypt(raw);
+        assertNotEquals(first, second);
+        assertFalse(first.contains(raw));
+        byte[] encoded = Base64.getDecoder().decode(first);
+        Cipher decrypt = Cipher.getInstance("AES/GCM/NoPadding");
+        decrypt.init(
+                Cipher.DECRYPT_MODE,
+                new SecretKeySpec(Base64.getDecoder().decode(KEY), "AES"),
+                new GCMParameterSpec(128, Arrays.copyOfRange(encoded, 0, 12)));
+        decrypt.updateAAD("identity:v1".getBytes(StandardCharsets.UTF_8));
+        assertEquals(
+                raw,
+                new String(
+                        decrypt.doFinal(Arrays.copyOfRange(encoded, 12, encoded.length)),
+                        StandardCharsets.UTF_8));
+        encoded[encoded.length - 1] ^= 1;
+        assertThrows(
+                javax.crypto.AEADBadTagException.class,
+                () -> decrypt.doFinal(Arrays.copyOfRange(encoded, 12, encoded.length)));
+    }
+
+    @Test
+    void keysFailFastWithoutIncludingSecretValues() {
+        assertThrows(IllegalArgumentException.class, () -> new AesIdentityCipher("short"));
+        assertThrows(
+                IllegalArgumentException.class, () -> new JwtTokens("short", Clock.systemUTC()));
+    }
+
+    @Test
+    void bcryptHashesAreSaltedAndCannotAuthenticateWrongPassword() {
+        var passwords = new ApplicationConfiguration().passwords();
+        String first = passwords.hash("test-password"), second = passwords.hash("test-password");
+        assertNotEquals(first, second);
+        assertTrue(first.startsWith("$2"));
+        assertTrue(passwords.matches("test-password", first));
+        assertFalse(passwords.matches("wrong-password", first));
+    }
+
+    @Test
+    void jwtCarriesRequiredClaimsAndExpiresAtThirtyMinutesExactly() {
+        var tokens = new JwtTokens(KEY, Clock.fixed(NOW, ZoneOffset.UTC));
+        String token = tokens.issue(user());
+        assertEquals(1, tokens.verify(token));
+        var claims =
+                Jwts.parserBuilder()
+                        .setSigningKey(Keys.hmacShaKeyFor(Base64.getDecoder().decode(KEY)))
+                        .setClock(() -> Date.from(NOW))
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody();
+        assertEquals(1, ((Number) claims.get("id")).intValue());
+        assertEquals("test@example.com", claims.get("userId"));
+        assertEquals("홍길동", claims.get("name"));
+        assertEquals("2026-01-01T09:30:00+09:00", claims.get("expireTime"));
+        assertEquals(NOW.plusSeconds(1800), claims.getExpiration().toInstant());
+        assertThrows(
+                BusinessException.class,
+                () ->
+                        new JwtTokens(KEY, Clock.fixed(NOW.plusSeconds(1800), ZoneOffset.UTC))
+                                .verify(token));
+        String otherKey =
+                Base64.getEncoder()
+                        .encodeToString(
+                                "abcdefghijabcdefghijabcdefghijab"
+                                        .getBytes(StandardCharsets.UTF_8));
+        assertThrows(
+                BusinessException.class,
+                () -> new JwtTokens(otherKey, Clock.fixed(NOW, ZoneOffset.UTC)).verify(token));
+        assertThrows(BusinessException.class, () -> tokens.verify("not-a-jwt"));
+    }
+}

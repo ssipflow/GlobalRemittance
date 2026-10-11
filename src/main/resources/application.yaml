@@ -1,78 +1,33 @@
-server:
-  port: 8080
-
 spring:
-  application:
-    name: GlobalRemittance
-
-  main:
-    allow-bean-definition-overriding: true
-
-  web:
-    resources:
-      add-mappings: false
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:~/tmp/data/testdb;TIME ZONE=UTC;AUTOCOMMIT=OFF
+    url: jdbc:h2:file:./data/remittance;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000
     username: sa
-    password:
-
-  sql:
-    init:
-      mode: always
+    password: ${REMITTANCE_DB_PASSWORD:}
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
         jdbc:
           time_zone: UTC
-    hibernate:
-      ddl-auto: create-drop
-    defer-datasource-initialization: true
+  h2:
+    console:
+      enabled: false
+  jackson:
+    time-zone: Asia/Seoul
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+remittance:
+  aes-key: ${REMITTANCE_AES_KEY}
+  jwt-secret: ${REMITTANCE_JWT_SECRET}
+  usd-to-krw: ${REMITTANCE_USD_TO_KRW:1300}
+  jpy-to-krw: ${REMITTANCE_JPY_TO_KRW:9}
 
-#logging:
-#  level:
-#    org:
-#      hibernate:
-#        SQL: debug
-#        type:
-#          descriptor:
-#            sql:
-#              BasicBinder: trace
+# DB 제약 오류의 원시 메시지에는 userId가 포함될 수 있어 해당 진단 로그를 차단한다.
 logging:
   level:
-    root: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type: TRACE
-    org.hibernate.engine.transaction.internal: DEBUG
-    org.springframework.transaction: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"
-  file:
-    name: application.log
-    path: /path/to/your/application.log # 로그 파일을 저장할 경로
-  output:
-    console:
-      enabled: true # 콘솔에 로그 출력
-    file:
-      enabled: true # 파일에 로그 출력
-
-
-
-variables:
-  security:
-    aes:
-      secret-key: dOJk0ix87Ws1DD0UyIXpqKFsVORbDix4
-  jwt:
-    secret: ZE9KazBpeDg3V3MxREQwVXlJWHBxS0ZzVk9SYkRpeDQ=
-    expiration: 1800000
-  api:
-    forex:
-      url: https://quotation-api-cdn.dunamu.com:443/v1/forex/recent
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"
