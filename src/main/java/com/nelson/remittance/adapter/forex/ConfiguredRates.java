@@ -17,6 +17,7 @@ public final class ConfiguredRates implements Ports.Rates {
     }
 
     @Override
+    // 대상 통화를 허용 목록에서 조회하며 미지원 통화는 환율 계산 전에 거부한다.
     public BigDecimal toKrw(String currency) {
         BigDecimal rate = rates.get(currency);
         if (rate == null) {

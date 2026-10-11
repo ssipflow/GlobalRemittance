@@ -12,12 +12,14 @@
   </module>
   <!-- 포맷 배치는 Spotless가 담당한다. lint는 imports와 실수하기 쉬운 제어 흐름을 검사한다. -->
   <module name="TreeWalker">
+    <!-- 명시적 import로 계층 경계를 읽을 수 있게 하고 중복·미사용 의존성을 막는다. -->
     <module name="AvoidStarImport"/>
     <module name="RedundantImport"/>
     <module name="UnusedImports"/>
     <module name="ModifierOrder"/>
     <module name="UpperEll"/>
     <module name="EqualsHashCode"/>
+    <!-- 빈 문장·중괄호 누락·switch 누락처럼 실행 흐름을 오해하게 하는 실수를 검사한다. -->
     <module name="EmptyStatement"/>
     <module name="OneStatementPerLine"/>
     <module name="NeedBraces"/>
@@ -25,6 +27,7 @@
     <module name="DefaultComesLast"/>
     <module name="SimplifyBooleanExpression"/>
     <module name="SimplifyBooleanReturn"/>
+    <!-- 식별자 표기는 일관되게 유지하되 기계적인 Javadoc 작성은 강제하지 않는다. -->
     <module name="TypeName"/>
     <module name="MethodName"/>
     <module name="ConstantName"/>

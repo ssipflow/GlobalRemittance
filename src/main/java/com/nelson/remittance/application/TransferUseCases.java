@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 
+// 견적 생성, 원자적 접수와 KST 이력 집계를 트랜잭션 안에서 조정한다.
 public final class TransferUseCases {
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
     private final Ports.Accounts accounts;
@@ -35,6 +36,7 @@ public final class TransferUseCases {
         this.clock = clock;
     }
 
+    // 존재하는 사용자에 대해 현재 구성 환율과 수수료를 확정하고 10분짜리 견적을 저장한다.
     public Quote quote(long actorId, BigDecimal amount, String currency) {
         return work.required(
                 () -> {
@@ -50,6 +52,7 @@ public final class TransferUseCases {
                 });
     }
 
+    // 사용자 잠금 안에서 견적 상태와 오늘 USD 합계를 검사한 뒤 접수 시각을 저장한다.
     public void request(long actorId, long quoteId) {
         work.required(
                 () -> {
@@ -78,6 +81,7 @@ public final class TransferUseCases {
     public record History(
             User user, int todayCount, BigDecimal todayUsdAmount, List<Quote> quotes) {}
 
+    // 접수와 같은 사용자 잠금을 사용해 이력과 오늘 집계를 일관되게 읽는다.
     public History history(long actorId) {
         return work.required(
                 () -> {
@@ -92,6 +96,7 @@ public final class TransferUseCases {
                 });
     }
 
+    // UTC 저장 시각을 서울 일자로 비교하여 자정 전후 거래를 정확히 분리한다.
     private static List<Quote> today(List<Quote> all, Instant now) {
         var date = now.atZone(KST).toLocalDate();
         return all.stream()

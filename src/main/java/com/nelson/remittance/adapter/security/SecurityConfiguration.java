@@ -11,8 +11,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
+// 세션 없이 송금 API의 인증을 강제하고 인증·인가 오류도 JSON으로 응답한다.
 public class SecurityConfiguration {
     @Bean
+    // Bearer 인증 경로와 오류 처리를 설정한다. 별도 세션 로그인과 CSRF 쿠키 인증은 사용하지 않는다.
     SecurityFilterChain security(HttpSecurity http, Ports.Tokens tokens, ObjectMapper json)
             throws Exception {
         return http.csrf(csrf -> csrf.disable())

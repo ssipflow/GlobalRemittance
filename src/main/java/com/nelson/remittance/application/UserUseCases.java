@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 
+// 가입과 로그인을 조정하며 암호화·해시·토큰·저장 구현을 포트로 호출한다.
 public final class UserUseCases {
     private final Ports.Accounts accounts;
     private final Ports.Passwords passwords;
@@ -33,6 +34,7 @@ public final class UserUseCases {
         this.clock = clock;
     }
 
+    // 입력 바이트 수를 확인하고 중복 조회, 비밀번호 해시, 번호 암호화와 저장을 한 트랜잭션으로 수행한다.
     public void signup(
             String userId, String password, String name, User.IdentityType idType, String idValue) {
         // BCrypt는 UTF-8 72바이트까지만 처리하므로 문자 수와 별도로 검사해 잘림을 방지한다.
@@ -67,6 +69,7 @@ public final class UserUseCases {
                 });
     }
 
+    // 저장된 해시와 비밀번호를 비교한 뒤 토큰을 발급하며 실패 이유는 동일한 인증 오류로 처리한다.
     public String login(String userId, String password) {
         if (password == null || password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new BusinessException(UNAUTHORIZED);

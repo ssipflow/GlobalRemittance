@@ -22,6 +22,7 @@ import java.time.Instant;
                 @Index(
                         name = "idx_remittances_user_requested",
                         columnList = "user_id,requested_time"))
+// 견적별 환율·수수료·금액을 감사 자료로 저장하고 접수 시각으로 미접수 거래를 구분한다.
 public class QuoteEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -90,6 +91,7 @@ public class QuoteEntity {
         updatedAt = quote.updatedAt();
     }
 
+    // 저장 자릿수를 통화 자릿수로 복원하며 LAZY 소유자 식별자는 프록시 getter로 읽는다.
     Quote toDomain() {
         // LAZY 소유자 프록시의 필드 직접 접근은 null일 수 있다. 식별자 getter를 통해 읽는다.
         return new Quote(

@@ -1,8 +1,10 @@
 spring:
+  # 프로젝트 하위 파일 DB를 사용하며 사용자 홈 DB와 H2 콘솔 접근을 피한다.
   datasource:
     url: jdbc:h2:file:./data/remittance;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=10000
     username: sa
     password: ${REMITTANCE_DB_PASSWORD:}
+  # 웹 요청까지 영속 세션을 유지하지 않고 저장 시각은 UTC로 통일한다.
   jpa:
     open-in-view: false
     hibernate:
@@ -16,11 +18,13 @@ spring:
       enabled: false
   jackson:
     time-zone: Asia/Seoul
+# 오류 세부 내용과 스택에 포함될 수 있는 개인정보를 응답에 노출하지 않는다.
 server:
   error:
     include-message: never
     include-stacktrace: never
     include-binding-errors: never
+# 암호 키는 환경에서 필수로 공급한다. 환율은 외부 실시간 API가 아닌 구성 기본값이다.
 remittance:
   aes-key: ${REMITTANCE_AES_KEY}
   jwt-secret: ${REMITTANCE_JWT_SECRET}

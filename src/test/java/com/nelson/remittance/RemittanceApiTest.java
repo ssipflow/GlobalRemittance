@@ -54,6 +54,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Import(RemittanceApiTest.TestBeans.class)
 @org.junit.jupiter.api.extension.ExtendWith(
         org.springframework.boot.test.system.OutputCaptureExtension.class)
+// 격리된 DB와 제어 가능한 시간으로 HTTP·영속성·동시성 계약을 검증한다.
 class RemittanceApiTest {
     static final Instant NOW = Instant.parse("2026-01-01T00:00:00Z");
     @org.springframework.boot.test.web.server.LocalServerPort int port;
@@ -222,6 +223,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 가입부터 접수까지 API 흐름과 암호화 저장·견적 감사 값 보존을 검증한다.
     void completeFlowPersistsProtectedIdentityAndImmutableFinancialAudit() throws Exception {
         String token = user("flow@example.com", "REG_NO");
         var stored =
@@ -264,6 +266,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 동시 중복 가입에서 계정 유일성과 DB 진단 로그의 개인정보 차단을 검증한다.
     void concurrentSignupPreservesUniqueUserAndDoesNotLogEmail(
             org.springframework.boot.test.system.CapturedOutput output) throws Exception {
         String email = "privacy-race-marker@example.invalid";
@@ -306,6 +309,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 중복 가입과 잘못된 인증 정보가 안전한 오류 계약을 따르는지 확인한다.
     void duplicateSignupAndInvalidCredentialsReturnSafeErrors() throws Exception {
         user("duplicate@example.com", "REG_NO");
         error(
@@ -330,6 +334,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // UTF-8 바이트 경계로 BCrypt 절단과 암호문 열 길이 초과를 방지하는지 확인한다.
     void utf8ByteLimitsPreventBcryptTruncationAndCiphertextOverflow() throws Exception {
         error(
                 signup("long-pass@example.com", "REG_NO", "한".repeat(25), "1234567890123"),
@@ -348,6 +353,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 다른 사용자 견적·없는 견적·중복 접수의 접근 경계를 검증한다.
     void foreignOwnerAndUnknownQuoteCannotRequestThenDuplicateIsRejected() throws Exception {
         String owner = user("owner@example.com", "REG_NO"),
                 other = user("other@example.com", "REG_NO");
@@ -367,6 +373,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 정확한 10분 만료 시 접수를 거부하고 미접수 견적은 집계하지 않는지 확인한다.
     void quoteExpiresAtExactTenMinutesAndNeverCountsAsRequested() throws Exception {
         String token = user("expiry@example.com", "REG_NO");
         String id = quote(token, "100000", "USD");
@@ -376,6 +383,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 개인·사업자 한도는 경계까지 허용하고 1센트 초과는 거부하는지 확인한다.
     void personalAndBusinessLimitsAreInclusiveAndCentBeyondIsRejected() throws Exception {
         String personal = user("personal@example.com", "REG_NO");
         assertEquals(
@@ -398,6 +406,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // KST 자정에 오늘 집계만 초기화하고 이전 이력은 보존하는지 확인한다.
     void kstDayResetsDailyTotalsWhileHistoryIncludesPriorRequests() throws Exception {
         clock.set(Instant.parse("2026-01-01T14:59:00Z"));
         String token = user("kst@example.com", "REG_NO");
@@ -418,6 +427,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 누락·잘못된·만료 토큰을 동일한 JSON 401 경계로 처리하는지 확인한다.
     void missingInvalidAndExpiredTokenAreJson401() throws Exception {
         error(mvc.perform(get("/transfer/list")).andReturn(), 401, "UNAUTHORIZED");
         error(
@@ -435,6 +445,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 잘못된 입력과 라우팅 오류도 공통 JSON 오류 형식을 유지하는지 확인한다.
     void malformedInputAndRoutingErrorsAllUseJsonContract() throws Exception {
         String token = user("errors@example.com", "REG_NO");
         error(
@@ -491,6 +502,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 실제 서블릿 오류와 HTML 요청에서도 JSON 오류를 반환하는지 확인한다.
     void actualServletErrorDispatchAndHtmlAcceptStillReturnJson() throws Exception {
         var client = java.net.http.HttpClient.newHttpClient();
         for (String path : List.of("/error", "/missing", "/_test/send-error")) {
@@ -515,6 +527,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 실제 DB의 정수 ID·금액 정밀도·외래 키·인덱스 계약을 검증한다.
     void schemaHasIntegerIdsDecimalAuditForeignKeyAndIndex() {
         assertEquals(
                 "INTEGER",
@@ -585,6 +598,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 동일 견적을 동시에 접수해도 한 번만 성공하는지 확인한다.
     void concurrentSameQuoteIsAcceptedExactlyOnce() throws Exception {
         String token = user("concurrent-same@example.com", "REG_NO");
         long id = Long.parseLong(quote(token, "100000", "USD"));
@@ -599,6 +613,7 @@ class RemittanceApiTest {
     }
 
     @Test
+    // 서로 다른 견적의 동시 접수가 합산 일일 한도를 넘지 않는지 확인한다.
     void concurrentDifferentQuotesCannotJointlyExceedDailyLimit() throws Exception {
         String token = user("concurrent-limit@example.com", "REG_NO");
         long first = Long.parseLong(quote(token, "602602", "USD")),

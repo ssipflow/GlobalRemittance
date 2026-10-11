@@ -15,6 +15,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
+// 프레임워크 없이 금액·환율·업무 경계 규칙을 검증한다.
 class QuotePolicyTest {
     private static BigDecimal n(String value) {
         return new BigDecimal(value);
@@ -33,6 +34,7 @@ class QuotePolicyTest {
     }
 
     @Test
+    // 100만 원 경계의 포함 여부와 USD 수수료 전환을 검증한다.
     void usdFeeChangesStrictlyAfterOneMillion() {
         var low = usd("1000000");
         var high = usd("1000001");
@@ -47,6 +49,7 @@ class QuotePolicyTest {
     }
 
     @Test
+    // JPY 순액 환산과 소수 없는 반올림을 검증한다.
     void jpyUsesNetKrwAndZeroFractionDigits() {
         var quote = QuotePolicy.calculate(n("100000"), "JPY", n("10"), n("1000"));
         decimal("8000", quote.fee());
@@ -57,6 +60,7 @@ class QuotePolicyTest {
     }
 
     @Test
+    // 원화 입력과 수취 금액에 HALF_UP을 일관되게 적용하는지 확인한다.
     void krwAndTargetAmountsUseHalfUp() {
         var quote = usd("15000.5");
         decimal("15001", quote.sourceAmount());
@@ -67,6 +71,7 @@ class QuotePolicyTest {
     }
 
     @Test
+    // 0과 반올림 결과 0은 허용하고 음수 결과만 거부하는지 확인한다.
     void zeroNetOrRoundedZeroIsAllowedButNegativeIsNot() {
         decimal("0.00", usd("1002").targetAmount());
         var tiny = QuotePolicy.calculate(n("1003"), "USD", n("100000000"), n("100000000"));
@@ -77,12 +82,14 @@ class QuotePolicyTest {
     }
 
     @Test
+    // 환율을 소수 12자리로 반올림하는 규칙을 확인한다.
     void foreignExchangeRateIsRoundedToTwelveDecimals() {
         var rate = QuotePolicy.rate(n("1300.1234567890126"));
         assertEquals(n("1300.123456789013"), rate);
     }
 
     @Test
+    // 잘못된 통화·환율·정밀도와 큰 지수 입력을 계산 전에 거부하는지 확인한다.
     void invalidCurrencyRatesPrecisionAndExtremeExponentAreRejected() {
         failure(INVALID_REQUEST, () -> QuotePolicy.calculate(n("10000"), "EUR", n("1"), n("1")));
         failure(INVALID_REQUEST, () -> QuotePolicy.rate(n("0")));
@@ -96,6 +103,7 @@ class QuotePolicyTest {
     }
 
     @Test
+    // DB 저장 상한의 소수 부분은 허용하되 반올림 후 초과는 거부하는지 확인한다.
     void decimalStorageCapacityAllowsFractionalUpperBandButRejectsRoundedOverflow() {
         var quote =
                 QuotePolicy.calculate(
@@ -108,6 +116,7 @@ class QuotePolicyTest {
     }
 
     @Test
+    // 소유권·중복·정확한 만료 경계의 오류 우선순위를 검증한다.
     void ownershipDuplicateAndExactExpiryBoundaryHaveStablePrecedence() {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
         Quote quote = new Quote(1, 10, usd("100000"), now.plusSeconds(600), null, now, now);
