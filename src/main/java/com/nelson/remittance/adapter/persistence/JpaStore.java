@@ -2,16 +2,23 @@ package com.nelson.remittance.adapter.persistence;
 
 import static com.nelson.remittance.domain.BusinessException.Code.DUPLICATE_USER;
 import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
+import static com.nelson.remittance.domain.BusinessException.Code.LOCK_TIMEOUT;
 import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
 import com.nelson.remittance.application.Ports;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.Quote;
+import com.nelson.remittance.domain.QuotePolicy;
 import com.nelson.remittance.domain.User;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PersistenceException;
+import jakarta.persistence.PessimisticLockException;
+import java.math.BigDecimal;
+import java.sql.SQLException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.hibernate.exception.ConstraintViolationException;
@@ -55,11 +62,37 @@ public class JpaStore implements Ports.Accounts, Ports.Quotes {
     @Override
     // 사용자 행의 배타 잠금을 잡아 같은 사용자의 다른 견적 접수도 직렬화한다.
     public User lockUser(long id) {
-        UserEntity user = em.find(UserEntity.class, integerId(id), LockModeType.PESSIMISTIC_WRITE);
+        UserEntity user;
+        try {
+            // 대기 한도는 JDBC URL의 LOCK_TIMEOUT(remittance.lock-timeout-ms)이 정한다. Hibernate의
+            // jakarta.persistence.lock.timeout 힌트는 H2 방언이 'for update wait'를 내지 않아 무시된다.
+            user = em.find(UserEntity.class, integerId(id), LockModeType.PESSIMISTIC_WRITE);
+        } catch (PersistenceException error) {
+            // 다른 접수가 오래 잠금을 쥐면 500이 아닌 재시도 가능한 업무 오류로 알린다.
+            if (isLockTimeout(error)) {
+                throw new BusinessException(LOCK_TIMEOUT);
+            }
+            throw error;
+        }
         if (user == null) {
             throw new BusinessException(UNAUTHORIZED);
         }
         return user.toDomain();
+    }
+
+    // 락 대기 초과를 JPA 예외 또는 DB 상태 코드(H2·표준 HYT00, PostgreSQL 55P03)로 식별한다.
+    private static boolean isLockTimeout(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof LockTimeoutException
+                    || cause instanceof PessimisticLockException) {
+                return true;
+            }
+            if (cause instanceof SQLException sql
+                    && ("HYT00".equals(sql.getSQLState()) || "55P03".equals(sql.getSQLState()))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -124,5 +157,20 @@ public class JpaStore implements Ports.Accounts, Ports.Quotes {
                 .stream()
                 .map(QuoteEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    // 접수 시각이 [from, to)인 견적의 USD 합계를 DB에서 집계하고 결과가 없으면 0.00으로 정규화한다.
+    public BigDecimal requestedUsdTotal(long userId, Instant from, Instant to) {
+        BigDecimal sum =
+                em.createQuery(
+                                "select sum(q.usdAmount) from QuoteEntity q where q.user.id = :userId "
+                                        + "and q.requestedTime >= :from and q.requestedTime < :to",
+                                BigDecimal.class)
+                        .setParameter("userId", integerId(userId))
+                        .setParameter("from", from)
+                        .setParameter("to", to)
+                        .getSingleResult();
+        return QuotePolicy.money(sum == null ? BigDecimal.ZERO : sum, "USD");
     }
 }

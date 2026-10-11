@@ -11,6 +11,7 @@ import com.nelson.remittance.domain.User;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 
@@ -63,10 +64,13 @@ public final class TransferUseCases {
                                     .orElseThrow(() -> new BusinessException(QUOTE_NOT_FOUND));
                     Instant now = clock.instant();
                     Quote requested = quote.request(actorId, now);
+                    // 이력 전체를 읽지 않고 KST 당일 [00:00, 익일 00:00) 합계만 DB에서 집계한다.
+                    LocalDate date = now.atZone(KST).toLocalDate();
                     BigDecimal total =
-                            today(quotes.requestedQuotes(actorId), now).stream()
-                                    .map(q -> q.calculation().usdAmount())
-                                    .reduce(new BigDecimal("0.00"), BigDecimal::add);
+                            quotes.requestedUsdTotal(
+                                    actorId,
+                                    date.atStartOfDay(KST).toInstant(),
+                                    date.plusDays(1).atStartOfDay(KST).toInstant());
                     // 한도와 동일한 금액은 허용한다. USD 수수료 차감 후 금액은 견적 시 확정된 값만 사용한다.
                     if (total.add(quote.calculation().usdAmount())
                                     .compareTo(user.idType().dailyLimit())
@@ -81,11 +85,14 @@ public final class TransferUseCases {
     public record History(
             User user, int todayCount, BigDecimal todayUsdAmount, List<Quote> quotes) {}
 
-    // 접수와 같은 사용자 잠금을 사용해 이력과 오늘 집계를 일관되게 읽는다.
+    // 사용자 잠금 없이 읽는다. 목록 한 번의 조회 결과에서 오늘 건수·합계·목록을 모두 계산하므로
+    // 접수와 겹쳐도 서로 모순되지 않고, 조회가 접수 직렬화에 참여해 대기하거나 막지 않는다.
     public History history(long actorId) {
         return work.required(
                 () -> {
-                    User user = accounts.lockUser(actorId);
+                    User user =
+                            accounts.findUser(actorId)
+                                    .orElseThrow(() -> new BusinessException(UNAUTHORIZED));
                     List<Quote> all = quotes.requestedQuotes(actorId);
                     List<Quote> today = today(all, clock.instant());
                     BigDecimal sum =

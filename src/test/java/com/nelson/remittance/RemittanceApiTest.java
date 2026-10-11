@@ -633,4 +633,93 @@ class RemittanceApiTest {
                                 .compareTo(new BigDecimal("1000.00"))
                         <= 0);
     }
+
+    // 별도 스레드의 트랜잭션이 사용자 행 잠금을 쥔 채 release 신호까지 대기하는 도우미다.
+    record RowLock(CountDownLatch release, Future<?> holder) {
+        void free() throws Exception {
+            release.countDown();
+            holder.get(10, TimeUnit.SECONDS);
+        }
+    }
+
+    RowLock holdUserLock(long actor) throws Exception {
+        var locked = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var executor = Executors.newSingleThreadExecutor();
+        Future<?> holder =
+                executor.submit(
+                        () ->
+                                new TransactionTemplate(manager)
+                                        .execute(
+                                                status -> {
+                                                    jdbc.queryForList(
+                                                            "select id from users where id=? for update",
+                                                            actor);
+                                                    locked.countDown();
+                                                    try {
+                                                        release.await(30, TimeUnit.SECONDS);
+                                                    } catch (InterruptedException e) {
+                                                        Thread.currentThread().interrupt();
+                                                    }
+                                                    return null;
+                                                }));
+        executor.shutdown();
+        assertTrue(locked.await(10, TimeUnit.SECONDS));
+        return new RowLock(release, holder);
+    }
+
+    @Test
+    // 락 대기가 한도를 넘으면 500이 아닌 503 LOCK_TIMEOUT을 빠르게 돌려주고 해제 후에는 접수된다.
+    void lockWaitTimeoutIsBusinessErrorAndRecoversAfterRelease() throws Exception {
+        String token = user("lock-timeout@example.com", "REG_NO");
+        String id = quote(token, "100000", "USD");
+        long actor =
+                jdbc.queryForObject(
+                        "select id from users where user_id='lock-timeout@example.com'",
+                        Long.class);
+        RowLock lock = holdUserLock(actor);
+        try {
+            long started = System.nanoTime();
+            error(request(token, id), 503, "LOCK_TIMEOUT");
+            long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+            assertTrue(elapsedMs < 5000, "락 대기가 설정 한도 근처에서 끝나야 한다: " + elapsedMs);
+        } finally {
+            lock.free();
+        }
+        assertEquals(200, request(token, id).getResponse().getStatus());
+        assertEquals(1, list(token).get("todayTransferCount").asInt());
+    }
+
+    @Test
+    // 이력 조회는 쓰기 락을 잡지 않으므로 다른 트랜잭션이 사용자 행 잠금을 쥐어도 막히지 않는다.
+    void historyIsNotBlockedByUserRowLock() throws Exception {
+        String token = user("history-free@example.com", "REG_NO");
+        assertEquals(200, request(token, quote(token, "100000", "USD")).getResponse().getStatus());
+        long actor =
+                jdbc.queryForObject(
+                        "select id from users where user_id='history-free@example.com'",
+                        Long.class);
+        RowLock lock = holdUserLock(actor);
+        try {
+            long started = System.nanoTime();
+            var result = list(token);
+            assertEquals(1, result.get("todayTransferCount").asInt());
+            assertEquals(1, result.get("history").size());
+            assertTrue(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started) < 1500);
+        } finally {
+            lock.free();
+        }
+    }
+
+    @Test
+    // 일일 합계 구간은 [KST 00:00, 익일 00:00)이므로 자정 직전 접수는 전날, 자정 접수는 당일에 속한다.
+    void dailyTotalWindowIsHalfOpenAtKstMidnight() throws Exception {
+        clock.set(Instant.parse("2026-01-01T14:59:59Z"));
+        String token = user("window@example.com", "REG_NO");
+        assertEquals(200, request(token, quote(token, "1004004", "USD")).getResponse().getStatus());
+        clock.set(Instant.parse("2026-01-01T15:00:00Z"));
+        assertEquals(200, request(token, quote(token, "1004004", "USD")).getResponse().getStatus());
+        error(request(token, quote(token, "1012", "USD")), 400, "LIMIT_EXCESS");
+        assertEquals(1, list(token).get("todayTransferCount").asInt());
+    }
 }

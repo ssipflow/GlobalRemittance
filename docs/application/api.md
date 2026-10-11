@@ -121,4 +121,5 @@ quoteId는 양의 숫자 문자열이며 실제 INT 식별자 범위를 검증�
 | 405 | METHOD_NOT_ALLOWED | 허용하지 않은 HTTP 메서드 |
 | 406 | NOT_ACCEPTABLE | 지원하지 않는 응답 형식 요청 |
 | 415 | UNSUPPORTED_MEDIA_TYPE | 지원하지 않는 요청 Content-Type |
+| 503 | LOCK_TIMEOUT | 같은 사용자의 다른 접수가 잠금을 오래 쥐어 대기 한도(`remittance.lock-timeout-ms`) 초과, 재시도 가능 |
 | 500 | UNKNOWN_ERROR | 내부 오류, 원시 예외·개인정보 미노출 |

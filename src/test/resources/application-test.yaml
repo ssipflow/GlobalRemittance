@@ -1,7 +1,7 @@
 # 매 컨텍스트의 메모리 DB를 분리하고 스키마를 생성·삭제하여 실제 파일 DB를 사용하지 않는다.
 spring:
   datasource:
-    url: jdbc:h2:mem:remittance-${random.uuid};DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000
+    url: jdbc:h2:mem:remittance-${random.uuid};DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=${remittance.lock-timeout-ms}
   jpa:
     hibernate:
       ddl-auto: create-drop
@@ -11,3 +11,5 @@ remittance:
   jwt-secret: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
   usd-to-krw: 1000
   jpy-to-krw: 10
+  # 락 대기 타임아웃 테스트가 빠르도록 짧게 둔다. 정상 동시성 테스트는 락 대기가 이보다 훨씬 짧다.
+  lock-timeout-ms: 2000
