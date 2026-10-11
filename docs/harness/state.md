@@ -19,3 +19,6 @@
 
 - 후속 작업: feature/hooks-json-format에서 사용자가 작성한 hooks.json 포맷을 반영한다.
   JSON 의미 동일성을 확인하며 새 dev PR의 승인·병합은 사람이 수행한다.
+
+- 현재 후속 작업: feature/nelson-package에서 기본 패키지를 com.nelson.remittance로 변경한다.
+  main/test 경로·참조와 Gradle group을 맞추고 전체 check·bootJar 후 dev PR로 전달한다.
