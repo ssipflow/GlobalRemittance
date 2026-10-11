@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Task-scoped Codex review/verify/commit loop. Standard library only."""
+"""표준 라이브러리만 사용하는 작업 범위별 Codex 리뷰·검증·커밋 루프."""
 import argparse
 import fcntl
 import hashlib
@@ -13,18 +13,30 @@ import sys
 import time
 
 
+# 저장소를 명시한 Git 명령의 출력만 반환한다.
+
+
 def git(*args, root=None):
     return subprocess.check_output(['git', *args], cwd=root)
+
+
+# 현재 작업의 저장소 루트를 Git에서 확인한다.
 
 
 def root_path():
     return Path(git('rev-parse', '--show-toplevel').decode().strip())
 
 
+# 분리된 HEAD는 브랜치 없음으로 구분한다.
+
+
 def current_branch(root):
     result = subprocess.run(['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'],
                             cwd=root, capture_output=True, text=True)
     return result.stdout.strip() if result.returncode == 0 else None
+
+
+# 작업 브랜치 형식과 기록된 브랜치 일치를 강제한다.
 
 
 def require_work_branch(root, task=None):
@@ -36,9 +48,15 @@ def require_work_branch(root, task=None):
     return branch
 
 
+# 무시되는 로컬 실행 상태를 읽는다.
+
+
 def load(root):
     path = root / '.harness/task.json'
     return json.loads(path.read_text()) if path.exists() else None
+
+
+# 임시 파일 교체로 실행 상태의 부분 쓰기를 피한다.
 
 
 def save(root, task):
@@ -50,8 +68,11 @@ def save(root, task):
     temp.replace(path)
 
 
+# 브랜치·커밋·파일 내용을 해시해 리뷰와 검증의 동일 대상을 증명한다.
+
+
 def snapshot(root, include_index=True):
-    # Include tracked and untracked, nonignored files, plus index state and HEAD.
+    # 무시되지 않은 추적·미추적 파일과 인덱스·HEAD를 함께 포함해 변경 증거를 묶는다.
     digest = hashlib.sha256()
     digest.update((current_branch(root) or 'DETACHED').encode())
     digest.update(git('rev-parse', 'HEAD', root=root))
@@ -72,6 +93,9 @@ def snapshot(root, include_index=True):
     return digest.hexdigest()
 
 
+# 스테이징·작업 트리·미추적 변경을 합쳐 소유 범위를 확인한다.
+
+
 def changed(root):
     names = set()
     for args in [('diff', '--name-only', '-z'),
@@ -81,11 +105,17 @@ def changed(root):
     return names
 
 
+# 활성 작업이 없는 상태에서 검증·종료가 실행되지 않게 한다.
+
+
 def require_task(root):
     task = load(root)
     if not task or task['status'] != 'active':
         raise ValueError('No active task. Use begin first.')
     return task
+
+
+# 출력과 종료 코드를 보존하며 시간 초과 시 자손 프로세스도 종료한다.
 
 
 def run_check(check, root, stream, timeout=600):
@@ -94,8 +124,8 @@ def run_check(check, root, stream, timeout=600):
     try:
         return process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        # Kill the still-live group before reaping the shell. This also stops
-        # descendants ignoring TERM and avoids signaling an already-dead group.
+        # 셸을 회수하기 전에 살아 있는 프로세스 그룹을 종료한다.
+        # TERM을 무시하는 자손까지 종료하고 이미 사라진 그룹에는 신호를 보내지 않는다.
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
@@ -104,9 +134,15 @@ def run_check(check, root, stream, timeout=600):
         return 124
 
 
+# 대화형 인증을 막고 원격 명령의 대기 시간을 제한한다.
+
+
 def remote_output(root, *command):
     env = dict(os.environ, GH_PROMPT_DISABLED='1', GIT_TERMINAL_PROMPT='0')
     return subprocess.check_output(command, cwd=root, env=env, text=True, timeout=120)
+
+
+# 정확한 커밋·원격·작업 브랜치를 확인한 뒤 dev PR까지 생성한다.
 
 
 def publish(root, args):
@@ -130,6 +166,8 @@ def publish(root, args):
         raise ValueError('Provide a nonempty UTF-8 PR body file.')
     repo = 'github.com/' + args.repo
 
+    # 기존 PR의 대상·헤드·상태를 검사해 중복 생성과 자동 병합을 막는다.
+
     def find_pr():
         result = json.loads(remote_output(root, 'gh', 'pr', 'list', '--repo', repo,
                             '--head', branch, '--base', 'dev', '--state', 'all', '--limit', '100',
@@ -144,7 +182,7 @@ def publish(root, args):
         return matches[0] if matches else None
 
     existing = find_pr()
-    # Push only the recorded task branch, never dev/main/test or a force update.
+    # 기록된 작업 브랜치만 push하며 dev/main/test 직접 갱신과 강제 push는 하지 않는다.
     remote_output(root, 'git', 'push', '--set-upstream', 'origin', f'HEAD:refs/heads/{branch}')
     if changed(root) or snapshot(root) != task['committed_snapshot']:
         raise ValueError('Repository changed during push; no PR created.')
@@ -160,6 +198,9 @@ def publish(root, args):
                 'head': pr['headRefOid'], 'base': 'dev', 'repo': args.repo}, completed_at=time.time())
     save(root, task)
     print(pr['url'])
+
+
+# 상태와 새 스냅샷으로 후속 개선 지시를 만들며 직접 파일을 바꾸지 않는다.
 
 
 def hook(root):
@@ -202,6 +243,9 @@ def hook(root):
     print(json.dumps(output))
 
 
+# 명령별 상태 전이를 처리하고 최신 리뷰·검증 증거만 커밋에 사용한다.
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
@@ -239,6 +283,7 @@ def main():
                           'branch': current_branch(root),
                           'changed_files': sorted(changed(root))}, ensure_ascii=False, indent=2))
         return
+    # 깨끗한 작업 브랜치와 소유 범위를 기록하며 기존 변경을 끌어들이지 않는다.
     if args.command == 'begin':
         branch = require_work_branch(root)
         ancestry = subprocess.run(['git', 'merge-base', '--is-ancestor', 'dev', 'HEAD'],
@@ -264,6 +309,7 @@ def main():
         save(root, task)
         print('Task started. Record acceptance criteria in docs/harness/state.md.')
         return
+    # 중단 전 상태로 복귀하되 활성 작업의 이전 통과 증거는 버린다.
     if args.command == 'resume':
         if not task or task['status'] != 'blocked':
             raise ValueError('Only a blocked task can be resumed.')
@@ -274,6 +320,7 @@ def main():
             task.pop('verification', None)
         save(root, task)
         return
+    # 기존 커밋 이력을 보존하고 후속 수정의 리뷰·검증 단계를 다시 연다.
     if args.command == 'reopen':
         if not task or (task['status'] != 'committed'
                         and not (task['status'] == 'blocked' and task.get('resume_status') == 'committed')):
@@ -296,6 +343,7 @@ def main():
     if args.command == 'publish':
         publish(root, args)
         return
+    # 중단 이유와 재개 상태만 로컬에 기록하며 추적 파일을 바꾸지 않는다.
     if args.command == 'block':
         if not task or task['status'] not in ('active', 'committed'):
             raise ValueError('No unfinished task to block.')
@@ -305,12 +353,14 @@ def main():
         return
     task = require_task(root)
     require_work_branch(root, task)
+    # 현재 스냅샷을 직접 확인한 리뷰 결과만 유효하게 기록한다.
     if args.command == 'attest-review':
         current = snapshot(root)
         if args.snapshot != current:
             raise ValueError('Review snapshot is stale; review the current diff again.')
         task['review'] = {'snapshot': current, 'evidence': args.evidence}
         save(root, task)
+    # 명령 종료 코드뿐 아니라 검증 전후 파일 동일성도 확인한다.
     elif args.command == 'verify':
         before = snapshot(root)
         task.pop('verification', None)
@@ -327,6 +377,7 @@ def main():
         print(json.dumps(task['verification'], indent=2))
         if not passed:
             raise ValueError('Validation failed or changed repository files. Inspect logs and rerun.')
+    # 최신 리뷰·검증·소유 범위를 모두 확인한 뒤 명시적 파일만 커밋한다.
     elif args.command == 'finish':
         current = snapshot(root)
         review = task.get('review', {})
@@ -341,7 +392,7 @@ def main():
         if git('diff', '--cached', '--name-only', root=root).strip():
             raise ValueError('Index must be empty before finish; inspect existing staging.')
         subprocess.run(['git', 'diff', '--check'], cwd=root, check=True)
-        # One coordinator owns writes. Refuse if anything changed during preflight.
+        # 쓰기 담당자는 하나다. 사전 검사 중 파일이 변하면 커밋을 거부한다.
         if current != snapshot(root):
             raise ValueError('Snapshot changed during preflight.')
         content = snapshot(root, include_index=False)
@@ -369,6 +420,7 @@ def main():
         print('Committed ' + task['commit'])
 
 
+# 변경 명령과 훅을 같은 잠금 경계로 직렬화하여 두 실행의 상태 쓰기 충돌을 막는다.
 if __name__ == '__main__':
     try:
         if len(sys.argv) > 1 and sys.argv[1] not in ('status', '-h', '--help'):

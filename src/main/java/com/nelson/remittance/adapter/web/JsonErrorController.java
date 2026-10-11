@@ -9,8 +9,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+// 서블릿 오류 디스패치에서도 HTML 화면 대신 동일한 JSON 오류 경계를 제공한다.
 public class JsonErrorController implements ErrorController {
     @RequestMapping("/error")
+    // 서블릿 오류 상태만 읽고 원시 메시지나 예외 속성은 응답에 포함하지 않는다.
     public ResponseEntity<ApiModels.Result> error(HttpServletRequest request) {
         // 서블릿 sendError도 HTML 기본 오류 화면으로 빠지지 않도록 JSON 경계를 유지한다.
         Object attribute = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);

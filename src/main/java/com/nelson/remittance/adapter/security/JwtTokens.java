@@ -16,6 +16,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Date;
 
+// 서명된 인증 토큰을 발급하고 서명·사용자 식별자·만료 조건을 확인한다.
 public final class JwtTokens implements Ports.Tokens {
     private final Key key;
     private final Clock clock;
@@ -36,6 +37,7 @@ public final class JwtTokens implements Ports.Tokens {
     }
 
     @Override
+    // DB 식별자와 사용자 정보, 30분 만료를 서명하고 표준·업무 만료 필드를 함께 넣는다.
     public String issue(User user) {
         var now = clock.instant();
         // JWT와 견적이 같은 주입 Clock을 사용하여 정확한 30분 경계를 검증할 수 있다.
@@ -57,6 +59,7 @@ public final class JwtTokens implements Ports.Tokens {
     }
 
     @Override
+    // 서명과 발급자를 검증한 뒤 필수 claims와 정확한 만료 경계를 확인해 DB 식별자만 반환한다.
     public long verify(String token) {
         try {
             var parsed =

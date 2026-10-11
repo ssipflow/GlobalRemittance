@@ -16,6 +16,7 @@ import java.time.Instant;
 @Table(
         name = "users",
         uniqueConstraints = @UniqueConstraint(name = "uk_users_user_id", columnNames = "user_id"))
+// 사용자 테이블 매핑이다. 비밀번호 해시와 식별 번호 암호문만 저장한다.
 public class UserEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -59,6 +60,7 @@ public class UserEntity {
         return id;
     }
 
+    // DB의 해시·암호문과 시각을 그대로 내부 사용자 모델로 전달한다.
     User toDomain() {
         return new User(id, userId, password, name, idType, idValue, createdAt, updatedAt);
     }

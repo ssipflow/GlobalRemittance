@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Explicit, project-scoped Obsidian export. No Vault discovery or Git mutations."""
+"""명시적으로 실행하는 프로젝트 전용 옵시디언 내보내기. Vault 탐색과 Git 변경은 수행하지 않는다."""
 import argparse
 from contextlib import contextmanager
 import fcntl
@@ -16,7 +16,7 @@ START = '<!-- codex:globalremittance:start -->'
 END = '<!-- codex:globalremittance:end -->'
 REPO = r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*'
 LIMIT = 131072
-# Only reviewed application documentation is exported; harness memory is not a product document.
+# 검토된 앱 문서만 내보낸다. 하네스 작업 기억은 제품 설명 문서가 아니다.
 DOCUMENTS = {
     'docs/application/overview.md': '프로젝트 개요.md',
     'docs/application/architecture.md': '아키텍처.md',
@@ -26,11 +26,17 @@ DOCUMENTS = {
 
 
 class SyncError(Exception):
-    """Safe, path-free operational message."""
+    """개인 경로를 포함하지 않는 안전한 실행 오류."""
+
+
+# 저장소 메타데이터를 조회하며 실패 출력의 개인 경로 노출을 막는다.
 
 
 def git(root, *args):
     return subprocess.check_output(['git', *args], cwd=root, stderr=subprocess.DEVNULL).decode().strip()
+
+
+# 전용 절대 경로와 모든 부모의 심볼릭 링크 부재를 확인한다.
 
 
 def validate_path(path):
@@ -44,8 +50,9 @@ def validate_path(path):
 
 
 @contextmanager
+# 폴더 디스크립터를 고정하고 허용된 최종 폴더만 필요 시 생성한다.
 def directory(path, create=False):
-    """Pin each directory through no-follow descriptors, including the final root."""
+    """최종 폴더까지 링크를 따르지 않는 디스크립터로 각 디렉터리를 고정한다."""
     path = validate_path(path)
     fd = os.open('/', os.O_RDONLY | os.O_DIRECTORY)
     try:
@@ -64,6 +71,9 @@ def directory(path, create=False):
         os.close(fd)
 
 
+# 링크를 따르지 않는 정규 파일만 크기 제한 안에서 읽는다.
+
+
 def read_at(fd, name):
     try:
         handle = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=fd)
@@ -79,6 +89,9 @@ def read_at(fd, name):
         return raw.decode('utf-8')
     finally:
         os.close(handle)
+
+
+# 임시 파일 동기화·원자적 교체·재읽기로 쓰기 결과를 확인한다.
 
 
 def atomic_at(fd, name, text):
@@ -99,6 +112,9 @@ def atomic_at(fd, name, text):
             pass
 
 
+# 관리 마커 내부만 바꾸고 사용자 영역은 그대로 보존한다.
+
+
 def managed(previous, body):
     section = START + '\n' + body + ('' if body.endswith('\n') else '\n') + END
     if previous is None:
@@ -115,6 +131,9 @@ def managed(previous, body):
     return result
 
 
+# 설정과 보고서는 저장소의 무시되는 로컬 폴더에만 둔다.
+
+
 def local_folder(root):
     folder = root / '.harness'
     validate_path(folder)
@@ -125,6 +144,7 @@ def local_folder(root):
 
 
 @contextmanager
+# 동일 저장소의 동기화 실행을 배타 잠금으로 직렬화한다.
 def lock(root):
     with directory(local_folder(root)) as fd:
         handle = os.open('obsidian.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600, dir_fd=fd)
@@ -140,17 +160,26 @@ def lock(root):
             os.close(handle)
 
 
+# 설정과 보고서를 안전한 파일 읽기 경계로 가져온다.
+
+
 def runtime(root, name):
     with directory(local_folder(root)) as fd:
         raw = read_at(fd, name)
     return json.loads(raw) if raw is not None else None
 
 
+# 실행 결과만 로컬에 저장하고 추적되는 작업 기억은 수정하지 않는다.
+
+
 def write_runtime(root, name, data):
     with directory(local_folder(root)) as fd:
-        # Reject an existing symlink/nonregular file before atomic replacement.
+        # 원자적 교체 전에 기존 링크와 비정규 파일을 거부한다.
         read_at(fd, name)
         atomic_at(fd, name, json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+
+
+# 구성 형태·원격 주소·전용 폴더 범위를 쓰기 전에 검증한다.
 
 
 def validate_config(root, config):
@@ -174,6 +203,9 @@ def validate_config(root, config):
     return project
 
 
+# 고정 허용 목록의 추적 문서만 링크를 따르지 않고 읽는다.
+
+
 def source(root, relative, tracked):
     if relative not in tracked:
         return None
@@ -183,10 +215,16 @@ def source(root, relative, tracked):
         return read_at(fd, path.name)
 
 
+# 앱 설명 Markdown을 보존하며 제어 마커 예시는 무해하게 바꾼다.
+
+
 def application_document(text):
-    # Curated API examples/diagrams intentionally keep fences. Escape only our control markers.
+    # 검토된 API 예시·다이어그램의 코드 블록은 보존하고 자체 제어 마커만 이스케이프한다.
     return text.replace(START, '&lt;!-- codex:globalremittance:start --&gt;').replace(
         END, '&lt;!-- codex:globalremittance:end --&gt;')
+
+
+# 고정 문서만 렌더링하고 전후 스냅샷이 다르면 혼합 결과를 거부한다.
 
 
 def render(root, config):
@@ -211,6 +249,9 @@ def render(root, config):
     return notes
 
 
+# 전체 대상의 충돌을 먼저 검사하고 변경될 노트만 계산한다.
+
+
 def plan(project, notes):
     result = []
     if not project.exists():
@@ -224,6 +265,9 @@ def plan(project, notes):
     return result
 
 
+# 개인 경로와 임의 런타임 필드를 빼고 제한된 상태만 공개한다.
+
+
 def report_summary(report):
     if not isinstance(report, dict) or report.get('status') not in ('dry-run', 'synced', 'failed'):
         return None
@@ -232,6 +276,9 @@ def report_summary(report):
         if type(report.get(key)) is int and report[key] >= 0:
             result[key] = report[key]
     return result
+
+
+# 잠금 아래 설정·렌더링·사전 검사를 마친 뒤 명시적 sync에서만 쓴다.
 
 
 def execute(root, args):
@@ -249,7 +296,7 @@ def execute(root, args):
             return {'status': 'configured', 'project_root': 'redacted', 'repo': config['repo'],
                     'last_run': report_summary(runtime(root, 'obsidian-report.json'))}
         notes = render(root, config)
-        planned = plan(project, notes)  # All marker conflicts preflight before any note write.
+        planned = plan(project, notes)  # 노트를 쓰기 전에 모든 마커 충돌을 사전 검사한다.
         changed = [(parts, old, new) for parts, old, new in planned if old != new]
         report = {'status': 'dry-run' if args.command == 'dry-run' else 'synced',
                   'planned_notes': len(notes), 'changed_notes': len(changed)}
@@ -261,6 +308,9 @@ def execute(root, args):
                     atomic_at(fd, parts[0], new)
         write_runtime(root, 'obsidian-report.json', report)
         return report
+
+
+# CLI 경계에서 안전한 오류만 출력하고 실패도 로컬 보고서로 남긴다.
 
 
 def main(argv=None):
@@ -277,7 +327,7 @@ def main(argv=None):
         result = execute(root, args)
     except (SyncError, OSError, ValueError, subprocess.CalledProcessError) as error:
         message = str(error) if isinstance(error, SyncError) else 'Operation failed; check permissions, UTF-8, JSON, and non-symlink paths.'
-        # Never serialize raw exceptions: they can include a private Vault path.
+        # 원시 예외에는 개인 Vault 경로가 있을 수 있으므로 그대로 직렬화하지 않는다.
         if 'root' in locals():
             try:
                 with lock(root):

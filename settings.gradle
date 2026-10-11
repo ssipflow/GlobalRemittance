@@ -1,1 +1,2 @@
+// 패키지명과 별개로 빌드 산출물의 프로젝트 이름은 고정한다.
 rootProject.name = 'GlobalRemittance'

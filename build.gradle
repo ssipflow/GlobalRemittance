@@ -1,3 +1,4 @@
+// 검증 도구 버전을 고정해 로컬과 독립 검증에서 같은 규칙을 적용한다.
 plugins {
     id 'java'
     id 'checkstyle'
@@ -9,6 +10,7 @@ plugins {
 group = 'com.nelson'
 version = '1.0.0'
 
+// 실행·컴파일 대상과 표준 API를 Java 17로 일치시킨다.
 java {
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
@@ -21,6 +23,7 @@ tasks.withType(JavaCompile).configureEach {
 
 repositories { mavenCentral() }
 
+// H2와 JWT 구현은 런타임에만 두고 테스트 지원 도구는 운영 의존성에서 분리한다.
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
@@ -35,6 +38,7 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
+// JUnit 5로 실행하고 실패 원인을 생략하지 않아 검증 결과를 재현할 수 있게 한다.
 tasks.named('test') {
     useJUnitPlatform()
     testLogging {
@@ -43,6 +47,7 @@ tasks.named('test') {
     }
 }
 
+// 한글 주석은 보존하고 AOSP 4칸 포맷과 미사용 import 제거를 전체 Java에 적용한다.
 spotless {
     java {
         target 'src/**/*.java'
@@ -58,6 +63,7 @@ spotless {
     }
 }
 
+// 경고도 실패로 처리하며 포맷 외의 실수 가능한 코드 구조를 검사한다.
 checkstyle {
     toolVersion = '10.17.0'
     configFile = file('config/checkstyle/checkstyle.xml')

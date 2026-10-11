@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Currency;
 
+// 수수료와 순송금액을 십진수로 계산하고 통화 자릿수와 저장 범위를 검증한다.
 public final class QuotePolicy {
     private static final BigDecimal MAX = new BigDecimal("9999999999.999999999999");
     private static final BigDecimal THRESHOLD = new BigDecimal("1000000");
@@ -28,6 +29,7 @@ public final class QuotePolicy {
         }
     }
 
+    // KRW 입력을 정규화한 뒤 구간별 수수료를 빼고 확정 환율로 수취액과 USD 금액을 구한다.
     public static Calculation calculate(
             BigDecimal amount, String target, BigDecimal rate, BigDecimal usdRate) {
         if (amount == null || !("USD".equals(target) || "JPY".equals(target))) {
@@ -75,11 +77,13 @@ public final class QuotePolicy {
         return new Calculation(source, target, rate, fixed, rated, ratio, received, usdRate, usd);
     }
 
+    // 금액을 통화의 기본 소수 자릿수에 맞춰 HALF_UP으로 반올림한다.
     public static BigDecimal money(BigDecimal value, String currency) {
         return value.setScale(
                 Currency.getInstance(currency).getDefaultFractionDigits(), RoundingMode.HALF_UP);
     }
 
+    // 큰 지수의 메모리 할당을 먼저 막고 12자리 반올림 후 양수·저장 범위를 확인한다.
     public static BigDecimal rate(BigDecimal rate) {
         if (rate == null || rate.signum() <= 0) {
             throw new BusinessException(INVALID_REQUEST);

@@ -10,6 +10,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
+// 식별 번호를 무작위 nonce 기반 AES-GCM으로 암호화하는 저장 경계다.
 public final class AesIdentityCipher implements Ports.IdentityCipher {
     private final SecretKeySpec key;
     private final SecureRandom random = new SecureRandom();
@@ -28,6 +29,7 @@ public final class AesIdentityCipher implements Ports.IdentityCipher {
     }
 
     @Override
+    // 새 nonce와 인증 태그를 붙인 암호문을 Base64로 인코딩해 저장 형식으로 반환한다.
     public String encrypt(String value) {
         try {
             // 매번 다른 nonce와 GCM 인증 태그로 같은 번호도 다른 암호문을 만든다.

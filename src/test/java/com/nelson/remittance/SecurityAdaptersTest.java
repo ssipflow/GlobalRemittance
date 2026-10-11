@@ -25,6 +25,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.Test;
 
+// 암호화·비밀번호·토큰 어댑터의 보안 계약을 독립 검증한다.
 class SecurityAdaptersTest {
     private static final String KEY =
             Base64.getEncoder()
@@ -45,6 +46,7 @@ class SecurityAdaptersTest {
     }
 
     @Test
+    // 동일 원문도 다른 nonce로 암호화되고 변조된 암호문은 인증 실패하는지 확인한다.
     void aesGcmRoundTripsWithDifferentNonceAndAuthenticatesCiphertext() throws Exception {
         var cipher = new AesIdentityCipher(KEY);
         String raw = "1234567890123";
@@ -70,6 +72,7 @@ class SecurityAdaptersTest {
     }
 
     @Test
+    // 잘못된 키는 즉시 실패하며 오류에 비밀 값이 포함되지 않는지 확인한다.
     void keysFailFastWithoutIncludingSecretValues() {
         assertThrows(IllegalArgumentException.class, () -> new AesIdentityCipher("short"));
         assertThrows(
@@ -77,6 +80,7 @@ class SecurityAdaptersTest {
     }
 
     @Test
+    // BCrypt 솔트와 잘못된 비밀번호 거부를 검증한다.
     void bcryptHashesAreSaltedAndCannotAuthenticateWrongPassword() {
         var passwords = new ApplicationConfiguration().passwords();
         String first = passwords.hash("test-password"), second = passwords.hash("test-password");
@@ -87,6 +91,7 @@ class SecurityAdaptersTest {
     }
 
     @Test
+    // 필수 JWT 클레임과 정확한 30분 만료 경계를 검증한다.
     void jwtCarriesRequiredClaimsAndExpiresAtThirtyMinutesExactly() {
         var tokens = new JwtTokens(KEY, Clock.fixed(NOW, ZoneOffset.UTC));
         String token = tokens.issue(user());

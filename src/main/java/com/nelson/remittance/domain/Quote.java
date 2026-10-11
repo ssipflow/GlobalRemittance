@@ -6,6 +6,7 @@ import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_EXPRIED;
 
 import java.time.Instant;
 
+// 견적에 확정한 금액과 시각을 보관하며 소유권·중복·만료 조건에 따라 접수 상태를 만든다.
 public record Quote(
         long id,
         long userId,
@@ -14,6 +15,7 @@ public record Quote(
         Instant requestedTime,
         Instant createdAt,
         Instant updatedAt) {
+    // 소유권, 중복, 만료 순으로 검증하고 기존 견적 계산을 유지한 새 접수 상태를 반환한다.
     public Quote request(long actorId, Instant now) {
         if (userId != actorId) {
             throw new BusinessException(FORBIDDEN);

@@ -3,6 +3,7 @@ package com.nelson.remittance.domain;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+// 가입 사용자와 일일 송금 한도 정책을 표현하는 프레임워크 독립 모델이다.
 public record User(
         long id,
         String userId,

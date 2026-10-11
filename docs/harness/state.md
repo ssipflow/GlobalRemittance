@@ -25,3 +25,6 @@
 
 - 현재 후속 작업: feature/application-docs. 옵시디언 목적을 앱 아키텍처·API·주요 설계로 정정.
   docs/application 네 문서가 원본이며 작업 기록·PR 메타데이터는 export하지 않는다.
+
+- 현재 후속 작업: feature/korean-comments. 직접 작성 코드 전체에 한글 주석을 보강한다.
+  동작은 유지하고 기준은 하네스 지침에 반영한다. 앱 문서·옵시디언 갱신은 하지 않는다.

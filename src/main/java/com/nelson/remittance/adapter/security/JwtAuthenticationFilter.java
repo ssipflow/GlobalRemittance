@@ -14,6 +14,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+// 송금 요청의 Bearer 토큰을 인증 주체로 바꾸며 실패 응답에는 내부 원인을 노출하지 않는다.
 public final class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final Ports.Tokens tokens;
     private final ObjectMapper json;
@@ -24,6 +25,7 @@ public final class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    // 가입·로그인은 토큰 검사 대상에서 제외하고 컨텍스트 경로를 제거한 송금 경로만 검사한다.
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getServletPath();
         if (path.isEmpty()) {
@@ -33,6 +35,7 @@ public final class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     @Override
+    // 정상 토큰을 인증 주체로 등록하며 잘못된 헤더나 토큰은 체인을 진행하지 않고 JSON 401로 끝낸다.
     protected void doFilterInternal(
             HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
