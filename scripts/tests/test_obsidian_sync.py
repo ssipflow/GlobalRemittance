@@ -1,4 +1,4 @@
-"""Privacy and preservation tests run only in temporary repositories/Vaults."""
+"""Application-document export and privacy tests use temporary repos/Vaults only."""
 from contextlib import redirect_stdout
 import io
 import json
@@ -27,13 +27,25 @@ class ObsidianSyncTests(unittest.TestCase):
         self.run_git('config', 'user.email', 'test@example.invalid')
         self.run_git('config', 'user.name', 'Test')
         self.write('.gitignore', '.harness/\n')
-        self.write('docs/harness/state.md', '# 현재 상태\n- 목표: 새 목표 대기\n```\n- code-secret\n```\n')
-        self.write('docs/harness/tasks/obsidian-sync.md', '# 작업\n- 결정: 단방향\n')
-        self.write('docs/decisions/001-documentation.md', '# 결정\n- 이유: 문서 원본 보존\n')
+        self.documents = {
+            'overview': '# GlobalRemittance\n\n정확한 송금 서비스의 목적과 실행 방법을 설명한다.\n',
+            'architecture': '# 아키텍처\n\n```mermaid\ngraph LR\n Adapter --> Application --> Domain\n```\n',
+            'api': '# API\n\n' + '긴 계약 설명. ' * 400 + '\n\n'
+                   + '| 필드 | 타입 |\n| --- | --- |\n| quoteId | string |\n\n'
+                   + '\n'.join(f'- 필드 설명 {number}' for number in range(30))
+                   + '\n\n```json\n{"resultCode": 200, "quote": {"quoteId": "1"}}\n```\n',
+            'design': '# 주요 설계\n\nKST 일자와 사용자 행 잠금으로 한도를 검증한다.\n',
+        }
+        for name, content in self.documents.items():
+            self.write(f'docs/application/{name}.md', content)
+        self.write('docs/harness/state.md', '# TASK-LOG-PRIVATE\n- 실행 로그\n')
+        self.write('docs/harness/tasks/obsidian-sync.md', '# TASK-RECORD-PRIVATE\n')
+        self.write('docs/decisions/001-documentation.md', '# HARNESS-DECISION-PRIVATE\n')
         self.run_git('add', '.')
         self.run_git('commit', '-qm', 'fixture')
-        self.run_git('switch', '-qc', 'feature/obsidian-sync')
-        self.write('.harness/task.json', json.dumps({'id': 'obsidian-sync', 'branch': 'feature/obsidian-sync', 'status': 'active'}))
+        self.run_git('switch', '-qc', 'feature/application-docs')
+        self.write('.harness/task.json', json.dumps({'id': 'obsidian-sync', 'branch': 'feature/application-docs',
+                    'status': 'completed', 'pr': {'url': 'https://github.com/owner/repo/pull/999'}}))
         self.cwd = Path.cwd()
         os.chdir(self.root)
         self.assertEqual(self.cli('configure', '--project-root', str(self.project), '--repo', 'ssipflow/Moin-GlobalRemittance')[0], 0)
@@ -60,28 +72,62 @@ class ObsidianSyncTests(unittest.TestCase):
     def test_dry_run_no_vault_creation_and_repeat_idempotent(self):
         status, report = self.cli('dry-run')
         self.assertEqual(status, 0)
-        self.assertEqual(report['planned_notes'], 3)
+        self.assertEqual(report['planned_notes'], 4)
         self.assertFalse(self.project.exists())
         self.assertEqual(self.cli('sync')[0], 0)
-        contents = {str(p.relative_to(self.project)): p.read_bytes() for p in self.project.rglob('*.md')}
-        stamps = {str(p.relative_to(self.project)): p.stat().st_mtime_ns for p in self.project.rglob('*.md')}
+        contents = {p.name: p.read_bytes() for p in self.project.glob('*.md')}
+        stamps = {p.name: p.stat().st_mtime_ns for p in self.project.glob('*.md')}
         self.assertEqual(self.cli('sync')[1]['changed_notes'], 0)
-        self.assertEqual(contents, {str(p.relative_to(self.project)): p.read_bytes() for p in self.project.rglob('*.md')})
-        self.assertEqual(stamps, {str(p.relative_to(self.project)): p.stat().st_mtime_ns for p in self.project.rglob('*.md')})
+        self.assertEqual(contents, {p.name: p.read_bytes() for p in self.project.glob('*.md')})
+        self.assertEqual(stamps, {p.name: p.stat().st_mtime_ns for p in self.project.glob('*.md')})
         self.assertEqual(self.run_git('status', '--porcelain'), '')
 
-    def test_manual_content_preserved_and_no_personal_vault_reads(self):
+    def test_full_prose_tables_json_and_mermaid_are_preserved_without_summary_cutoff(self):
+        self.cli('sync')
+        for name, destination in sync.DOCUMENTS.items():
+            original = (self.root / name).read_text()
+            self.assertIn(original, (self.project / destination).read_text())
+        api = (self.project / 'API 문서.md').read_text()
+        self.assertIn('- 필드 설명 29', api)
+        self.assertIn('| quoteId | string |', api)
+        self.assertIn('```json\n{"resultCode": 200', api)
+        self.assertGreater(len(api), 2400)
+        self.assertIn('```mermaid\ngraph LR', (self.project / '아키텍처.md').read_text())
+
+    def test_only_fixed_tracked_application_docs_export_without_task_or_pr_metadata(self):
+        self.write('docs/application/private.md', 'ARBITRARY-DOC-PRIVATE')
+        self.write('src/private.py', 'RAW-CODE-PRIVATE')
+        self.write('runtime.log', 'RAW-LOG-PRIVATE')
+        self.run_git('add', 'docs/application/private.md', 'src/private.py', 'runtime.log')
+        with patch.object(sync, 'runtime', wraps=sync.runtime) as reads:
+            self.assertEqual(self.cli('sync')[0], 0)
+        self.assertNotIn('task.json', [call.args[1] for call in reads.call_args_list])
+        self.assertEqual(set(sync.DOCUMENTS.values()), {p.name for p in self.project.iterdir()})
+        text = ''.join(p.read_text() for p in self.project.glob('*.md'))
+        for forbidden in ('TASK-LOG-PRIVATE', 'TASK-RECORD-PRIVATE', 'HARNESS-DECISION-PRIVATE',
+                          'ARBITRARY-DOC-PRIVATE', 'RAW-CODE-PRIVATE', 'RAW-LOG-PRIVATE', '/pull/999'):
+            self.assertNotIn(forbidden, text)
+        self.write('.harness/task.json', '{corrupt task JSON')
+        self.assertEqual(self.cli('sync')[1]['changed_notes'], 0)
+
+    def test_untracked_allowlisted_file_is_not_exported(self):
+        self.run_git('rm', '--cached', '-q', 'docs/application/api.md')
+        self.assertEqual(self.cli('sync')[1]['planned_notes'], 3)
+        self.assertFalse((self.project / 'API 문서.md').exists())
+        self.assertTrue((self.root / 'docs/application/api.md').exists())
+
+    def test_manual_content_preserved_and_personal_vault_files_untouched(self):
         self.cli('sync')
         note = self.project / '프로젝트 개요.md'
         note.write_text('나의 노트\n' + note.read_text() + '\n개인 메모\n')
         private = self.project.parent.parent / 'private.md'
         private.write_text('PERSONAL-SECRET')
-        self.write('docs/harness/state.md', '# 상태\n- 목표: 수정됨\n')
-        self.cli('sync')
+        self.write('docs/application/overview.md', '# 프로젝트\n\n새로운 앱 개요.\n')
+        self.assertEqual(self.cli('sync')[0], 0)
         self.assertTrue(note.read_text().startswith('나의 노트\n'))
         self.assertTrue(note.read_text().endswith('\n개인 메모\n'))
-        self.assertIn('수정됨', note.read_text())
-        self.assertNotIn('PERSONAL-SECRET', ''.join(p.read_text() for p in self.project.rglob('*.md')))
+        self.assertIn('새로운 앱 개요', note.read_text())
+        self.assertNotIn('PERSONAL-SECRET', ''.join(p.read_text() for p in self.project.glob('*.md')))
         self.assertEqual(private.read_text(), 'PERSONAL-SECRET')
 
     def test_missing_or_malformed_markers_refuse_entire_preflight(self):
@@ -90,15 +136,24 @@ class ObsidianSyncTests(unittest.TestCase):
         for content in ('사용자 소유 파일', sync.END + sync.START, sync.START + sync.START + sync.END):
             with self.subTest(content=content):
                 overview.write_text(content)
-                self.write('docs/decisions/001-documentation.md', '# 수정\n- 결정: 새 내용\n')
-                decision = self.project / '결정/001-documentation.md'
-                before = decision.read_text()
+                self.write('docs/application/api.md', '# 변경된 API\n')
+                api = self.project / 'API 문서.md'
+                before = api.read_text()
                 self.assertEqual(self.cli('sync')[0], 1)
                 self.assertEqual(overview.read_text(), content)
-                self.assertEqual(decision.read_text(), before)
+                self.assertEqual(api.read_text(), before)
                 self.assertEqual(json.loads((self.root / '.harness/obsidian-report.json').read_text())['status'], 'failed')
 
-    def test_symlink_note_and_subdirectory_refused(self):
+    def test_managed_marker_examples_are_escaped_and_repeated_sync_stays_valid(self):
+        self.write('docs/application/api.md', '# 관리 예시\n\n```markdown\n' + sync.START + '\n' + sync.END + '\n```\n')
+        self.assertEqual(self.cli('sync')[0], 0)
+        text = (self.project / 'API 문서.md').read_text()
+        self.assertEqual(text.count(sync.START), 1)
+        self.assertEqual(text.count(sync.END), 1)
+        self.assertIn('&lt;!-- codex:globalremittance:start --&gt;', text)
+        self.assertEqual(self.cli('sync')[1]['changed_notes'], 0)
+
+    def test_symlink_note_and_reconfigured_project_root_refused(self):
         self.cli('sync')
         victim = self.base / 'victim.md'
         victim.write_text('PRIVATE')
@@ -107,14 +162,15 @@ class ObsidianSyncTests(unittest.TestCase):
         note.symlink_to(victim)
         self.assertEqual(self.cli('sync')[0], 1)
         self.assertEqual(victim.read_text(), 'PRIVATE')
-        note.unlink()
-        self.cli('sync')
-        decision = self.project / '결정/001-documentation.md'
-        decision.unlink()
-        (self.project / '결정').rmdir()
-        (self.project / '결정').symlink_to(self.base, target_is_directory=True)
+        other = self.base / 'other-project'
+        other.mkdir()
+        alias = self.project.parent / 'Alias'
+        alias.symlink_to(other, target_is_directory=True)
+        config = json.loads((self.root / '.harness/obsidian.json').read_text())
+        config['project_root'] = str(alias)
+        self.write('.harness/obsidian.json', json.dumps(config))
         self.assertEqual(self.cli('sync')[0], 1)
-        self.assertFalse((self.base / '001-documentation.md').exists())
+        self.assertEqual(list(other.iterdir()), [])
 
     def test_config_root_symlink_traversal_and_repo_validation(self):
         alias = self.base / 'alias'
@@ -126,69 +182,39 @@ class ObsidianSyncTests(unittest.TestCase):
                 self.assertEqual(self.cli('configure', '--project-root', path, '--repo', repo)[0], 1)
         self.assertFalse(self.project.exists())
 
-    def test_source_symlink_is_not_ingested(self):
+    def test_source_file_and_source_parent_symlinks_are_not_ingested(self):
         victim = self.base / 'private.md'
-        victim.write_text('- PRIVATE-SECRET')
-        state = self.root / 'docs/harness/state.md'
-        state.unlink()
-        state.symlink_to(victim)
+        victim.write_text('PRIVATE-SECRET')
+        overview = self.root / 'docs/application/overview.md'
+        overview.unlink()
+        overview.symlink_to(victim)
+        self.assertEqual(self.cli('sync')[0], 1)
+        self.assertFalse(self.project.exists())
+        overview.unlink()
+        overview.write_text(self.documents['overview'])
+        original = self.root / 'docs/application'
+        relocated = self.root / 'docs/relocated'
+        original.rename(relocated)
+        original.symlink_to(relocated, target_is_directory=True)
         self.assertEqual(self.cli('sync')[0], 1)
         self.assertFalse(self.project.exists())
 
-    def test_untracked_and_code_sources_not_exported_or_stale_notes_deleted(self):
-        self.write('docs/decisions/private.md', '- PRIVATE-SECRET')
-        self.write('src/private.py', '- CODE-SECRET')
+    def test_missing_sources_and_legacy_work_notes_are_not_deleted_or_read(self):
         self.cli('sync')
-        self.assertFalse((self.project / '결정/private.md').exists())
-        texts = ''.join(p.read_text() for p in self.project.rglob('*.md'))
-        self.assertNotIn('CODE-SECRET', texts)
-        self.assertNotIn('code-secret', texts)
-        self.run_git('rm', '-q', 'docs/decisions/001-documentation.md')
-        self.cli('sync')
-        self.assertTrue((self.project / '결정/001-documentation.md').exists())
-
-    def evidence(self):
-        sha = self.run_git('rev-parse', 'HEAD')
-        task = {'id': 'obsidian-sync', 'branch': 'feature/obsidian-sync', 'status': 'completed',
-                'commit': sha, 'committed_snapshot': harness.snapshot(self.root),
-                'review': {'snapshot': 'a' * 64, 'evidence': 'independent review'},
-                'verification': {'snapshot': 'a' * 64, 'passed': True},
-                'pr': {'number': 4, 'url': 'https://github.com/ssipflow/Moin-GlobalRemittance/pull/4',
-                       'head': sha, 'repo': 'ssipflow/Moin-GlobalRemittance', 'base': 'dev'}}
-        self.write('.harness/task.json', json.dumps(task))
-        return task
-
-    def test_verified_metadata_and_stale_snapshot_or_branch_guard(self):
-        task = self.evidence()
-        self.cli('sync')
-        note = self.project / '작업/obsidian-sync.md'
-        self.assertIn('[PR #4]', note.read_text())
-        self.assertIn(task['commit'], note.read_text())
-        self.write('docs/harness/state.md', '# 상태\n- 변경됨\n')
-        self.cli('sync')
-        self.assertNotIn('[PR #4]', note.read_text())
-        self.assertIn('확정된 커밋·PR 근거 없음', note.read_text())
-        task['id'] = '../../private'
-        self.write('.harness/task.json', json.dumps(task))
+        previous = (self.project / 'API 문서.md').read_bytes()
+        self.run_git('rm', '-q', 'docs/application/api.md')
+        self.assertEqual(self.cli('sync')[1]['planned_notes'], 3)
+        self.assertEqual((self.project / 'API 문서.md').read_bytes(), previous)
+        personal = self.base / 'personal'
+        personal.mkdir()
+        legacy = personal / 'task.md'
+        legacy.write_text('LEGACY-PRIVATE')
+        (self.project / '작업').symlink_to(personal, target_is_directory=True)
         self.assertEqual(self.cli('sync')[0], 0)
-        self.assertFalse((self.base / 'private.md').exists())
-        task['id'], task['branch'] = 'obsidian-sync', 'feature/other'
-        self.write('.harness/task.json', json.dumps(task))
-        config = sync.runtime(self.root, 'obsidian.json')
-        self.assertNotIn(('작업', 'obsidian-sync.md'), sync.render(self.root, config))
-
-    def test_invalid_pr_and_failed_verification_not_claimed(self):
-        task = self.evidence()
-        task['pr']['url'] = 'https://evil.invalid/private'
-        self.write('.harness/task.json', json.dumps(task))
-        self.cli('sync')
-        note = self.project / '작업/obsidian-sync.md'
-        self.assertNotIn('evil.invalid', note.read_text())
-        self.assertNotIn('[PR #4]', note.read_text())
-        task['verification']['passed'] = False
-        self.write('.harness/task.json', json.dumps(task))
-        self.cli('sync')
-        self.assertNotIn('검증된 하네스 커밋', note.read_text())
+        self.assertEqual(legacy.read_text(), 'LEGACY-PRIVATE')
+        self.run_git('rm', '-qr', 'docs/application')
+        self.assertEqual(self.cli('sync')[1]['planned_notes'], 0)
+        self.assertEqual((self.project / 'API 문서.md').read_bytes(), previous)
 
     def test_status_redacts_runtime_payload_and_concurrent_lock(self):
         self.write('.harness/obsidian-report.json', json.dumps({'status': 'failed', 'reason': str(self.project)}))
@@ -197,30 +223,37 @@ class ObsidianSyncTests(unittest.TestCase):
             self.assertEqual(self.cli('sync')[0], 1)
         self.assertFalse(self.project.exists())
 
-    def test_mismatched_or_short_fences_do_not_export_code(self):
-        text = '# 공개\n````python\n~~~\n- PRIVATE-1\n```\n- PRIVATE-2\n````\n- 공개 항목\n~~~text\n```\n- PRIVATE-3\n~~~\n'
-        result = sync.summary(text)
-        self.assertIn('공개 항목', result)
-        self.assertNotIn('PRIVATE', result)
-
-    def test_corrupt_runtime_shapes_have_redacted_failure(self):
+    def test_corrupt_config_shapes_have_redacted_failure(self):
         for project in (None, [], 7):
             self.write('.harness/obsidian.json', json.dumps({'version': 1, 'repo': 'a/b', 'project_root': project}))
             self.assertEqual(self.cli('status')[0], 1)
-        self.cli('configure', '--project-root', str(self.project), '--repo', 'ssipflow/Moin-GlobalRemittance')
-        self.write('.harness/task.json', json.dumps({'id': [], 'branch': 'feature/obsidian-sync'}))
-        self.assertEqual(self.cli('dry-run')[0], 0)
 
     def test_repository_change_during_render_refuses_write(self):
         with patch.object(harness, 'snapshot', side_effect=['before', 'after']):
             self.assertEqual(self.cli('sync')[0], 1)
         self.assertFalse(self.project.exists())
 
+    def test_source_and_assembled_note_size_fail_before_any_note_write(self):
+        for content in ('x' * (sync.LIMIT + 1), 'x' * (sync.LIMIT - 1)):
+            with self.subTest(length=len(content)):
+                self.write('docs/application/api.md', content)
+                self.assertEqual(self.cli('sync')[0], 1)
+                self.assertFalse(self.project.exists())
+        self.write('docs/application/api.md', self.documents['api'])
+        self.cli('sync')
+        api = self.project / 'API 문서.md'
+        current = api.read_text()
+        api.write_text('유' * ((sync.LIMIT - len(current.encode())) // 3) + current)
+        self.write('docs/application/api.md', self.documents['api'] + '추가 문서' * 100)
+        before = api.read_bytes()
+        self.assertEqual(self.cli('sync')[0], 1)
+        self.assertEqual(api.read_bytes(), before)
+
     def test_atomic_failure_preserves_existing_note_and_removes_temp(self):
         self.cli('sync')
         note = self.project / '프로젝트 개요.md'
         before = note.read_bytes()
-        self.write('docs/harness/state.md', '# 상태\n- 목표: 변경됨\n')
+        self.write('docs/application/overview.md', '# 변경된 앱 개요\n')
         with patch.object(sync.os, 'rename', side_effect=PermissionError('private path')):
             self.assertEqual(self.cli('sync')[0], 1)
         self.assertEqual(note.read_bytes(), before)
