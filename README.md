@@ -82,6 +82,8 @@ curl -X POST http://localhost:8080/transfer/quote \
 
 ## 구조
 
+기본 패키지는 개인 프로젝트 이름 공간인 `com.nelson.remittance`다.
+
 ```text
 domain                         업무 모델·금액 정책 (프레임워크 없음)
 application                    사용 사례·외부 포트
