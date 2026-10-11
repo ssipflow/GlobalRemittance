@@ -1,34 +1,34 @@
 # 현재 상태
 
-- 목표: Goals Of Project를 기준으로 송금 서비스를 처음부터 구현한다.
-- 진행: feature/remittance-rebuild에서 기존 애플리케이션 전체를 클린 아키텍처로 교체.
-- 요구사항: docs/requirements/project-goals.md. 원본은 사용자가 지정한 Goals Of Project 노트.
-- 컨벤션: domain/application/adapter/bootstrap 의존성, 한글로 업무 불변식·설계 이유 주석.
-- 완료 기준: 회원가입·로그인·견적·접수·이력 API, 금액/시간/보안/동시성 회귀 검증,
-  포맷·린트와 Gradle 빌드, 독립 리뷰와 검증, README 회고, dev PR 및 옵시디언 동기화.
-- 환경: 프로젝트 Java 17 호환, 현재 로컬 JVM은 Java 21. 실제 검증 런타임을 명시한다.
-- 검증: Java 17 앱 27개, Spotless·Checkstyle main/test 통과, 실행 JAR 빌드 확인.
-  재구현 PR #5는 사람이 dev에 병합했다.
-- 기준선: 기존 홈 H2/외부 환율 API 의존 테스트는 실행하지 않음. 새 테스트는 임시 H2와 고정 시간/환율.
-- 기억: 기존 하네스·브랜치 정책과 Git 이력은 유지. 새 요구사항을 이전 개선 백로그보다 우선한다.
-- 보안: 실행 키는 환경변수로 받는다. 개인 경로와 키는 기억 파일에 저장하지 않는다.
-- 옵시디언: 프로젝트 전용 동기화 연결됨. 실제 결과는 무시되는 로컬 보고서에서 확인.
-- 실행 범위: 로컬 내부 개선·검증·커밋·작업 브랜치 push·dev PR까지. 승인·병합은 사람.
-- 작업 기록: docs/harness/tasks/remittance-rebuild.md.
-- 다음: 사람이 dev PR을 승인/병합한다. 이후 실제 환율 공급과 거래량 증가에 따른 집계를 검토한다.
+## 목표와 기준
 
-- 후속 작업: feature/hooks-json-format에서 사용자가 작성한 hooks.json 포맷을 반영한다.
-  JSON 의미 동일성을 확인하며 새 dev PR의 승인·병합은 사람이 수행한다.
+- 목표: Goals Of Project 기반 개인 송금 서비스를 정확하고 재현 가능한 포트폴리오로 발전시킨다.
+- 기술·구조: Java 17 / Spring Boot / JPA / embedded H2, com.nelson.remittance의 domain/application/adapter/bootstrap.
+- 요구사항: [프로젝트 목표](../requirements/project-goals.md). 앱 설명: [문서 원본](../application/overview.md).
+- 실행 범위: dev 기반 feature/hotfix → 내부 리뷰·검증 → 커밋·push → dev PR. 승인·병합은 사람.
+- 설명 주석은 한글로 작성한다. 공통 원칙·개인 선호와 최신 실행 범위는 engineering 및 .codex/instructions/workflow.md를 따른다.
 
-- 현재 후속 작업: feature/nelson-package에서 기본 패키지를 com.nelson.remittance로 변경한다.
-  main/test 경로·참조와 Gradle group을 맞추고 전체 check·bootJar 후 dev PR로 전달한다.
+## 확인된 구현과 검증
 
-- 현재 후속 작업: feature/application-docs. 옵시디언 목적을 앱 아키텍처·API·주요 설계로 정정.
-  docs/application 네 문서가 원본이며 작업 기록·PR 메타데이터는 export하지 않는다.
+- 확인 기준: 2026-10-11 dev 079e963, PR #1~#10 병합 확인. 아래는 이번 문서 작업의 시작 기준이다.
+- 구현: 회원가입·로그인·견적·접수·이력 API, JSON 오류, BCrypt/AES-GCM/JWT, 금액·만료·KST 한도·소유권·중복 검사.
+- 접수: 사용자 행 잠금으로 직렬화, 일일 합계는 KST 당일 구간의 DB SUM, 락 대기 초과는 503 LOCK_TIMEOUT.
+- 이력 조회는 사용자 쓰기 락 없이 하나의 조회 결과에서 목록과 오늘 합계를 계산한다.
+- 최근 앱 검증: PR #10 작업 커밋 40d468c에서 Java 17 clean check bootJar 통과, 로컬 XML 30개 성공·실패/건너뜀 0.
+- Python 하네스·옵시디언 검증: 이전 주석 작업에서 46개 통과. 이번 기억 정리에서 앱/Python 테스트를 재실행한 결과로 간주하지 않는다.
+- 품질 게이트: Spotless와 main/test Checkstyle을 Gradle check에 연결. 테스트는 별도 메모리 H2·고정 시간/환율 사용.
+- 옵시디언: docs/application의 개요·아키텍처·API·주요 설계 네 문서만 동기화. 작업 이력·PR 정보는 내보내지 않는다.
 
-- 현재 후속 작업: feature/korean-comments. 직접 작성 코드 전체에 한글 주석을 보강한다.
-  동작은 유지하고 기준은 하네스 지침에 반영한다. 앱 문서·옵시디언 갱신은 하지 않는다.
+## 현재 작업과 다음 행동
 
-- 현재 후속 작업: feature/concurrency-hardening (Claude 첫 작업). 락 대기 타임아웃을 업무 오류로 매핑,
-  일일 합계를 DB 집계로 전환, history의 사용자 쓰기 락 제거. 기록: tasks/concurrency-hardening.md.
-  완료 기준: 동시성·한도·KST 경계 회귀 유지, Java 17 check·bootJar, 앱 문서 갱신 후 dev PR.
+- 현재 작업: feature/harness-memory-cleanup에서 state와 백로그를 압축한다. [작업 기록](tasks/harness-memory-cleanup.md).
+- 완료 기준: 실제 Git/PR/검증 기록과 내용 대조, 독립 문서 리뷰·검증 후 dev PR 생성.
+- 다음: 사람이 이번 기억 정리 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 사용자와 정한다.
+- 앱 코드·계약·설계는 변경하지 않으므로 앱 문서·옵시디언은 갱신하지 않는다.
+- 현재 항목은 작업 전환 때 교체한다. 완료 이력을 여기에 누적하지 않고 tasks와 Git/PR에 보존한다.
+
+## 남은 한계
+
+- 환율은 설정 예시이며 실시간 시세·실제 금융기관 송금·기존 데이터 마이그레이션은 미구현이다.
+- 이력 페이지네이션과 요청 멱등성 키가 없다. 잠금·복구 검증은 H2 범위이며 운영 DB에 대한 근거는 없다.
+- 실제 배포·CI/CD는 요청 범위 밖이다. GitHub AI 자동 리뷰 연결과 서버 측 브랜치 보호 강제 여부는 별도 확인이 필요하다.
