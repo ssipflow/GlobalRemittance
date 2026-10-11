@@ -145,18 +145,43 @@ public class JpaStore implements Ports.Accounts, Ports.Quotes {
     }
 
     @Override
-    // 접수된 거래만 최신 시각·식별자 순으로 읽어 미접수 견적이 집계에 들어가지 않게 한다.
-    public List<Quote> requestedQuotes(long userId) {
-        return em
-                .createQuery(
+    // 접수된 거래만 최신 시각·ID 순으로 읽는다. 경계 조건은 정렬 키와 같아 중복·누락이 없고,
+    // 항상 userId 조건을 포함하므로 다른 사용자의 위치값으로도 타인 데이터에 접근할 수 없다.
+    public List<Quote> requestedPage(long userId, Position after, int limit) {
+        var query =
+                em.createQuery(
                         "select q from QuoteEntity q where q.user.id = :userId and q.requestedTime is not null "
+                                + (after == null
+                                        ? ""
+                                        : "and (q.requestedTime < :time or (q.requestedTime = :time and q.id < :id)) ")
                                 + "order by q.requestedTime desc, q.id desc",
-                        QuoteEntity.class)
-                .setParameter("userId", integerId(userId))
-                .getResultList()
-                .stream()
+                        QuoteEntity.class);
+        query.setParameter("userId", integerId(userId));
+        if (after != null) {
+            query.setParameter("time", after.requestedTime());
+            query.setParameter("id", integerId(after.id()));
+        }
+        return query.setMaxResults(limit).getResultList().stream()
                 .map(QuoteEntity::toDomain)
                 .toList();
+    }
+
+    @Override
+    // 건수와 합계를 한 JPQL로 구해 같은 스냅샷 값이 되게 하며, 합계가 없으면 0.00으로 정규화한다.
+    public DailyTotal requestedDailyTotal(long userId, Instant from, Instant to) {
+        Object[] row =
+                em.createQuery(
+                                "select count(q), sum(q.usdAmount) from QuoteEntity q where q.user.id = :userId "
+                                        + "and q.requestedTime >= :from and q.requestedTime < :to",
+                                Object[].class)
+                        .setParameter("userId", integerId(userId))
+                        .setParameter("from", from)
+                        .setParameter("to", to)
+                        .getSingleResult();
+        BigDecimal sum = (BigDecimal) row[1];
+        return new DailyTotal(
+                ((Number) row[0]).intValue(),
+                QuotePolicy.money(sum == null ? BigDecimal.ZERO : sum, "USD"));
     }
 
     @Override

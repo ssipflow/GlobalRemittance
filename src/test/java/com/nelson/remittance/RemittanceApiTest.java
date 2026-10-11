@@ -215,6 +215,60 @@ class RemittanceApiTest {
                         .andReturn());
     }
 
+    MvcResult listPage(String token, String size, String cursor) throws Exception {
+        var builder = get("/transfer/list").header("Authorization", "Bearer " + token);
+        if (size != null) {
+            builder = builder.param("size", size);
+        }
+        if (cursor != null) {
+            builder = builder.param("cursor", cursor);
+        }
+        return mvc.perform(builder).andReturn();
+    }
+
+    JsonNode page(String token, String size, String cursor) throws Exception {
+        MvcResult result = listPage(token, size, cursor);
+        assertEquals(200, result.getResponse().getStatus());
+        return read(result);
+    }
+
+    // 현재 시계 시각에 견적을 접수하고 접수 건의 ID를 돌려준다. 금액은 구분용 번호 n에서 만든 KRW 값이다.
+    long requestedNow(String token, int n) throws Exception {
+        String id = quote(token, krw(n), "USD");
+        assertEquals(200, request(token, id).getResponse().getStatus());
+        return Long.parseLong(id);
+    }
+
+    static String encodeForTest(Instant time, long id) {
+        String raw = time.getEpochSecond() + "." + time.getNano() + "." + id;
+        return java.util.Base64.getUrlEncoder()
+                .withoutPadding()
+                .encodeToString(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
+    static String krw(int n) {
+        return Integer.toString(100000 + n * 1000);
+    }
+
+    // 모든 페이지를 순서대로 읽어 amount 오름차순 식별용 requestedDate+sourceAmount 목록을 모은다.
+    List<String> walk(String token, String size, List<JsonNode> pages) throws Exception {
+        List<String> keys = new ArrayList<>();
+        String cursor = null;
+        do {
+            JsonNode body = page(token, size, cursor);
+            pages.add(body);
+            body.get("history")
+                    .forEach(
+                            h ->
+                                    keys.add(
+                                            h.get("requestedDate").asText()
+                                                    + "|"
+                                                    + h.get("sourceAmount").asText()));
+            cursor = body.get("nextCursor").isNull() ? null : body.get("nextCursor").asText();
+        } while (cursor != null);
+        return keys;
+    }
+
     void error(MvcResult result, int status, String code) throws Exception {
         assertEquals(status, result.getResponse().getStatus());
         assertTrue(result.getResponse().getContentType().startsWith("application/json"));
@@ -721,5 +775,195 @@ class RemittanceApiTest {
         assertEquals(200, request(token, quote(token, "1004004", "USD")).getResponse().getStatus());
         error(request(token, quote(token, "1012", "USD")), 400, "LIMIT_EXCESS");
         assertEquals(1, list(token).get("todayTransferCount").asInt());
+    }
+
+    @Test
+    // size=2로 5건을 읽으면 최신순으로 2/2/1건이 나오고 마지막 페이지만 nextCursor가 null이다.
+    void pagesChainByCursorWithoutDuplicatesOrGaps() throws Exception {
+        String token = user("pages@example.com", "REG_NO");
+        for (int i = 1; i <= 5; i++) {
+            clock.set(NOW.plusSeconds(i));
+            requestedNow(token, i * 10);
+        }
+        var first = page(token, "2", null);
+        assertEquals(2, first.get("history").size());
+        assertEquals("150000", first.get("history").get(0).get("sourceAmount").asText());
+        assertEquals("140000", first.get("history").get(1).get("sourceAmount").asText());
+        assertTrue(first.get("nextCursor").isTextual());
+        var second = page(token, "2", first.get("nextCursor").asText());
+        assertEquals("130000", second.get("history").get(0).get("sourceAmount").asText());
+        assertEquals("120000", second.get("history").get(1).get("sourceAmount").asText());
+        var third = page(token, "2", second.get("nextCursor").asText());
+        assertEquals(1, third.get("history").size());
+        assertEquals("110000", third.get("history").get(0).get("sourceAmount").asText());
+        assertTrue(third.get("nextCursor").isNull());
+        List<JsonNode> pages = new ArrayList<>();
+        assertEquals(5, walk(token, "2", pages).stream().distinct().count());
+        // 정확히 size건인 마지막 페이지는 다음 페이지가 없으므로 nextCursor가 null이다.
+        assertTrue(page(token, "5", null).get("nextCursor").isNull());
+        // 기본 요청은 첫 페이지이며 기존 필드를 유지한다.
+        var plain = list(token);
+        assertEquals(5, plain.get("history").size());
+        assertTrue(plain.get("nextCursor").isNull());
+        assertEquals("pages@example.com", plain.get("userId").asText());
+    }
+
+    @Test
+    // 같은 접수 시각의 거래는 ID 내림차순으로 정렬되고 페이지 경계가 같은 시각을 가로질러도 중복·누락이 없다.
+    void sameRequestedTimeBreaksTiesByIdDescendingAcrossPages() throws Exception {
+        String token = user("ties@example.com", "REG_NO");
+        clock.set(NOW.plusSeconds(60));
+        List<Long> ids = new ArrayList<>();
+        for (int i = 1; i <= 5; i++) {
+            ids.add(requestedNow(token, i * 10));
+        }
+        List<String> seen = new ArrayList<>();
+        String cursor = null;
+        do {
+            var body = page(token, "2", cursor);
+            body.get("history").forEach(h -> seen.add(h.get("sourceAmount").asText()));
+            cursor = body.get("nextCursor").isNull() ? null : body.get("nextCursor").asText();
+        } while (cursor != null);
+        assertEquals(List.of("150000", "140000", "130000", "120000", "110000"), seen);
+        Collections.reverse(ids);
+        assertEquals(
+                ids,
+                jdbc.queryForList(
+                        "select id from remittances where requested_time is not null "
+                                + "order by requested_time desc, id desc",
+                        Long.class));
+    }
+
+    @Test
+    // 페이지 사이에 새 접수가 생겨도 이미 받은 항목은 반복되지 않고 새 항목은 다음 페이지에 끼어들지 않는다.
+    void newRequestBetweenPagesDoesNotRepeatReceivedItems() throws Exception {
+        String token = user("between@example.com", "REG_NO");
+        for (int i = 1; i <= 4; i++) {
+            clock.set(NOW.plusSeconds(i));
+            requestedNow(token, i * 10);
+        }
+        var first = page(token, "2", null);
+        clock.set(NOW.plusSeconds(100));
+        requestedNow(token, 99);
+        var second = page(token, "2", first.get("nextCursor").asText());
+        assertEquals(2, second.get("history").size());
+        assertEquals("120000", second.get("history").get(0).get("sourceAmount").asText());
+        assertEquals("110000", second.get("history").get(1).get("sourceAmount").asText());
+        assertTrue(second.get("nextCursor").isNull());
+        assertEquals(5, page(token, "10", null).get("history").size());
+    }
+
+    @Test
+    // 오늘 집계는 페이지와 무관하게 같고, KST 자정 이전 항목은 이력에만 포함되고 집계에서는 제외된다.
+    void todayTotalsAreSameOnEveryPageAndExcludeYesterday() throws Exception {
+        clock.set(Instant.parse("2026-01-01T14:59:59Z"));
+        String token = user("totals@example.com", "REG_NO");
+        requestedNow(token, 1);
+        clock.set(Instant.parse("2026-01-01T15:00:00Z"));
+        requestedNow(token, 10);
+        requestedNow(token, 20);
+        requestedNow(token, 30);
+        var first = page(token, "3", null);
+        var second = page(token, "3", first.get("nextCursor").asText());
+        // 오늘 합계는 첫 페이지의 당일 접수 3건 USD 합이며 어제 접수 1건은 포함하지 않는다.
+        BigDecimal expected = BigDecimal.ZERO;
+        for (var h : first.get("history")) {
+            expected = expected.add(h.get("usdAmount").decimalValue());
+        }
+        for (var body : List.of(first, second)) {
+            assertEquals(3, body.get("todayTransferCount").asInt());
+            assertEquals(0, expected.compareTo(body.get("todayTransferUsdAmount").decimalValue()));
+        }
+        assertEquals(1, second.get("history").size());
+        assertEquals(
+                "2026-01-01 23:59:59", second.get("history").get(0).get("requestedDate").asText());
+        assertTrue(second.get("nextCursor").isNull());
+    }
+
+    @Test
+    // 잘못된 cursor와 허용 범위 밖 size는 공통 JSON 400이다.
+    void invalidCursorAndSizeAreJson400() throws Exception {
+        String token = user("invalid-page@example.com", "REG_NO");
+        requestedNow(token, 10);
+        requestedNow(token, 20);
+        String valid = page(token, "1", null).get("nextCursor").asText();
+        var encoder = java.util.Base64.getUrlEncoder().withoutPadding();
+        for (String bad :
+                List.of(
+                        "!!!",
+                        "",
+                        valid + "!",
+                        encoder.encodeToString(
+                                "a.b.c".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        encoder.encodeToString(
+                                "1.2".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        encoder.encodeToString(
+                                "1.0.0".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        encoder.encodeToString(
+                                "1.0.-5".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        encoder.encodeToString(
+                                "1.1000000000.1".getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        encoder.encodeToString(
+                                "1.0.99999999999"
+                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        encoder.encodeToString(
+                                "99999999999999999999.0.1"
+                                        .getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        encoder.encodeToString(
+                                "01.0.1".getBytes(java.nio.charset.StandardCharsets.UTF_8)))) {
+            error(listPage(token, null, bad), 400, "INVALID_REQUEST");
+        }
+        for (String size : List.of("0", "101", "-1", "+5", "abc", "", "1.5", "99999999999")) {
+            error(listPage(token, size, null), 400, "INVALID_REQUEST");
+        }
+        assertEquals(1, page(token, "1", valid).get("history").size());
+        assertEquals(2, page(token, "100", null).get("history").size());
+    }
+
+    @Test
+    // 다른 사용자의 cursor를 써도 조회는 인증 사용자로 제한되어 타인의 거래가 보이지 않는다.
+    void foreignCursorNeverExposesOtherUsersHistory() throws Exception {
+        String owner = user("cursor-owner@example.com", "REG_NO");
+        String other = user("cursor-other@example.com", "REG_NO");
+        clock.set(NOW.plusSeconds(10));
+        requestedNow(owner, 11);
+        requestedNow(owner, 12);
+        requestedNow(owner, 13);
+        clock.set(NOW.plusSeconds(1));
+        requestedNow(other, 77);
+        String ownerCursor = page(owner, "1", null).get("nextCursor").asText();
+        // 소유자의 위치값은 정렬 기준일 뿐이다. 결과는 인증 사용자(other)의 거래로만 구성된다.
+        var body = page(other, "10", ownerCursor);
+        assertEquals("cursor-other@example.com", body.get("userId").asText());
+        assertEquals(1, body.get("history").size());
+        assertEquals(krw(77), body.get("history").get(0).get("sourceAmount").asText());
+        var newer = page(other, "10", encodeForTest(NOW.minusSeconds(100), 1));
+        assertEquals(0, newer.get("history").size());
+    }
+
+    @Test
+    // 접수 시각 초 값은 0..9999-12-31T23:59:59Z(253402300799)만 허용하며 범위 밖 커서는 500이 아닌 400이다.
+    void cursorSecondsOutsideSupportedRangeAreJson400() throws Exception {
+        String token = user("range@example.com", "REG_NO");
+        requestedNow(token, 10);
+        for (String raw :
+                List.of(
+                        "31556889864403199.0.1",
+                        "253402300800.0.1",
+                        "-1.0.1",
+                        "-31557014167219200.0.1")) {
+            var cursor =
+                    java.util.Base64.getUrlEncoder()
+                            .withoutPadding()
+                            .encodeToString(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            error(listPage(token, null, cursor), 400, "INVALID_REQUEST");
+        }
+        for (String raw : List.of("0.0.1", "253402300799.999999999.1")) {
+            var cursor =
+                    java.util.Base64.getUrlEncoder()
+                            .withoutPadding()
+                            .encodeToString(raw.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            assertEquals(200, listPage(token, null, cursor).getResponse().getStatus());
+        }
     }
 }
