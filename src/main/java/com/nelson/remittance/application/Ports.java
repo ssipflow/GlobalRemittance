@@ -3,6 +3,7 @@ package com.nelson.remittance.application;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.User;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -29,6 +30,9 @@ public final class Ports {
         Quote saveQuote(Quote quote);
 
         List<Quote> requestedQuotes(long userId);
+
+        // [from, to) 구간에 접수된 견적의 USD 금액 합계다. 접수 건이 없으면 0.00을 돌려준다.
+        BigDecimal requestedUsdTotal(long userId, Instant from, Instant to);
     }
 
     // 대상 통화 한 단위당 KRW 환율을 제공하며 내부 계층은 제공처 구현을 알지 못한다.

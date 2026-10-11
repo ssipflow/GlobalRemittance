@@ -22,6 +22,7 @@ public class ApiExceptionHandler {
                     case FORBIDDEN -> HttpStatus.FORBIDDEN;
                     case QUOTE_NOT_FOUND -> HttpStatus.NOT_FOUND;
                     case DUPLICATE_USER, ALREADY_REQUESTED -> HttpStatus.CONFLICT;
+                    case LOCK_TIMEOUT -> HttpStatus.SERVICE_UNAVAILABLE;
                     case UNKNOWN_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
                     default -> HttpStatus.BAD_REQUEST;
                 };

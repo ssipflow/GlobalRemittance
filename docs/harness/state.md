@@ -28,3 +28,7 @@
 
 - 현재 후속 작업: feature/korean-comments. 직접 작성 코드 전체에 한글 주석을 보강한다.
   동작은 유지하고 기준은 하네스 지침에 반영한다. 앱 문서·옵시디언 갱신은 하지 않는다.
+
+- 현재 후속 작업: feature/concurrency-hardening (Claude 첫 작업). 락 대기 타임아웃을 업무 오류로 매핑,
+  일일 합계를 DB 집계로 전환, history의 사용자 쓰기 락 제거. 기록: tasks/concurrency-hardening.md.
+  완료 기준: 동시성·한도·KST 경계 회귀 유지, Java 17 check·bootJar, 앱 문서 갱신 후 dev PR.
