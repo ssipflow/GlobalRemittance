@@ -82,35 +82,39 @@ public final class TransferUseCases {
                 });
     }
 
+    // nextAfter는 다음 페이지가 있을 때만 값이 있으며 이 페이지 마지막 항목의 위치다.
     public record History(
-            User user, int todayCount, BigDecimal todayUsdAmount, List<Quote> quotes) {}
+            User user,
+            int todayCount,
+            BigDecimal todayUsdAmount,
+            List<Quote> quotes,
+            Ports.Quotes.Position nextAfter) {}
 
-    // 사용자 잠금 없이 읽는다. 목록 한 번의 조회 결과에서 오늘 건수·합계·목록을 모두 계산하므로
-    // 접수와 겹쳐도 서로 모순되지 않고, 조회가 접수 직렬화에 참여해 대기하거나 막지 않는다.
-    public History history(long actorId) {
+    // 사용자 잠금 없이 읽는다. 조회가 접수 직렬화에 참여해 대기하거나 막지 않는다.
+    // 오늘 건수·합계는 목록과 별개의 한 집계 쿼리로 구하므로 어느 페이지에서도 같고 서로 모순되지 않지만,
+    // 접수와 겹치면 목록과 집계의 시점이 다를 수 있다. limit+1건을 읽어 다음 페이지 존재를 판단한다.
+    public History history(long actorId, Ports.Quotes.Position after, int limit) {
         return work.required(
                 () -> {
                     User user =
                             accounts.findUser(actorId)
                                     .orElseThrow(() -> new BusinessException(UNAUTHORIZED));
-                    List<Quote> all = quotes.requestedQuotes(actorId);
-                    List<Quote> today = today(all, clock.instant());
-                    BigDecimal sum =
-                            today.stream()
-                                    .map(q -> q.calculation().usdAmount())
-                                    .reduce(new BigDecimal("0.00"), BigDecimal::add);
-                    return new History(user, today.size(), sum, List.copyOf(all));
+                    LocalDate date = clock.instant().atZone(KST).toLocalDate();
+                    var total =
+                            quotes.requestedDailyTotal(
+                                    actorId,
+                                    date.atStartOfDay(KST).toInstant(),
+                                    date.plusDays(1).atStartOfDay(KST).toInstant());
+                    List<Quote> read = quotes.requestedPage(actorId, after, limit + 1);
+                    boolean more = read.size() > limit;
+                    List<Quote> page = List.copyOf(more ? read.subList(0, limit) : read);
+                    Ports.Quotes.Position next =
+                            more
+                                    ? new Ports.Quotes.Position(
+                                            page.get(limit - 1).requestedTime(),
+                                            page.get(limit - 1).id())
+                                    : null;
+                    return new History(user, total.count(), total.usdAmount(), page, next);
                 });
-    }
-
-    // UTC 저장 시각을 서울 일자로 비교하여 자정 전후 거래를 정확히 분리한다.
-    private static List<Quote> today(List<Quote> all, Instant now) {
-        var date = now.atZone(KST).toLocalDate();
-        return all.stream()
-                .filter(
-                        q ->
-                                q.requestedTime() != null
-                                        && q.requestedTime().atZone(KST).toLocalDate().equals(date))
-                .toList();
     }
 }

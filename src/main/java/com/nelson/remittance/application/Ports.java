@@ -29,7 +29,18 @@ public final class Ports {
 
         Quote saveQuote(Quote quote);
 
-        List<Quote> requestedQuotes(long userId);
+        // 접수 목록 위치다. 마지막으로 읽은 항목의 (접수 시각, ID)이며 인코딩 방식은 모른다.
+        record Position(Instant requestedTime, long id) {}
+
+        // 접수 건수와 USD 합계를 한 번의 조회 결과로 묶어 서로 모순되지 않게 한다.
+        record DailyTotal(int count, BigDecimal usdAmount) {}
+
+        // 접수 시각·ID 내림차순으로 after 다음 항목부터 최대 limit건을 읽는다. after가 null이면 처음부터다.
+        // 미접수 견적은 제외하며 조회 대상은 항상 userId의 견적으로 제한된다.
+        List<Quote> requestedPage(long userId, Position after, int limit);
+
+        // [from, to) 구간에 접수된 견적의 건수와 USD 합계를 한 쿼리로 집계한다. 없으면 0건, 0.00이다.
+        DailyTotal requestedDailyTotal(long userId, Instant from, Instant to);
 
         // [from, to) 구간에 접수된 견적의 USD 금액 합계다. 접수 건이 없으면 0.00을 돌려준다.
         BigDecimal requestedUsdTotal(long userId, Instant from, Instant to);
