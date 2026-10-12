@@ -136,9 +136,31 @@ quoteId는 양의 숫자 문자열이며 실제 INT 식별자 범위를 검증�
 
 현재 사용자 소유이며 아직 접수하지 않은 유효 견적만 접수한다. 일일 순송금 USD 한도는 REG_NO 1000, BUSINESS_NO 5000이고 동일한 금액은 허용한다.
 
-인증 후에는 사용자 잠금을 얻고 견적 존재·소유권 → 중복 → 만료 → 한도 순서로 검사한다. 잠금을 얻기 전에 대기 한도를 넘기면 503 LOCK_TIMEOUT을 반환한다.
+인증 후에는 사용자 잠금을 얻고 견적 존재 → 소유권 → (멱등성 키가 있으면 재현·재사용 판단) → 중복 → 만료 → 한도 순서로 검사한다. 잠금을 얻기 전에 대기 한도를 넘기면 503 LOCK_TIMEOUT을 반환한다.
 
-멱등성 키나 이전 성공 응답의 재생은 제공하지 않는다. 응답을 받지 못했다면 서버에서 이미 접수됐을 수도 있다. 같은 견적을 다시 요청해 ALREADY_REQUESTED를 받으면 이력으로 접수 여부를 확인한다.
+### 멱등성 키 (선택)
+
+응답을 받지 못했거나 503을 받은 클라이언트가 안전하게 재시도하도록 `Idempotency-Key` 헤더를 지원한다. 키는 호출 한 건을 구분하는 값이며 클라이언트가 만든다(UUID 권장).
+
+```sh
+curl -X POST http://localhost:8080/transfer/request -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $TOKEN" -H "Idempotency-Key: 6f1c2b7e-0a54-4d1e-9b7a-3c2d8e1f4a90" \
+  -d '{"quoteId":"1"}'
+```
+
+| 상황 | 응답 |
+| --- | --- |
+| 키 없음 | 기존과 동일. 이미 접수한 견적은 409 ALREADY_REQUESTED |
+| 첫 요청이 성공 | 200. 이 키가 해당 견적에 묶인다 |
+| 같은 키·같은 견적으로 재시도, 접수 후 24시간 안 | 200을 다시 반환하고 아무것도 바꾸지 않는다. 견적이 이미 만료됐어도 같다 |
+| 같은 키·같은 견적, 접수 후 24시간 이후 | 409 ALREADY_REQUESTED. 이력으로 접수 여부를 확인한다 |
+| 같은 키·다른 견적 | 422 IDEMPOTENCY_KEY_REUSED. 두 번째 견적은 접수되지 않는다 |
+| 형식 위반(빈 값, 65자 이상, 영문·숫자·`.`·`_`·`~`·`-` 외 문자) | 400 INVALID_REQUEST |
+
+- 키 범위는 사용자별이다. 다른 사용자가 같은 문자열을 써도 서로 영향이 없다.
+- 성공한 접수만 키를 소비한다. LIMIT_EXCESS, QUOTE_EXPRIED, 403, 404, 503 같은 실패는 키를 남기지 않으므로 같은 키로 재시도하면 그 시점의 규칙으로 다시 평가된다. 테스트로 확인한 것은 LIMIT_EXCESS와 QUOTE_EXPRIED이고, 나머지는 성공한 접수만 키를 저장하는 구조에서 따라 나온다.
+- 재현되는 것은 성공 응답뿐이다. 실패 응답을 저장해 되돌려 주지는 않는다.
+- 타인의 견적에 자기 키를 써도 키 판단 없이 403 FORBIDDEN이다.
 
 ## GET /transfer/list
 
@@ -224,7 +246,8 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 | 405 | METHOD_NOT_ALLOWED | 모든 경로 | 허용하지 않은 HTTP 메서드 |
 | 406 | NOT_ACCEPTABLE | 모든 경로 | 지원하지 않는 응답 형식 요청 |
 | 409 | DUPLICATE_USER | 회원가입 | 중복 회원 |
-| 409 | ALREADY_REQUESTED | 접수 | 이미 접수한 견적 |
+| 409 | ALREADY_REQUESTED | 접수 | 이미 접수한 견적(멱등성 키 재현 기간이 지난 경우 포함) |
 | 415 | UNSUPPORTED_MEDIA_TYPE | 본문 요청 | 지원하지 않는 요청 Content-Type |
+| 422 | IDEMPOTENCY_KEY_REUSED | 접수 | 이미 다른 견적에 사용한 Idempotency-Key |
 | 500 | UNKNOWN_ERROR | 모든 곳 | 내부 오류. 원시 예외와 개인정보는 노출하지 않음 |
 | 503 | LOCK_TIMEOUT | 접수 | 사용자 행 잠금 대기 한도 초과. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS로 설정 |

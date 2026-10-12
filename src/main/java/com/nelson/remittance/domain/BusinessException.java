@@ -12,6 +12,7 @@ public final class BusinessException extends RuntimeException {
         ALREADY_REQUESTED,
         QUOTE_EXPRIED,
         LIMIT_EXCESS,
+        IDEMPOTENCY_KEY_REUSED,
         LOCK_TIMEOUT,
         UNKNOWN_ERROR
     }

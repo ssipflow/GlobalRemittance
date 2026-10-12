@@ -17,10 +17,12 @@ import jakarta.validation.Valid;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.regex.Pattern;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,6 +35,8 @@ public class TransferController {
     private static final int MAX_PAGE_SIZE = 100;
     // 9999-12-31T23:59:59Z의 epoch 초다.
     private static final long MAX_CURSOR_SECONDS = 253_402_300_799L;
+    // Idempotency-Key 허용 형식이다. 길이와 문자 집합을 제한해 저장 컬럼과 로그 오염을 막는다.
+    private static final Pattern IDEMPOTENCY_KEY = Pattern.compile("[A-Za-z0-9._~-]{1,64}");
     private final TransferUseCases transfers;
 
     public TransferController(TransferUseCases transfers) {
@@ -51,8 +55,14 @@ public class TransferController {
 
     @PostMapping(value = "/request", consumes = "application/json", produces = "application/json")
     // 문자열 견적 ID를 INT 저장 범위로 확인한 뒤 인증 사용자로 접수한다.
+    // Idempotency-Key는 선택이며, 있으면 형식을 검증해 같은 키의 재시도가 한 번만 반영되게 한다.
     public Result request(
-            @AuthenticationPrincipal Long actor, @Valid @RequestBody RequestInput input) {
+            @AuthenticationPrincipal Long actor,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
+            @Valid @RequestBody RequestInput input) {
+        if (idempotencyKey != null && !IDEMPOTENCY_KEY.matcher(idempotencyKey).matches()) {
+            throw new BusinessException(INVALID_REQUEST);
+        }
         long quoteId;
         try {
             quoteId = Long.parseLong(input.quoteId());
@@ -62,7 +72,7 @@ public class TransferController {
         if (quoteId > Integer.MAX_VALUE) {
             throw new BusinessException(INVALID_REQUEST);
         }
-        transfers.request(actor, quoteId);
+        transfers.request(actor, quoteId, idempotencyKey);
         return Result.ok();
     }
 

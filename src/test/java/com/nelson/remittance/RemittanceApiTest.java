@@ -162,6 +162,11 @@ class RemittanceApiTest {
         assertEquals(
                 200,
                 signup(email, type, "test-password", "1234567890123").getResponse().getStatus());
+        return login(email);
+    }
+
+    // 토큰은 주입된 시계 기준 30분 뒤 만료되므로 시계를 크게 옮긴 테스트는 다시 로그인한다.
+    String login(String email) throws Exception {
         var login =
                 mvc.perform(
                                 post("/user/login")
@@ -203,6 +208,16 @@ class RemittanceApiTest {
         return mvc.perform(
                         post("/transfer/request")
                                 .header("Authorization", "Bearer " + token)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(payload(Map.of("quoteId", id))))
+                .andReturn();
+    }
+
+    MvcResult request(String token, String id, String key) throws Exception {
+        return mvc.perform(
+                        post("/transfer/request")
+                                .header("Authorization", "Bearer " + token)
+                                .header("Idempotency-Key", key)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(payload(Map.of("quoteId", id))))
                 .andReturn();
@@ -618,9 +633,25 @@ class RemittanceApiTest {
                                 "select count(*) from information_schema.indexes where index_name='IDX_REMITTANCES_USER_REQUESTED'",
                                 Integer.class)
                         > 0);
+        assertEquals(
+                "YES",
+                jdbc.queryForObject(
+                        "select is_nullable from information_schema.columns where table_name='REMITTANCES' and column_name='IDEMPOTENCY_KEY'",
+                        String.class));
+        // (user_id, idempotency_key) 유일 제약이 정확히 이 두 컬럼에 걸려 있어야 한다.
+        assertEquals(
+                List.of("USER_ID", "IDEMPOTENCY_KEY"),
+                jdbc.queryForList(
+                        "select cu.column_name from information_schema.table_constraints tc "
+                                + "join information_schema.constraint_column_usage cu "
+                                + "on cu.constraint_name=tc.constraint_name "
+                                + "where tc.table_name='REMITTANCES' and tc.constraint_type='UNIQUE' "
+                                + "and tc.constraint_name='UK_REMITTANCES_USER_IDEMPOTENCY_KEY' "
+                                + "order by cu.column_name desc",
+                        String.class));
     }
 
-    List<String> race(long actor, long first, long second) throws Exception {
+    List<String> race(long actor, String key, long first, long second) throws Exception {
         var pool = Executors.newFixedThreadPool(2);
         var ready = new CountDownLatch(2);
         var start = new CountDownLatch(1);
@@ -635,7 +666,7 @@ class RemittanceApiTest {
                                         throw new IllegalStateException("start timed out");
                                     }
                                     try {
-                                        transfers.request(actor, id);
+                                        transfers.request(actor, id, key);
                                         return "OK";
                                     } catch (BusinessException failure) {
                                         return failure.code().name();
@@ -660,7 +691,7 @@ class RemittanceApiTest {
                 jdbc.queryForObject(
                         "select id from users where user_id='concurrent-same@example.com'",
                         Long.class);
-        List<String> outcomes = race(actor, id, id);
+        List<String> outcomes = race(actor, null, id, id);
         assertEquals(1, Collections.frequency(outcomes, "OK"));
         assertEquals(1, Collections.frequency(outcomes, "ALREADY_REQUESTED"));
         assertEquals(1, list(token).get("todayTransferCount").asInt());
@@ -676,7 +707,7 @@ class RemittanceApiTest {
                 jdbc.queryForObject(
                         "select id from users where user_id='concurrent-limit@example.com'",
                         Long.class);
-        List<String> outcomes = race(actor, first, second);
+        List<String> outcomes = race(actor, null, first, second);
         assertEquals(1, Collections.frequency(outcomes, "OK"));
         assertEquals(1, Collections.frequency(outcomes, "LIMIT_EXCESS"));
         assertEquals(1, list(token).get("todayTransferCount").asInt());
@@ -720,6 +751,167 @@ class RemittanceApiTest {
         executor.shutdown();
         assertTrue(locked.await(10, TimeUnit.SECONDS));
         return new RowLock(release, holder);
+    }
+
+    @Test
+    // 같은 키·같은 견적의 재시도는 200으로 재현되고 접수와 합계는 한 번만 반영된다.
+    void sameKeyAndQuoteReplaysSuccessWithoutSecondEffect() throws Exception {
+        String token = user("idem-replay@example.com", "REG_NO");
+        String id = quote(token, "100000", "USD");
+        assertEquals(200, request(token, id, "key-1").getResponse().getStatus());
+        var first = list(token);
+        clock.set(NOW.plusSeconds(60));
+        MvcResult replay = request(token, id, "key-1");
+        assertEquals(200, replay.getResponse().getStatus());
+        assertEquals(200, read(replay).get("resultCode").asInt());
+        var after = list(token);
+        assertEquals(1, after.get("todayTransferCount").asInt());
+        assertEquals(1, after.get("history").size());
+        assertEquals(first.get("todayTransferUsdAmount"), after.get("todayTransferUsdAmount"));
+        assertEquals(
+                first.get("history").get(0).get("requestedDate"),
+                after.get("history").get(0).get("requestedDate"));
+        assertEquals(
+                NOW,
+                jdbc.queryForObject(
+                        "select requested_time from remittances where id=?",
+                        Instant.class,
+                        Integer.valueOf(id)));
+    }
+
+    @Test
+    // 견적 만료 후의 재현 요청은 만료 오류가 아니라 이미 접수된 건의 성공이다.
+    void replayAfterQuoteExpiryIsStillSuccess() throws Exception {
+        String token = user("idem-expired@example.com", "REG_NO");
+        String id = quote(token, "100000", "USD");
+        assertEquals(200, request(token, id, "key-exp").getResponse().getStatus());
+        clock.set(NOW.plusSeconds(601));
+        assertEquals(200, request(token, id, "key-exp").getResponse().getStatus());
+        assertEquals(1, list(token).get("todayTransferCount").asInt());
+    }
+
+    @Test
+    // 같은 키로 다른 견적을 보내면 422이며 두 번째 견적은 접수되지 않는다.
+    void sameKeyWithDifferentQuoteIsRejectedAndNotRequested() throws Exception {
+        String token = user("idem-reuse@example.com", "REG_NO");
+        String first = quote(token, "100000", "USD");
+        String second = quote(token, "200000", "USD");
+        assertEquals(200, request(token, first, "key-r").getResponse().getStatus());
+        error(request(token, second, "key-r"), 422, "IDEMPOTENCY_KEY_REUSED");
+        assertNull(
+                jdbc.queryForObject(
+                        "select requested_time from remittances where id=?",
+                        Instant.class,
+                        Integer.valueOf(second)));
+        assertEquals(1, list(token).get("todayTransferCount").asInt());
+        // 키 없이 접수하는 길은 막지 않는다.
+        assertEquals(200, request(token, second).getResponse().getStatus());
+    }
+
+    @Test
+    // 키 범위는 사용자별이어서 다른 사용자의 같은 키 문자열은 서로 영향이 없다.
+    void sameKeyStringIsIndependentAcrossUsers() throws Exception {
+        String a = user("idem-a@example.com", "REG_NO");
+        String b = user("idem-b@example.com", "REG_NO");
+        String qa = quote(a, "100000", "USD");
+        String qb = quote(b, "100000", "USD");
+        assertEquals(200, request(a, qa, "shared").getResponse().getStatus());
+        assertEquals(200, request(b, qb, "shared").getResponse().getStatus());
+        assertEquals(1, list(a).get("todayTransferCount").asInt());
+        assertEquals(1, list(b).get("todayTransferCount").asInt());
+        // 타인 견적에 내 키를 쓰면 키 판단 없이 소유권 오류다.
+        error(request(a, qb, "shared"), 403, "FORBIDDEN");
+    }
+
+    @Test
+    // 실패한 시도는 키를 소비하지 않아 같은 키로 다른 견적이나 같은 견적을 다시 성공시킬 수 있다.
+    void failedAttemptsDoNotConsumeKey() throws Exception {
+        String token = user("idem-failed@example.com", "REG_NO");
+        assertEquals(200, request(token, quote(token, "1004004", "USD")).getResponse().getStatus());
+        String over = quote(token, "1012", "USD");
+        error(request(token, over, "key-f"), 400, "LIMIT_EXCESS");
+        assertEquals(
+                0,
+                jdbc.queryForObject(
+                        "select count(*) from remittances where idempotency_key is not null",
+                        Integer.class));
+        // 다른 견적으로 같은 키를 쓸 수 있다.
+        clock.set(Instant.parse("2026-01-01T15:00:00Z"));
+        token = login("idem-failed@example.com");
+        String other = quote(token, "100000", "USD");
+        assertEquals(200, request(token, other, "key-f").getResponse().getStatus());
+        // 만료로 실패한 견적도 키를 소비하지 않는다.
+        String expiring = quote(token, "100000", "USD");
+        clock.set(Instant.parse("2026-01-01T15:10:00Z"));
+        error(request(token, expiring, "key-g"), 400, "QUOTE_EXPRIED");
+        String fresh = quote(token, "100000", "USD");
+        assertEquals(200, request(token, fresh, "key-g").getResponse().getStatus());
+        assertEquals(3, list(token).get("history").size());
+    }
+
+    @Test
+    // 재현 창은 now < 접수 시각 + 24시간이다. 직전은 200, 정확히 24시간은 기존 규칙의 409다.
+    void replayWindowEndsExactlyTwentyFourHoursAfterRequest() throws Exception {
+        String token = user("idem-window@example.com", "REG_NO");
+        String id = quote(token, "100000", "USD");
+        assertEquals(200, request(token, id, "key-w").getResponse().getStatus());
+        clock.set(NOW.plusSeconds(24 * 3600 - 1));
+        token = login("idem-window@example.com");
+        assertEquals(200, request(token, id, "key-w").getResponse().getStatus());
+        clock.set(NOW.plusSeconds(24 * 3600));
+        error(request(token, id, "key-w"), 409, "ALREADY_REQUESTED");
+        assertEquals(1, list(token).get("history").size());
+    }
+
+    @Test
+    // 빈 값·65자·허용 외 문자 키는 400이고 접수도 일어나지 않는다. 키 없는 요청은 기존대로 동작한다.
+    void invalidKeyFormatIsRejectedAndMissingKeyKeepsLegacyBehavior() throws Exception {
+        String token = user("idem-format@example.com", "REG_NO");
+        String id = quote(token, "100000", "USD");
+        for (String bad : new String[] {"", "a".repeat(65), "bad key", "키", "a/b", "a,b"}) {
+            error(request(token, id, bad), 400, "INVALID_REQUEST");
+        }
+        assertTrue(list(token).get("history").isEmpty());
+        assertEquals(200, request(token, id, "a".repeat(64) + "").getResponse().getStatus());
+        String legacy = quote(token, "100000", "USD");
+        assertEquals(200, request(token, legacy).getResponse().getStatus());
+        error(request(token, legacy), 409, "ALREADY_REQUESTED");
+        // 키 없이 접수된 견적에 새 키를 붙여도 재현이 아니라 중복이다.
+        error(request(token, legacy, "late-key"), 409, "ALREADY_REQUESTED");
+        assertEquals(2, list(token).get("todayTransferCount").asInt());
+    }
+
+    @Test
+    // 같은 키·같은 견적의 동시 요청은 모두 성공하고 한 번만 반영된다.
+    void concurrentSameKeyAndQuoteSucceedsTwiceButEffectsOnce() throws Exception {
+        String token = user("idem-race@example.com", "REG_NO");
+        long id = Long.parseLong(quote(token, "100000", "USD"));
+        long actor =
+                jdbc.queryForObject(
+                        "select id from users where user_id='idem-race@example.com'", Long.class);
+        List<String> outcomes = race(actor, "race-key", id, id);
+        assertEquals(List.of("OK", "OK"), outcomes);
+        assertEquals(1, list(token).get("todayTransferCount").asInt());
+        assertEquals(
+                1,
+                jdbc.queryForObject(
+                        "select count(*) from remittances where idempotency_key='race-key'",
+                        Integer.class));
+    }
+
+    @Test
+    // 같은 키로 서로 다른 견적을 동시에 보내면 하나만 접수되고 다른 하나는 키 재사용 오류다.
+    void concurrentSameKeyDifferentQuotesAcceptsOnlyOne() throws Exception {
+        String token = user("idem-race2@example.com", "REG_NO");
+        long first = Long.parseLong(quote(token, "100000", "USD")),
+                second = Long.parseLong(quote(token, "110000", "USD"));
+        long actor =
+                jdbc.queryForObject(
+                        "select id from users where user_id='idem-race2@example.com'", Long.class);
+        List<String> outcomes = race(actor, "race-key2", first, second);
+        assertEquals(1, Collections.frequency(outcomes, "OK"));
+        assertEquals(1, Collections.frequency(outcomes, "IDEMPOTENCY_KEY_REUSED"));
+        assertEquals(1, list(token).get("todayTransferCount").asInt());
     }
 
     @Test

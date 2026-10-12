@@ -1,5 +1,6 @@
 package com.nelson.remittance.application;
 
+import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
 import static com.nelson.remittance.domain.BusinessException.Code.LIMIT_EXCESS;
 import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
@@ -10,6 +11,7 @@ import com.nelson.remittance.domain.QuotePolicy;
 import com.nelson.remittance.domain.User;
 import java.math.BigDecimal;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -18,6 +20,8 @@ import java.util.List;
 // 견적 생성, 원자적 접수와 KST 이력 집계를 트랜잭션 안에서 조정한다.
 public final class TransferUseCases {
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    // 접수 성공 응답을 같은 키로 재현해 주는 기간이다. 이후에는 기존 중복 규칙(ALREADY_REQUESTED)을 따른다.
+    static final Duration IDEMPOTENT_REPLAY_WINDOW = Duration.ofHours(24);
     private final Ports.Accounts accounts;
     private final Ports.Quotes quotes;
     private final Ports.Rates rates;
@@ -49,12 +53,20 @@ public final class TransferUseCases {
                     Instant now = clock.instant();
                     return quotes.saveQuote(
                             new Quote(
-                                    0, actorId, calculation, now.plusSeconds(600), null, now, now));
+                                    0,
+                                    actorId,
+                                    calculation,
+                                    now.plusSeconds(600),
+                                    null,
+                                    null,
+                                    now,
+                                    now));
                 });
     }
 
     // 사용자 잠금 안에서 견적 상태와 오늘 USD 합계를 검사한 뒤 접수 시각을 저장한다.
-    public void request(long actorId, long quoteId) {
+    // 멱등성 키가 있으면 같은 키·같은 견적의 재시도는 아무것도 바꾸지 않고 성공으로 돌려준다.
+    public void request(long actorId, long quoteId, String idempotencyKey) {
         work.required(
                 () -> {
                     // 사용자 행을 먼저 잠가 일일 합계 조회와 접수를 직렬화한다. 다른 견적 두 개도 한도를 넘을 수 없다.
@@ -63,7 +75,24 @@ public final class TransferUseCases {
                             quotes.findQuote(quoteId)
                                     .orElseThrow(() -> new BusinessException(QUOTE_NOT_FOUND));
                     Instant now = clock.instant();
-                    Quote requested = quote.request(actorId, now);
+                    // 키 조회도 사용자 잠금 안이라 같은 키의 동시 재시도가 한 번만 반영된다.
+                    // 타인 견적은 키 판단 없이 아래 소유권 검증(FORBIDDEN)에 맡긴다.
+                    if (idempotencyKey != null && quote.userId() == actorId) {
+                        var previous = quotes.findByIdempotencyKey(actorId, idempotencyKey);
+                        if (previous.isPresent()) {
+                            if (previous.get().id() != quote.id()) {
+                                throw new BusinessException(IDEMPOTENCY_KEY_REUSED);
+                            }
+                            // 이미 접수된 건의 재현이므로 만료·한도를 다시 평가하지 않는다.
+                            if (now.isBefore(
+                                    previous.get()
+                                            .requestedTime()
+                                            .plus(IDEMPOTENT_REPLAY_WINDOW))) {
+                                return null;
+                            }
+                        }
+                    }
+                    Quote requested = quote.request(actorId, now, idempotencyKey);
                     // 이력 전체를 읽지 않고 KST 당일 [00:00, 익일 00:00) 합계만 DB에서 집계한다.
                     LocalDate date = now.atZone(KST).toLocalDate();
                     BigDecimal total =
