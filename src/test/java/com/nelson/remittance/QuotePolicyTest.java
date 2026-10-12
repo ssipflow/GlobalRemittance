@@ -119,10 +119,10 @@ class QuotePolicyTest {
     // 소유권·중복·정확한 만료 경계의 오류 우선순위를 검증한다.
     void ownershipDuplicateAndExactExpiryBoundaryHaveStablePrecedence() {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
-        Quote quote = new Quote(1, 10, usd("100000"), now.plusSeconds(600), null, now, now);
-        failure(FORBIDDEN, () -> quote.request(20, now.plusSeconds(600)));
-        failure(QUOTE_EXPRIED, () -> quote.request(10, now.plusSeconds(600)));
-        Quote accepted = quote.request(10, now.plusSeconds(599));
-        failure(ALREADY_REQUESTED, () -> accepted.request(10, now.plusSeconds(600)));
+        Quote quote = new Quote(1, 10, usd("100000"), now.plusSeconds(600), null, null, now, now);
+        failure(FORBIDDEN, () -> quote.request(20, now.plusSeconds(600), null));
+        failure(QUOTE_EXPRIED, () -> quote.request(10, now.plusSeconds(600), null));
+        Quote accepted = quote.request(10, now.plusSeconds(599), null);
+        failure(ALREADY_REQUESTED, () -> accepted.request(10, now.plusSeconds(600), null));
     }
 }

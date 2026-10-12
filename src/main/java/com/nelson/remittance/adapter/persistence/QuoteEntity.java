@@ -12,6 +12,7 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -21,8 +22,14 @@ import java.time.Instant;
         indexes =
                 @Index(
                         name = "idx_remittances_user_requested",
-                        columnList = "user_id,requested_time"))
+                        columnList = "user_id,requested_time"),
+        uniqueConstraints =
+                @UniqueConstraint(
+                        name = "uk_remittances_user_idempotency_key",
+                        columnNames = {"user_id", "idempotency_key"}))
 // 견적별 환율·수수료·금액을 감사 자료로 저장하고 접수 시각으로 미접수 거래를 구분한다.
+// 멱등성 키는 접수된 행에만 있으며 (사용자, 키) 유일 제약이 한 키가 한 견적에만 묶이게 한다.
+// 키가 없는 행은 NULL이라 유일 제약에서 서로 충돌하지 않는다.
 public class QuoteEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -65,6 +72,9 @@ public class QuoteEntity {
     @Column(name = "requested_time")
     Instant requestedTime;
 
+    @Column(name = "idempotency_key", length = 64)
+    String idempotencyKey;
+
     @Column(name = "created_at", nullable = false)
     Instant createdAt;
 
@@ -87,6 +97,7 @@ public class QuoteEntity {
         usdExchangeRate = c.usdExchangeRate();
         expireTime = quote.expireTime();
         requestedTime = quote.requestedTime();
+        idempotencyKey = quote.idempotencyKey();
         createdAt = quote.createdAt();
         updatedAt = quote.updatedAt();
     }
@@ -109,6 +120,7 @@ public class QuoteEntity {
                         QuotePolicy.money(usdAmount, "USD")),
                 expireTime,
                 requestedTime,
+                idempotencyKey,
                 createdAt,
                 updatedAt);
     }

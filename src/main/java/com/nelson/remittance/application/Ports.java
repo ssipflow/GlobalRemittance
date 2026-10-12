@@ -29,6 +29,9 @@ public final class Ports {
 
         Quote saveQuote(Quote quote);
 
+        // 사용자 범위에서 멱등성 키로 접수된 견적을 찾는다. 다른 사용자의 같은 키 문자열은 보이지 않는다.
+        Optional<Quote> findByIdempotencyKey(long userId, String idempotencyKey);
+
         // 접수 목록 위치다. 마지막으로 읽은 항목의 (접수 시각, ID)이며 인코딩 방식은 모른다.
         record Position(Instant requestedTime, long id) {}
 

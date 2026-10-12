@@ -1,6 +1,7 @@
 package com.nelson.remittance.adapter.persistence;
 
 import static com.nelson.remittance.domain.BusinessException.Code.DUPLICATE_USER;
+import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
 import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
 import static com.nelson.remittance.domain.BusinessException.Code.LOCK_TIMEOUT;
 import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
@@ -123,6 +124,20 @@ public class JpaStore implements Ports.Accounts, Ports.Quotes {
     }
 
     @Override
+    // 키 조회는 항상 userId 조건을 포함해 사용자 간 키 충돌과 타인 견적 노출을 막는다.
+    public Optional<Quote> findByIdempotencyKey(long userId, String idempotencyKey) {
+        return em.createQuery(
+                        "select q from QuoteEntity q where q.user.id = :userId "
+                                + "and q.idempotencyKey = :key",
+                        QuoteEntity.class)
+                .setParameter("userId", integerId(userId))
+                .setParameter("key", idempotencyKey)
+                .getResultStream()
+                .findFirst()
+                .map(QuoteEntity::toDomain);
+    }
+
+    @Override
     // 새 견적은 계산 전체를 저장하고 기존 견적은 접수·수정 시각만 변경한다.
     public Quote saveQuote(Quote quote) {
         if (quote.id() == 0) {
@@ -139,8 +154,21 @@ public class JpaStore implements Ports.Accounts, Ports.Quotes {
         }
         // 접수는 상태만 갱신한다. 견적 시 확정한 환율·수수료를 현재 시세로 재계산하지 않는다.
         entity.requestedTime = quote.requestedTime();
+        entity.idempotencyKey = quote.idempotencyKey();
         entity.updatedAt = quote.updatedAt();
-        em.flush();
+        try {
+            em.flush();
+        } catch (PersistenceException error) {
+            // 사용자 잠금 안에서 직렬화되므로 정상 경로에서는 일어나지 않는다. 잠금 밖 쓰기 같은
+            // 예외 상황에서도 한 키가 두 견적에 묶이지 않도록 유일 제약을 최종 방어로 둔다.
+            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+                if (cause instanceof ConstraintViolationException violation
+                        && "23505".equals(violation.getSQLState())) {
+                    throw new BusinessException(IDEMPOTENCY_KEY_REUSED);
+                }
+            }
+            throw error;
+        }
         return entity.toDomain();
     }
 
