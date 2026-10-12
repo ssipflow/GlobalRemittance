@@ -21,26 +21,14 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/harness-memory-cleanup에서 state와 백로그를 압축한다. [작업 기록](tasks/harness-memory-cleanup.md).
-- 완료 기준: 실제 Git/PR/검증 기록과 내용 대조, 독립 문서 리뷰·검증 후 dev PR 생성.
-- 다음: 사람이 이번 기억 정리 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 사용자와 정한다.
-- 앱 코드·계약·설계는 변경하지 않으므로 앱 문서·옵시디언은 갱신하지 않는다.
-- 현재 항목은 작업 전환 때 교체한다. 완료 이력을 여기에 누적하지 않고 tasks와 Git/PR에 보존한다.
+- 현재 작업: feature/application-docs-polish. 기존 옵시디언 앱 문서의 문체·구성과 기술 설명을 보완한다.
+- 시작 기준: 2026-10-12 dev 0662a6f, PR #12 페이지네이션과 PR #13 앱 문서 재구성이 병합된 상태.
+- 완료 기준: docs/application 네 문서를 코드·테스트와 대조, 독립 문서 리뷰·검증, dev PR 후 Vault 동기화.
+- 다음: 사람이 이번 문서 개선 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 정한다.
+- 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 검증 결과는 이번 문서 작업의 새 앱 실행 결과가 아니다.
 
 ## 남은 한계
 
 - 환율은 설정 예시이며 실시간 시세·실제 금융기관 송금·기존 데이터 마이그레이션은 미구현이다.
 - 요청 멱등성 키가 없다. 잠금·복구 검증은 H2 범위이며 운영 DB에 대한 근거는 없다.
 - 실제 배포·CI/CD는 요청 범위 밖이다. GitHub AI 자동 리뷰 연결과 서버 측 브랜치 보호 강제 여부는 별도 확인이 필요하다.
-
-- 현재 후속 작업: feature/history-pagination (백로그 1번). GET /transfer/list에 선택 파라미터 size/cursor를
-  추가한다(keyset, 접수시각·ID 내림차순). 생략 시 기본 크기 첫 페이지. 오늘 건수·합계는 페이지와 무관하게
-  DB 집계. 기록: tasks/history-pagination.md.
-
-- 현재 후속 작업: feature/obsidian-docs-rewrite. 사용자가 옵시디언 문서가 마음에 들지 않는다고 요청.
-  docs/application 4종을 처음 읽는 사람 기준으로 재구성(사실 변경 없음). 이후 개발 작업으로 복귀.
-  기록: tasks/obsidian-docs-rewrite.md.
-
-- 현재 후속 작업: feature/obsidian-docs-rewrite 브랜치에서 PR #13을 갱신한다(obsidian-design-points).
-  사용자 지적: 송금은 금융 도메인이라 데이터 정합성·동시성이 핵심인데 주요 설계에 정리가 부족.
-  design.md를 정합성 불변식·동시성 시나리오·보증하지 않는 것 중심으로 재구성. 기록: tasks/obsidian-design-points.md.

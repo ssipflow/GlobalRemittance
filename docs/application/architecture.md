@@ -1,8 +1,8 @@
 # 아키텍처
 
-## 계층과 의존성 방향
+`com.nelson.remittance` 아래에서 업무 규칙과 기술 구현을 분리한다. domain은 금액·견적 규칙을 정의하고 application은 규칙을 적용하는 순서를 조정한다. 웹·DB·인증·환율 구현은 adapter에, 객체 조립은 bootstrap에 둔다.
 
-내부 정책(domain, application)은 Spring·JPA·HTTP 구현을 모른다. 외부 어댑터가 application의 포트를 구현하거나 사용 사례를 호출하고, bootstrap이 객체를 조립한다. 의존성은 항상 바깥에서 안쪽으로 향한다.
+## 계층과 의존성
 
 ```mermaid
 flowchart LR
@@ -17,101 +17,77 @@ flowchart LR
     B --> F
 ```
 
-| 계층 | 책임 | 대표 클래스 |
+도식은 주요 의존성을 나타낸다. 어댑터는 내부 모델을 직접 사용할 수 있지만 domain/application은 Spring·JPA·웹 어댑터를 참조하지 않는다. 웹 DTO와 JPA entity도 내부 정책의 입력으로 전달하지 않는다.
+
+| 계층 | 책임 | 주요 클래스 |
 | --- | --- | --- |
-| domain | 금액·수수료 계산, 견적 상태와 만료, 개인/법인 한도 | QuotePolicy, Quote, User, BusinessException |
-| application | 사용 사례의 실행 순서, 시간 경계, 트랜잭션 포트 | UserUseCases, TransferUseCases, Ports |
-| adapter/web | 입력 검증, 인증 사용자 변환, 커서 인코딩, JSON 응답과 오류 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController |
-| adapter/persistence | JPA 모델 변환, 저장, DB 잠금, 트랜잭션 실행 | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
-| adapter/security | AES-GCM 암호화, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
-| adapter/forex | 설정 환율 공급 | ConfiguredRates |
-| bootstrap | 의존성 주입, Clock 구성, BCrypt 비밀번호 해시 조립 | ApplicationConfiguration |
+| domain | 수수료·수취액 계산, 견적 상태와 만료, 신원 유형별 한도 | QuotePolicy, Quote, User, BusinessException |
+| application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트 | UserUseCases, TransferUseCases, Ports |
+| adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController |
+| adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금 | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
+| adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
+| adapter/forex | 설정 환율 제공 | ConfiguredRates |
+| bootstrap | DI, Clock와 BCrypt 구성 | ApplicationConfiguration |
 
-웹 DTO와 JPA entity는 domain으로 넘기지 않는다. Ports는 Accounts, Quotes, Rates, Passwords, IdentityCipher, Tokens, Work처럼 실제 기술 경계에만 둔다. Work의 구현(TransactionalWork)이 Spring의 TransactionTemplate을 사용하므로 트랜잭션 의존성이 application 밖에 머문다.
+application의 Ports는 계정·견적 저장, 환율, 비밀번호, 식별번호 암호화, 토큰, 트랜잭션 실행의 경계를 정의한다. TransactionalWork는 Work 포트를 TransactionTemplate으로 구현한다. 사용 사례는 트랜잭션 범위를 정하지만 Spring API에는 의존하지 않는다.
 
-## 요청 흐름
+## 인증과 견적 생성
 
-### 인증
+송금 요청은 먼저 JwtAuthenticationFilter를 거친다. 필터가 JWT 서명·만료를 확인하고 인증 사용자 ID를 컨트롤러에 전달한다. 송금 본문에서 별도의 사용자 ID를 받지 않는다. 인증 실패는 JSON 401로 응답한다.
 
-송금 API는 `Authorization: Bearer <token>`을 요구한다. JwtAuthenticationFilter가 서명과 만료를 확인하고 인증된 사용자 식별자를 컨트롤러에 전달한다. 요청 본문에는 사용자 식별자를 받지 않는다. 누락·잘못된·만료 토큰은 JSON 401이다.
+견적 생성은 사용자 확인 → 대상 통화·USD 환율 조회 → QuotePolicy 계산 → 견적 저장 순서로 진행한다. 환율·수수료·수취액·USD 금액과 만료 시각을 함께 저장한다. 사용자 행에 접수 잠금을 걸지는 않지만, 저장 과정은 Work의 트랜잭션 안에서 실행한다.
 
-### 견적 생성
-
-```mermaid
-sequenceDiagram
-    participant C as 클라이언트
-    participant A as TransferUseCases
-    participant R as Rates
-    participant P as JpaStore
-    C->>A: quote(actorId, amount, currency)
-    A->>P: 사용자 존재 확인
-    A->>R: 대상 통화·USD 환율 조회
-    A->>A: QuotePolicy로 수수료·수취액·USD 금액 계산
-    A->>P: 계산 결과와 만료시각(+10분) 저장
-    A-->>C: 견적
-```
-
-견적은 환율·수수료·USD 환산액을 그 시점의 값으로 확정해 저장한다. 사용자 잠금은 필요 없다.
-
-### 접수
+## 송금 접수
 
 ```mermaid
 sequenceDiagram
-    participant C as 클라이언트
+    participant W as 인증된 Web 요청
     participant A as TransferUseCases
     participant P as JpaStore/H2
-    C->>A: request(actorId, quoteId)
-    A->>P: 트랜잭션 시작 + 사용자 행 잠금
+    W->>A: request(actorId, quoteId)
+    A->>P: 트랜잭션 시작, 사용자 행 잠금
     A->>P: 견적 조회
-    A->>A: 소유권 → 중복 → 만료 검사
-    A->>P: KST 당일 구간 USD 합계(SUM)
-    A->>A: 합계 + 이번 견적 ≤ 일일 한도 검사
-    A->>P: requestedTime 저장 + 커밋
-    A-->>C: 완료
+    A->>A: 소유권, 중복, 만료 검사
+    A->>P: KST 당일 USD 합계 조회
+    A->>A: 기존 합계 + 이번 금액 한도 검사
+    A->>P: 접수 시각 저장, 커밋
+    A-->>W: 완료
 ```
 
-접수는 견적 시점에 확정한 값을 그대로 쓰며 현재 환율로 다시 계산하지 않는다. 사용자 행 잠금이 합계 조회부터 저장까지를 감싸므로 같은 사용자의 접수끼리 직렬화된다.
+사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 구체적인 경쟁 상황은 [[주요 설계]]에서 설명한다.
 
-### 이력 조회
+H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 JpaStore가 LOCK_TIMEOUT 업무 오류로 변환하고 웹 계층은 HTTP 503을 반환한다. 롤백 실패가 원래 업무 오류를 덮는 경우 TransactionalWork가 해당 업무 오류를 다시 전달한다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
+
+## 이력 조회
 
 ```mermaid
 sequenceDiagram
-    participant C as 클라이언트
     participant W as TransferController
     participant A as TransferUseCases
     participant P as JpaStore
-    C->>W: GET /transfer/list?size&cursor
-    W->>W: cursor·size 검증 (잘못되면 400)
-    W->>A: history(actorId, 위치값, size)
-    A->>P: 사용자 확인 (잠금 없음)
-    A->>P: KST 오늘 건수·합계 (쿼리 1회)
-    A->>P: 위치값 이후 size+1건 조회
-    A-->>W: 한 페이지 + 다음 위치값
-    W-->>C: JSON (nextCursor 인코딩)
+    W->>W: size 검증, cursor 해석
+    W->>A: history(actorId, after, limit)
+    A->>P: 사용자 존재 확인
+    A->>P: KST 오늘 count와 sum 조회
+    A->>P: 정렬 위치 이후 limit+1건 조회
+    A-->>W: 집계, 목록, 다음 위치
+    W->>W: 다음 위치를 nextCursor로 인코딩
 ```
 
-목록은 `(접수시각, ID)` 내림차순 keyset 조건으로 size+1건을 읽어 다음 페이지 유무를 판단한다. 커서의 인코딩과 해석은 웹 어댑터가 맡고 application에는 `(Instant, long)` 위치값만 전달한다. 오늘 건수와 합계는 한 JPQL(count+sum)로 구하므로 서로 모순되지 않고 요청한 페이지와 관계없이 같다.
+정렬은 `(requestedTime desc, id desc)`다. 다음 페이지는 `requestedTime < t OR (requestedTime = t AND id < lastId)` 조건으로 읽는다. 페이지 크기보다 한 건 더 조회해 다음 페이지의 존재를 판단한다. 커서의 인코딩은 웹 계층이 담당하고 application에는 `(Instant, long)` 위치값을 전달한다.
 
-## 트랜잭션과 동시성 경계
+모든 조회에는 인증 사용자의 ID 조건을 적용한다. 커서는 조회 위치이고 접근 권한이 아니다. 인덱스 `idx_remittances_user_requested(user_id, requested_time)`는 사용자·시각 범위를 좁힌다. id를 포함한 복합 인덱스는 아니므로 동일 시각의 ID 비교·정렬까지 인덱스로 해결한다고 가정하지 않는다.
 
-| 작업 | 보호 수단 | 이유 |
-| --- | --- | --- |
-| 회원가입 | DB 유일 제약(`uk_users_user_id`) | 사전 중복 조회만으로는 동시 가입을 막을 수 없어 제약 위반을 DUPLICATE_USER로 변환 |
-| 견적 생성 | 없음 | 서로 간섭하는 상태가 없다 |
-| 접수 | 사용자 행 비관적 쓰기 잠금 | 같은 견적의 중복 접수와 서로 다른 견적의 합산 한도 초과를 함께 막음 |
-| 이력 조회 | 없음 | 접수를 기다리거나 막지 않는다. 목록 한 번과 집계 한 번의 결과만 사용 |
+오늘 건수·합계는 한 쿼리에서 조회하며 페이지 크기와 커서의 영향을 받지 않는다. 목록 조회는 별개 쿼리이므로 동시 접수가 있으면 집계와 목록이 서로 다른 시점을 볼 수 있다. 이력 조회는 접수용 사용자 잠금을 사용하지 않는다.
 
-왜 사용자 행을 잠그는지, 잠그지 않으면 어떤 경쟁이 생기는지는 [[주요 설계]]의 "동시성" 절에 있다.
+## 트랜잭션과 저장 모델
 
-잠금 대기는 `remittance.lock-timeout-ms`(기본 5000ms)로 제한한다. H2에서는 JDBC URL의 `LOCK_TIMEOUT`으로 적용된다. 초과하면 JpaStore가 업무 오류 LOCK_TIMEOUT으로 바꾸고 HTTP 503으로 응답하므로 클라이언트가 재시도할 수 있다. 타임아웃으로 커넥션이 끊겨 롤백까지 실패해도 TransactionalWork가 원래 업무 오류를 호출자에게 전달한다.
-
-## 이력 조회 구조
-
-- 정렬 키는 `(requestedTime desc, id desc)`이고 다음 페이지 조건은 `requestedTime < t or (requestedTime = t and id < lastId)`다. 정렬 키와 조건이 같아 페이지 사이에 새 접수가 생겨도 중복·누락이 없다.
-- 인덱스 `idx_remittances_user_requested(user_id, requested_time)`로 사용자와 접수시각 범위를 좁힌다. 인덱스에 id는 없으므로 같은 시각 안의 id 비교와 정렬 보조는 인덱스 이후에 처리된다.
-- 쿼리는 항상 인증된 사용자의 견적으로 제한된다. 커서는 정렬 위치일 뿐 권한 판단에 쓰이지 않는다.
-
-## 저장 모델
+| 작업 | 트랜잭션 외에 적용하는 보호 수단 |
+| --- | --- |
+| 회원가입 | userId DB 유일 제약. 동시 가입의 제약 위반은 DUPLICATE_USER로 변환 |
+| 견적 생성 | 별도의 사용자 잠금 없음 |
+| 접수 | 사용자 행 비관적 쓰기 잠금 |
+| 이력 조회 | 별도의 사용자 잠금 없음 |
 
 ```mermaid
 erDiagram
@@ -123,19 +99,12 @@ erDiagram
     remittances {
         int id PK
         int user_id FK
-        timestamp requested_time "null이면 미접수"
+        timestamp requested_time "미접수이면 null"
     }
 ```
 
-- **users**: 순차 INT 식별자, 유일한 userId, BCrypt 비밀번호 해시, AES-GCM 암호화 식별번호, 신원 유형, 생성·수정 시각.
-- **remittances**: 사용자 FK와 인덱스, 순차 INT 식별자, DECIMAL(22,12) 금액·환율·수수료 감사 값, 만료·생성·수정·접수 시각.
-- `requestedTime`이 null이면 미접수 견적이고 이력과 집계에는 값이 있는 항목만 포함된다.
-- 도메인 식별자는 long이지만 영속성의 INT 범위로 변환·검증한다. 저장은 UTC, API 표시는 KST다.
+users는 계정·비밀번호 해시·암호화 식별번호·신원 유형을 저장한다. remittances는 사용자 FK와 견적의 금액·수수료·환율·시각을 저장하며 금액 필드는 DECIMAL(22,12)다. requestedTime이 null이면 미접수 견적이다. 이력과 일일 집계는 접수된 항목만 조회한다.
 
-## 검증과 한계
+도메인 ID는 long이고 DB ID는 순차 INT다. 영속 어댑터에서 범위를 검사하고 변환한다. 시각 저장은 UTC, 일일 한도 판정과 견적·이력 응답 표시는 KST다.
 
-ArchitectureTest는 컴파일된 domain/application의 프레임워크·어댑터 의존성을 검사한다. API 통합 테스트는 실제 H2, 인증, 동시 접수, 페이지 경계, Tomcat 오류 디스패치를 검사한다.
-
-- 멱등성 키가 없어 타임아웃 뒤 재시도는 클라이언트가 이력으로 확인해야 한다.
-- 직렬화는 단일 DB의 사용자 행 잠금에 의존한다. H2에서의 검증이 다른 운영 DB의 동작과 장애 복구를 보증하지 않는다.
-- 이력의 목록과 오늘 집계는 별개 쿼리라 접수와 겹치면 두 결과의 시점이 다를 수 있다.
+ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의존성을 검사한다. H2/API 테스트는 실제 인증·금액·동시 접수·페이지 경계·JSON 오류 디스패치를 검증한다. 다른 운영 DB나 다중 프로세스에서의 잠금·복구는 별도 검증이 필요하다.

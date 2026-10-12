@@ -2,32 +2,37 @@
 
 ## 공통 계약
 
-- 기본 URL 예시: `http://localhost:8080`. 본문이 있는 요청은 `Content-Type: application/json`이다.
-- 모든 성공·오류 응답은 JSON이다. 성공은 HTTP 200, `resultCode: 200`, `resultMsg: "OK"`다.
-- 송금 API(`/transfer/*`)는 `Authorization: Bearer <token>`이 필요하다. 회원가입·로그인은 인증 없이 호출한다.
-- 견적·이력 응답의 날짜 문자열은 KST `yyyy-MM-dd HH:mm:ss`다. 금액과 환율은 JSON number이며 quoteId는 문자열이다.
-- JWT는 발급 후 30분 유효하고 id, userId, name, expireTime과 표준 인증 클레임을 포함한다. 토큰 내부 expireTime은 KST ISO offset 형식이다.
+기본 URL 예시는 `http://localhost:8080`이다. 본문을 보내는 요청은 `Content-Type: application/json`을 지정한다. 회원가입과 로그인은 인증 없이 호출하고 송금 API는 `Authorization: Bearer <token>`을 사용한다.
 
-## 호출 순서 예시
+성공·오류 응답은 모두 JSON이다. 성공은 HTTP 200과 `resultCode: 200`, `resultMsg: "OK"`를 반환한다. 오류에서는 resultCode가 HTTP 상태와 같고 resultMsg에는 고정 오류 코드를 넣는다.
+
+견적·이력의 시각은 KST `yyyy-MM-dd HH:mm:ss`로 표시한다. 금액·환율은 JSON number, quoteId는 문자열이다. 아래 ID·시각·토큰은 응답 형태를 설명하기 위한 예시다.
+
+JWT는 발급 후 30분 유효하다. id, userId, name, expireTime과 표준 인증 클레임을 포함하며, 토큰 내부 expireTime은 KST ISO offset 형식이다.
+
+## 호출 순서
+
+가입 후 로그인 응답의 token을 TOKEN에 넣고, 견적 응답의 quoteId를 접수 본문에 사용한다. 아래 접수 예시의 `"1"`은 실제 받은 ID로 바꾼다.
 
 ```sh
-# 1. 가입 (최초 1회)
+# 가입 (최초 1회)
 curl -X POST http://localhost:8080/user/signup -H 'Content-Type: application/json' \
   -d '{"userId":"demo@example.com","password":"example-password","name":"테스트 사용자","idType":"REG_NO","idValue":"example-identity"}'
 
-# 2. 로그인 → 응답의 token 사용
+# 로그인
 curl -X POST http://localhost:8080/user/login -H 'Content-Type: application/json' \
   -d '{"userId":"demo@example.com","password":"example-password"}'
 
-# 3. 견적 → 응답의 quoteId 사용 (10분 안에 접수)
+# 로그인 응답의 token을 복사한 뒤 견적 요청
+TOKEN='<로그인 응답의 token>'
 curl -X POST http://localhost:8080/transfer/quote -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" -d '{"amount":400000,"targetCurrency":"USD"}'
 
-# 4. 접수
+# 견적 응답의 quoteId로 접수
 curl -X POST http://localhost:8080/transfer/request -H 'Content-Type: application/json' \
   -H "Authorization: Bearer $TOKEN" -d '{"quoteId":"1"}'
 
-# 5. 이력 (한 페이지)
+# 접수 이력 조회
 curl "http://localhost:8080/transfer/list?size=20" -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -42,25 +47,41 @@ curl "http://localhost:8080/transfer/list?size=20" -H "Authorization: Bearer $TO
 | idValue | 공백 불가, 최대 64자 및 UTF-8 64바이트 |
 
 ```json
-{"userId":"demo@example.com","password":"example-password","name":"테스트 사용자","idType":"REG_NO","idValue":"example-identity"}
+{
+  "userId": "demo@example.com",
+  "password": "example-password",
+  "name": "테스트 사용자",
+  "idType": "REG_NO",
+  "idValue": "example-identity"
+}
 ```
 
 ```json
-{"resultCode":200,"resultMsg":"OK"}
+{
+  "resultCode": 200,
+  "resultMsg": "OK"
+}
 ```
 
 동일 이메일은 HTTP 409 DUPLICATE_USER다. 비밀번호와 식별번호 원문은 응답에 포함하지 않는다.
 
 ## POST /user/login
 
-userId와 password는 회원가입과 같은 형식 제약을 적용한다.
+userId는 이메일 형식·최대 255자, password는 공백 불가·최대 72자를 검증한다. 로그인 시에도 UTF-8 72바이트 제한을 적용한다.
 
 ```json
-{"userId":"demo@example.com","password":"example-password"}
+{
+  "userId": "demo@example.com",
+  "password": "example-password"
+}
 ```
 
 ```json
-{"resultCode":200,"resultMsg":"OK","token":"<JWT>"}
+{
+  "resultCode": 200,
+  "resultMsg": "OK",
+  "token": "<JWT>"
+}
 ```
 
 계정 없음·비밀번호 불일치는 HTTP 401 UNAUTHORIZED다. 둘을 구분하지 않는다.
@@ -73,11 +94,23 @@ userId와 password는 회원가입과 같은 형식 제약을 적용한다.
 | targetCurrency | USD 또는 JPY |
 
 ```json
-{"amount":400000,"targetCurrency":"USD"}
+{
+  "amount": 400000,
+  "targetCurrency": "USD"
+}
 ```
 
 ```json
-{"resultCode":200,"resultMsg":"OK","quote":{"quoteId":"1","exchangeRate":1300.000000000000,"expireTime":"2026-10-11 15:10:00","targetAmount":306.31}}
+{
+  "resultCode": 200,
+  "resultMsg": "OK",
+  "quote": {
+    "quoteId": "1",
+    "exchangeRate": 1300.0,
+    "expireTime": "2026-10-11 15:10:00",
+    "targetAmount": 306.31
+  }
+}
 ```
 
 예시 환율 1300에서 수수료는 1800원, 순송금액은 398200원이다. 만료시각은 생성시각 +10분이다. quoteId와 시각은 예시 값이다.
@@ -89,16 +122,23 @@ userId와 password는 회원가입과 같은 형식 제약을 적용한다.
 quoteId는 양의 숫자 문자열이며 실제 INT 식별자 범위를 검증한다.
 
 ```json
-{"quoteId":"1"}
+{
+  "quoteId": "1"
+}
 ```
 
 ```json
-{"resultCode":200,"resultMsg":"OK"}
+{
+  "resultCode": 200,
+  "resultMsg": "OK"
+}
 ```
 
 현재 사용자 소유이며 아직 접수하지 않은 유효 견적만 접수한다. 일일 순송금 USD 한도는 REG_NO 1000, BUSINESS_NO 5000이고 동일한 금액은 허용한다.
 
-오류 검사 순서는 인증 → 존재·소유권 → 중복 → 만료 → 한도다. 같은 사용자의 다른 접수가 잠금을 오래 쥐면 503 LOCK_TIMEOUT이 올 수 있으며, 이때는 잠시 후 재시도할 수 있다. 접수에 멱등성 키가 없으므로 응답을 받지 못한 재시도는 이력으로 접수 여부를 먼저 확인한다.
+인증 후에는 사용자 잠금을 얻고 견적 존재·소유권 → 중복 → 만료 → 한도 순서로 검사한다. 잠금을 얻기 전에 대기 한도를 넘기면 503 LOCK_TIMEOUT을 반환한다.
+
+멱등성 키나 이전 성공 응답의 재생은 제공하지 않는다. 응답을 받지 못했다면 서버에서 이미 접수됐을 수도 있다. 같은 견적을 다시 요청해 ALREADY_REQUESTED를 받으면 이력으로 접수 여부를 확인한다.
 
 ## GET /transfer/list
 
@@ -115,36 +155,38 @@ quoteId는 양의 숫자 문자열이며 실제 INT 식별자 범위를 검증�
 
 ```json
 {
-  "resultCode":200,
-  "resultMsg":"OK",
-  "userId":"demo@example.com",
-  "name":"테스트 사용자",
-  "todayTransferCount":1,
-  "todayTransferUsdAmount":306.31,
-  "history":[{
-    "sourceAmount":400000,
-    "fee":1800,
-    "usdExchangeRate":1300.000000000000,
-    "usdAmount":306.31,
-    "targetCurrency":"USD",
-    "exchangeRate":1300.000000000000,
-    "targetAmount":306.31,
-    "requestedDate":"2026-10-11 15:05:00"
-  }],
-  "nextCursor":null
+  "resultCode": 200,
+  "resultMsg": "OK",
+  "userId": "demo@example.com",
+  "name": "테스트 사용자",
+  "todayTransferCount": 1,
+  "todayTransferUsdAmount": 306.31,
+  "history": [
+    {
+      "sourceAmount": 400000,
+      "fee": 1800,
+      "usdExchangeRate": 1300.0,
+      "usdAmount": 306.31,
+      "targetCurrency": "USD",
+      "exchangeRate": 1300.0,
+      "targetAmount": 306.31,
+      "requestedDate": "2026-10-11 15:05:00"
+    }
+  ],
+  "nextCursor": null
 }
 ```
 
 | 필드 | 의미 |
 | --- | --- |
-| todayTransferCount / todayTransferUsdAmount | KST 오늘 접수한 전체 건수와 USD 합계. 요청한 페이지와 관계없이 같다. 오늘 거래가 없으면 0, 0.00 |
-| history[].sourceAmount / fee | 입력 원화 금액 / 고정·비율 수수료의 합 |
+| todayTransferCount / todayTransferUsdAmount | KST 오늘 접수한 전체 건수와 USD 합계. 커서·페이지 크기와 무관하게 당일 전체를 집계. 오늘 거래가 없으면 0, 0.00 |
+| history[].sourceAmount / fee | KRW 정수로 반올림한 원화 금액 / 고정·비율 수수료의 합 |
 | history[].exchangeRate / targetAmount | 수취 통화 환율 / 수취 금액 |
 | history[].usdExchangeRate / usdAmount | 일일 한도 계산용 USD 환율 / 수수료 차감 후 USD 금액 |
 | history[].requestedDate | 접수 시각(KST) |
 | nextCursor | 다음 페이지가 있을 때만 값이 있고 마지막 페이지에서는 null |
 
-미접수 견적은 history와 오늘 집계에서 제외한다.
+미접수 견적은 history와 오늘 집계에서 제외한다. 집계와 목록은 별개 쿼리이며 동시 접수 중에는 조회 시점이 다를 수 있다. 여러 페이지 요청 사이에 새 거래가 생기면 오늘 집계도 바뀔 수 있다.
 
 ### 다음 페이지 읽기
 
@@ -156,14 +198,17 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 
 커서는 불투명 문자열이다. 클라이언트는 내용을 해석하거나 만들지 않는다. 조회는 항상 인증된 사용자의 거래로 제한되므로 다른 사용자의 커서를 써도 타인의 데이터는 보이지 않는다. 잘못된 cursor, 숫자가 아니거나 1~100을 벗어난 size는 400 INVALID_REQUEST다.
 
-**호환 변경**: 파라미터가 없는 기존 요청은 전체 이력이 아니라 최신 50건(첫 페이지)을 받는다. 더 오래된 항목은 nextCursor로 이어서 읽는다.
+파라미터가 없으면 최신 50건을 반환한다. 기존 전체 이력 반환에서 변경된 동작이며 더 오래된 항목은 nextCursor로 이어서 읽는다. 커서 이후 조회는 고정 스냅샷이 아니다. 앞쪽에 추가된 최신 거래를 보려면 cursor 없이 다시 첫 페이지를 요청한다.
 
 ## 오류 계약
 
 모든 오류는 같은 형식이다. `resultCode`는 HTTP 상태와 같다.
 
 ```json
-{"resultCode":400,"resultMsg":"QUOTE_EXPRIED"}
+{
+  "resultCode": 400,
+  "resultMsg": "QUOTE_EXPRIED"
+}
 ```
 
 | HTTP | resultMsg | 발생하는 곳 | 의미 |
@@ -182,4 +227,4 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 | 409 | ALREADY_REQUESTED | 접수 | 이미 접수한 견적 |
 | 415 | UNSUPPORTED_MEDIA_TYPE | 본문 요청 | 지원하지 않는 요청 Content-Type |
 | 500 | UNKNOWN_ERROR | 모든 곳 | 내부 오류. 원시 예외와 개인정보는 노출하지 않음 |
-| 503 | LOCK_TIMEOUT | 접수 | 같은 사용자의 다른 접수가 잠금을 오래 쥐어 대기 한도(`remittance.lock-timeout-ms`) 초과. 재시도 가능 |
+| 503 | LOCK_TIMEOUT | 접수 | 사용자 행 잠금 대기 한도 초과. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS로 설정 |
