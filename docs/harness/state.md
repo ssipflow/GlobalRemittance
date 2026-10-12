@@ -36,3 +36,11 @@
 - 현재 후속 작업: feature/history-pagination (백로그 1번). GET /transfer/list에 선택 파라미터 size/cursor를
   추가한다(keyset, 접수시각·ID 내림차순). 생략 시 기본 크기 첫 페이지. 오늘 건수·합계는 페이지와 무관하게
   DB 집계. 기록: tasks/history-pagination.md.
+
+- 현재 후속 작업: feature/obsidian-docs-rewrite. 사용자가 옵시디언 문서가 마음에 들지 않는다고 요청.
+  docs/application 4종을 처음 읽는 사람 기준으로 재구성(사실 변경 없음). 이후 개발 작업으로 복귀.
+  기록: tasks/obsidian-docs-rewrite.md.
+
+- 현재 후속 작업: feature/obsidian-docs-rewrite 브랜치에서 PR #13을 갱신한다(obsidian-design-points).
+  사용자 지적: 송금은 금융 도메인이라 데이터 정합성·동시성이 핵심인데 주요 설계에 정리가 부족.
+  design.md를 정합성 불변식·동시성 시나리오·보증하지 않는 것 중심으로 재구성. 기록: tasks/obsidian-design-points.md.
