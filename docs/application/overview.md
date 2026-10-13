@@ -20,7 +20,7 @@
 
 - [[API 문서]]: 인증 방법, 필드 제약, 요청·응답 예시와 오류 코드.
 - [[아키텍처]]: 계층별 책임, 요청 처리 순서와 저장 모델.
-- [[주요 설계]]: 금액·시간·동시성·페이지네이션의 선택 근거와 검증 범위.
+- [[주요 설계]]: 상세 동시성·멱등성·페이지네이션·오류 관측·스키마 변경의 근거와 검증 범위.
 
 ## 구현 환경
 
@@ -37,10 +37,20 @@ Java 17, Spring Boot 3, Spring Security, JPA, Flyway, embedded H2를 사용한�
 | REMITTANCE_USD_TO_KRW | USD 1단위당 KRW | 1300, 예시 환율 |
 | REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI(`/swagger-ui.html`)와 OpenAPI 명세(`/v3/api-docs`) 노출 | true |
-| REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms). 1~30000 정수가 아니면 기동을 거부한다 | 5000 |
+| REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms). 1~30000 ASCII 숫자, 부호·공백·선행 0 불가 | 5000 |
 | REMITTANCE_DB_PASSWORD | 로컬 H2 `sa` 비밀번호. DB 파일을 처음 만들 때 고정되며 DB와 다른 값으로 실행하면 기동이 거부된다 | 빈 값 |
 | SPRING_PROFILES_ACTIVE | `local`이면 H2 콘솔(`/h2-console`)과 SQL·DB 오류 로그를 켠다. 로컬 개발 전용 | 없음(꺼짐) |
 
 필수 키를 설정한 뒤 `./gradlew bootRun`으로 실행한다. 파일 DB는 `./data/remittance`에 생성된다. 암호화한 식별번호를 읽으려면 기존 AES 키를 유지해야 한다. 실제 키와 개인정보는 저장소나 문서에 넣지 않는다.
 
-접수 API는 선택적 `Idempotency-Key`로 재시도를 안전하게 한다(성공 응답을 24시간 재현). 운영 DB의 잠금·장애 복구, 실제 금융기관 송금, 실시간 환율 공급과 다른 시스템에서의 데이터 이전은 구현·검증 범위에 포함하지 않았다.
+접수 API는 선택적 `Idempotency-Key`로 같은 견적의 성공 응답을 접수 후 24시간 미만 동안 재현한다. 키는 사용자별로 견적에 계속 귀속되며 실패 응답은 저장하지 않는다. 운영 DB의 잠금·장애 복구, 실제 금융기관 송금, 실시간 환율 공급과 다른 시스템에서의 데이터 이전은 구현·검증 범위에 포함하지 않았다.
+
+## 실행 후 확인할 경로와 헤더
+
+Swagger UI는 `/swagger-ui.html`, OpenAPI JSON은 `/v3/api-docs`다. 로그인 응답의 token을 Authorize에 넣어 송금 API를 호출한다. 명세와 UI는 기본적으로 인증 없이 공개되며 설정으로 함께 끌 수 있다.
+
+local 프로파일의 `/h2-console`은 앱 JWT를 사용하지 않고 DB 로그인으로 접속한다. SQL·DB 오류 로그도 이 프로파일에서 확장되므로 로컬 테스트 데이터에서만 사용한다. 기본 프로파일은 콘솔을 끄고 원시 SQL 오류 로그를 제한한다.
+
+응답의 X-Request-Id는 서버 로그를 찾는 값이고, Idempotency-Key는 접수 재시도를 구분하는 값이다. LOCK_TIMEOUT의 Retry-After: 1은 고정 1초 뒤 재시도 안내이며 자동 재시도·성공 보장은 아니다.
+
+실행 인자, DB 비밀번호 유지, 로컬 진단과 마이그레이션 절차는 저장소 README에 모았다. 스키마는 V1·V2 SQL과 Flyway 이력으로 관리하며 임의의 외부 DB를 자동으로 복구하거나 이전하지 않는다.

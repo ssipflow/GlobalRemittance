@@ -27,7 +27,7 @@ flowchart LR
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
 | adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
 | adapter/forex | 설정 환율 제공 | ConfiguredRates |
-| bootstrap | DI, Clock와 BCrypt 구성, 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer |
+| bootstrap | DI, Clock와 BCrypt 구성, 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer |
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 OpenApiConfiguration에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
 
@@ -35,7 +35,9 @@ application의 Ports는 계정·견적 저장, 환율, 비밀번호, 식별번�
 
 ## 인증과 견적 생성
 
-송금 요청은 먼저 JwtAuthenticationFilter를 거친다. 필터가 JWT 서명·만료를 확인하고 인증 사용자 ID를 컨트롤러에 전달한다. 송금 본문에서 별도의 사용자 ID를 받지 않는다. 인증 실패는 JSON 401로 응답한다.
+RequestIdFilter가 보안 필터보다 먼저 실행돼 요청 ID를 응답 헤더와 MDC에 넣는다. 요청 처리가 끝나면 MDC에서 제거해 재사용 스레드에 남지 않게 한다.
+
+송금 인증은 JwtAuthenticationFilter가 처리한다. 필터가 JWT 서명·만료를 확인하고 인증 사용자 ID를 컨트롤러에 전달한다. 송금 본문에서 별도의 사용자 ID를 받지 않는다. 인증 실패는 JSON 401로 응답한다.
 
 견적 생성은 사용자 확인 → 대상 통화·USD 환율 조회 → QuotePolicy 계산 → 견적 저장 순서로 진행한다. 환율·수수료·수취액·USD 금액과 만료 시각을 함께 저장한다. 사용자 행에 접수 잠금을 걸지는 않지만, 저장 과정은 Work의 트랜잭션 안에서 실행한다.
 
@@ -61,7 +63,7 @@ sequenceDiagram
 
 사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 멱등성 키 조회도 같은 잠금 안에서 하므로 같은 키의 동시 재시도는 한 번만 반영된다. 키는 접수된 견적 행의 `idempotency_key`에 저장하고 (user_id, idempotency_key) 유일 제약이 한 키를 한 견적에만 묶는다. 구체적인 경쟁 상황은 [[주요 설계]]에서 설명한다.
 
-H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 JpaStore가 LOCK_TIMEOUT 업무 오류로 변환하고 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000 정수인지 검사하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우 TransactionalWork가 해당 업무 오류를 다시 전달한다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
+H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 JpaStore가 LOCK_TIMEOUT 업무 오류로 변환하고 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000의 ASCII 숫자 표기인지 검사(부호·공백·선행 0 불가)하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우 TransactionalWork가 해당 업무 오류를 다시 전달한다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
 
 ## 이력 조회
 
@@ -115,3 +117,28 @@ users는 계정·비밀번호 해시·암호화 식별번호·신원 유형을 �
 도메인 ID는 long이고 DB ID는 순차 INT다. 영속 어댑터에서 범위를 검사하고 변환한다. 시각 저장은 UTC, 일일 한도 판정과 견적·이력 응답 표시는 KST다.
 
 ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의존성을 검사한다. H2/API 테스트는 실제 인증·금액·동시 접수·페이지 경계·JSON 오류 디스패치를 검증한다. 다른 운영 DB나 다중 프로세스에서의 잠금·복구는 별도 검증이 필요하다.
+
+## 기동과 스키마 변경
+
+```mermaid
+flowchart TD
+    C[환경변수와 앱 인자 로딩] --> V[잠금 대기 설정 사전 검증]
+    V --> D[H2 연결]
+    D --> F[Flyway 버전 SQL 적용]
+    F --> H[Hibernate 엔티티 검증]
+    H --> S[서비스 시작]
+```
+
+도식은 관련 기동 단계의 의존 순서를 나타내며 전체 Spring 시작 절차를 나열한 것은 아니다. LockTimeoutEnvironmentPostProcessor는 설정 로딩 이후 최종 값을 검사하고 잘못된 값이면 DB 연결 전에 시작을 거부한다. LockTimeoutFailureAnalyzer는 해당 실패에 설정 안내를 제공한다.
+
+Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별 유일 제약을 적용한다. 기존 앱의 비어 있지 않은 DB에 Flyway 이력이 없으면 baseline 0 후 V1·V2를 적용한다. IF NOT EXISTS는 기존 객체를 건너뛰는 방식이고 스키마 오류 전체를 보정하지 않는다. Hibernate validate는 컬럼·타입을 검사하며 제약과 인덱스는 마이그레이션 및 스키마 테스트로 확인한다.
+
+DatabaseConnectionFailureAnalyzer는 Hibernate의 JDBC metadata/Dialect 실패 표지를 찾아 비밀번호·URL 값 없이 확인 방법을 안내한다. 이 표지가 없는 모든 DB 시작 오류를 분류하는 분석기는 아니다.
+
+## 오류 응답과 관측 경계
+
+ApiExceptionHandler는 업무 오류·MVC 입력 오류를 JSON 코드로 변환하고, 예상 밖 예외는 ErrorDescriptions의 선별 진단 정보를 ERROR로 기록한다. LOCK_TIMEOUT은 WARN과 Retry-After: 1, 일반 업무 오류는 DEBUG다. UNKNOWN_ERROR 업무 코드는 ERROR로 남긴다.
+
+예외 메시지·요청 본문·쿼리스트링·토큰 대신 요청 ID·메서드·제한된 경로·예외 클래스 연쇄·SQLState/벤더 코드·앱 스택 프레임 일부를 사용한다. JsonErrorController와 보안 필터의 오류는 동일한 응답 형식이어도 이 예외 처리기의 관측 대상과 같지 않다.
+
+local 프로파일은 H2 콘솔과 SQL·DB 오류·연결 풀 진단을 켠다. 콘솔 활성화에 맞춰 SecurityConfiguration이 SAMEORIGIN 프레임 정책을 적용한다. 기본 프로파일의 개인정보 제한 로그와 로컬 확장 로그의 범위를 분리해서 사용한다.

@@ -1,206 +1,138 @@
 # GlobalRemittance
 
-`Goals Of Project`의 회원·송금 API를 Java 17과 Spring Boot 3로 처음부터 구현한다.
-기존 애플리케이션을 교체하고 개발 컨벤션·하네스·Git 이력은 유지했다.
-요구사항은 [프로젝트 목표](docs/requirements/project-goals.md), 해석과 비용은
-[설계 결정](docs/decisions/remittance-rebuild.md)에서 확인할 수 있다.
+원화로 USD·JPY 송금 견적을 만들고 접수하는 개인 프로젝트다. Java 17 / Spring Boot 3 / JPA / embedded H2를 사용하며 기본 패키지는 `com.nelson.remittance`다.
 
-## 실행
+환율·수수료를 확정한 견적, 사용자별 일일 한도와 동시 접수, 성공 응답의 멱등 재현, 커서 기반 이력 조회를 구현했다. 접수는 DB에 기록하는 단계까지이며 실제 금융기관 지급과 실시간 시세 공급은 구현하지 않았다.
 
-Java 17 이상과 Gradle wrapper를 사용한다. 비밀번호는 BCrypt 해시로 저장하고,
-주민/사업자 번호는 랜덤 nonce를 사용하는 AES-GCM으로 암호화한다.
-실행 키를 저장소에 넣지 않는다. AES 키는 Base64 32바이트, JWT 키는 Base64 32바이트 이상이다.
+## 먼저 실행하기
+
+Java 17 이상과 저장소의 Gradle wrapper를 사용한다. AES 키는 Base64 32바이트, JWT 키는 Base64 32바이트 이상이어야 한다.
 
 ```sh
+# 새 로컬 DB에서 사용할 개발 키 생성 예시
 export REMITTANCE_AES_KEY="$(openssl rand -base64 32)"
 export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 ./gradlew bootRun
 ```
 
-위 명령은 개발용 키 생성 예시다. 이미 저장한 데이터의 암호화 키를 유지해야 한다.
+파일 DB는 `./data/remittance`다. 기존 식별번호를 읽으려면 처음 사용한 AES 키를 유지해야 한다. 위 예시를 매번 실행해 기존 키를 바꾸지 않는다. 환경변수의 export 구문을 `secret.local`에 두고 `source ./secret.local`로 읽을 수도 있다. 이 파일은 Git에서 제외되며 실제 값을 문서·PR에 붙여 넣지 않는다.
 
-로컬에서 키를 매번 만들지 않으려면 `export` 줄을 모은 `secret.local` 파일을 만들어
-`source ./secret.local` 후 실행한다. 이 파일은 `.gitignore`로 제외되며 저장소에 올리지 않는다.
-다른 사람과 공유하거나 PR·이슈·문서에 붙여 넣지 않는다. 이 파일에 `REMITTANCE_DB_PASSWORD`를 넣을 때는
-아래 "데이터베이스 비밀번호"의 고정 규칙을 먼저 확인한다.
+실행 후 `/swagger-ui.html`에서 API를 열고 회원가입·로그인한다. 로그인 응답의 token을 **Authorize**에 넣어 송금 API를 호출한다. OpenAPI JSON은 `/v3/api-docs`다. 두 경로는 인증 없이 열리며 `REMITTANCE_API_DOCS_ENABLED=false`로 함께 끈다.
 
-환경변수 대신 Gradle 인자로 넘길 수도 있다. `bootRun --args`는 애플리케이션 인자로 전달되고,
-같은 이름의 설정(`remittance.aes-key` 등)을 환경변수보다 우선해 덮어쓴다.
+## 설정
 
-```sh
-./gradlew bootRun --args="--remittance.aes-key=$(openssl rand -base64 32) --remittance.jwt-secret=$(openssl rand -base64 32)"
-```
+| 환경변수 | 의미 | 기본값 |
+| --- | --- | --- |
+| REMITTANCE_AES_KEY | 식별번호 AES-GCM 암호화 키 | 필수 |
+| REMITTANCE_JWT_SECRET | JWT 서명 키 | 필수 |
+| REMITTANCE_DB_PASSWORD | 파일 H2의 sa 비밀번호 | 빈 값 |
+| REMITTANCE_USD_TO_KRW | USD 1단위당 KRW | 1300, 예시 환율 |
+| REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
+| REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms) | 5000 |
+| REMITTANCE_API_DOCS_ENABLED | Swagger UI·OpenAPI 노출 | true |
+| SPRING_PROFILES_ACTIVE | local이면 H2 콘솔·SQL 진단 활성화 | 지정하지 않음 |
 
-`--remittance.usd-to-krw=1350`처럼 다른 설정도 같은 방식으로 지정한다. 환경변수 없이 이 방식만으로
-기동된다. 예시는 실행마다 새 키를 만들므로 `./data/remittance`에 기존 데이터가 있으면 이전과 같은 AES 키를
-직접 지정해야 한다. 인자로 준 키는 `ps` 같은 프로세스 목록과 셸 히스토리에 남으므로
-로컬 개발용 대안으로만 쓰고, 공유 환경이나 운영에서는 환경변수(또는 비밀 관리 도구)를 사용한다.
-`./gradlew -Dremittance.aes-key=...`는 Gradle 자신의 JVM 프로퍼티라 앱에 전달되지 않는다.
-환경변수 누락·잘못된 키는 시작 시 거부한다. H2 파일은 `./data/remittance`에 저장된다.
-테스트는 별도 메모리 H2와 테스트 전용 키·환율·시간을 사용한다.
+잠금 대기값은 1~30000의 ASCII 십진 정수다. 부호·공백·소수·단위·선행 0은 허용하지 않는다. 잘못된 값은 DB 연결 전에 거부하고 시작 실패 안내를 출력한다. 이 설정은 잠금 대기 한도이며 HTTP 요청 전체의 시간 제한은 아니다.
 
-환율 기본 설정은 재현 가능한 예시 USD→KRW 1300, JPY→KRW 9다. 실제 시장 환율이 아니다.
-`REMITTANCE_USD_TO_KRW`, `REMITTANCE_JPY_TO_KRW`로 값을 공급할 수 있다.
-외부 시세 제공처가 정해지면 환율 포트의 어댑터를 교체한다.
-
-### 데이터베이스 스키마(Flyway)
-
-스키마는 `src/main/resources/db/migration`의 `V<번호>__설명.sql`을 Flyway가 기동 시 순서대로 적용해 만든다.
-Hibernate는 `ddl-auto: validate`로 엔티티와 스키마가 어긋나면 기동을 거부할 뿐 스키마를 바꾸지 않는다.
-스키마를 바꾸려면 새 번호의 SQL을 추가하고, **이미 적용된 파일은 수정하지 않는다**(체크섬이 달라져 기동이 거부된다).
-
-- 새 DB: V1부터 모두 적용한다.
-- 예전(`ddl-auto: update`) 앱이 만든 `./data/remittance`: Flyway 이력이 없으므로 버전 0으로 기준선을 잡고 V1부터 다시 적용한다.
-  V1·V2는 `IF NOT EXISTS`로 써서 이미 있는 테이블·컬럼·제약을 건드리지 않고 데이터도 그대로 유지한다.
-  V2가 추가하는 멱등성 키 컬럼과 유일 제약이 없는 DB에는 그 둘이 보충된다. 그 밖의 컬럼이 빠진 DB는 `validate`가 기동을 거부한다.
-- 적용 이력은 DB의 `flyway_schema_history` 테이블에 남는다.
-
-### 데이터베이스 비밀번호
-
-H2 접속 사용자는 `sa`이고 비밀번호는 `REMITTANCE_DB_PASSWORD`로 지정한다. 기본값은 빈 값이다.
-비밀번호는 `./data/remittance`를 **처음 만들 때 고정**되므로, 아래 예시는 **새 DB로 시작할 때만** 쓴다.
+환경변수 대신 애플리케이션 인자를 전달할 수도 있다.
 
 ```sh
-export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18)"
-./gradlew bootRun
+./gradlew bootRun --args="--remittance.aes-key=<기존 AES 키> --remittance.jwt-secret=<기존 JWT 키> --remittance.usd-to-krw=1350"
 ```
 
-이미 `./data/remittance`가 있으면 그 DB를 만들 때의 비밀번호로만 접속된다. 빈 비밀번호로 만든 DB에
-환경변수만 추가하거나 다른 값으로 실행하면 `Wrong user name or password`(H2 28000)로 거부되어 기동에
-실패한다. 앱 로그에는 `Unable to determine Dialect without JDBC metadata`만 보이고 인증 오류는 나타나지 않지만
-(개인정보 보호를 위해 `SqlExceptionHelper` 로그를 껐고 Hibernate가 원래 예외를 덮어쓴다),
-시작 실패 진단이 "DB 접속 실패"라는 설명과 조치를 `APPLICATION FAILED TO START` 블록으로 출력한다.
-원인은 `data/remittance.trace.db`에 `wrong user or password`로 남고, `local` 프로파일로 실행하면 로그에도 나온다.
+동일 속성의 앱 인자는 환경변수보다 우선한다. 인자는 프로세스 목록·셸 기록에 노출될 수 있어 로컬 개발 대안으로만 사용한다. `./gradlew -Dremittance.aes-key=...`는 Gradle JVM 속성이므로 bootRun 앱에 자동 전달되지 않는다.
 
-- 로컬 테스트 데이터를 버려도 되면 앱을 끄고 `data/` 디렉터리를 삭제한 뒤 원하는 비밀번호로 다시 실행한다.
-- 데이터를 유지해야 하면 만들 때의 비밀번호를 계속 쓰거나, 그 비밀번호로 접속해 H2의 `ALTER USER`로 바꾼다.
-- 이 비밀번호는 접속 인증용이며 DB 파일 내용을 암호화하지는 않는다.
+### DB 비밀번호와 시작 실패
 
-### 로컬 프로파일: H2 콘솔과 SQL 로그
+H2 비밀번호는 파일 DB를 처음 만들 때 정해진다. 기본 빈 비밀번호로 만든 DB에 나중에 다른 REMITTANCE_DB_PASSWORD를 지정해도 기존 비밀번호가 변경되지는 않는다. 새 DB를 만들 때만 원하는 값을 지정하고, 기존 DB는 만들 때의 값을 사용한다.
 
-기본 실행에서는 H2 콘솔이 꺼져 있다. 로컬에서 DB를 직접 보려면 `local` 프로파일로 실행한다.
+DB 접속 실패 시 시작 실패 분석기가 원인 확인 방향을 안내한다. `Unable to determine Dialect without JDBC metadata`는 비밀번호 불일치 등으로 연결 정보 조회가 실패할 때 나타날 수 있으며, 그 문구만으로 원인을 확정하지 않는다. 기존 키·DB 비밀번호를 확인하고 로컬 프로파일의 연결 풀 로그나 `data/remittance.trace.db`를 살펴본다.
+
+데이터를 유지해야 하면 기존 비밀번호로 접속해 H2의 ALTER USER로 변경한다. DB를 재생성하는 방법은 기존 로컬 데이터를 버려도 되는 경우에만 사용한다. DB 접속 비밀번호가 파일 내용을 암호화하는 것은 아니다.
+
+### 로컬 H2 콘솔과 로그
 
 ```sh
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
-# 또는 ./gradlew bootRun --args="--spring.profiles.active=local"
 ```
 
-`http://localhost:8080/h2-console`에서 JDBC URL `jdbc:h2:file:./data/remittance`, 사용자 `sa`,
-비밀번호는 `REMITTANCE_DB_PASSWORD`(기본 빈 값)로 접속한다. 콘솔은 화면을 프레임으로 구성하므로 이 프로파일에서만
-보안 헤더의 프레임 정책을 기본 거부(`DENY`)에서 같은 출처 허용(`SAMEORIGIN`)으로 바꾼다.
-콘솔은 앱과 같은 프로세스에서 같은 URL로 DB를 열기 때문에, 앱이 떠 있는 동안에도 파일 잠금 충돌 없이
-접속된다(다른 프로세스의 H2 도구로 같은 파일을 열면 잠금 충돌이 날 수 있다).
-`/h2-console`은 앱의 JWT 인증을 거치지 않고 콘솔 자체의 DB 로그인만 있다. 기본 비밀번호가 빈 값이라
-로컬에서는 사실상 인증이 없고, 로그인 화면에서 임의의 JDBC URL을 입력할 수 있다. 외부 접속은 H2 콘솔의
-기본 설정(`webAllowOthers` 꺼짐)이 막는 것으로 알고 있으나 이 저장소에서 확인하지는 않았다.
-`local` 프로파일은 로그도 더 자세히 출력한다.
+`/h2-console`에 JDBC URL `jdbc:h2:file:./data/remittance`, 사용자 `sa`, 기존 DB 비밀번호로 접속한다. 앱과 같은 프로세스에서 파일을 열므로 별도 H2 프로세스로 여는 경우의 파일 잠금 충돌을 피할 수 있다.
 
-- **SQL**: `org.hibernate.SQL`을 DEBUG로 켜 실행되는 SQL을 줄바꿈 포맷으로 보여 준다. 요청 하나가 `select`·`insert`로
-  어떻게 바뀌는지 터미널에서 볼 수 있다. 값은 `?`로만 보여 이메일·해시는 나오지 않는다.
-- **SQL 오류**: 기본 설정이 꺼 둔 `SqlExceptionHelper`를 WARN으로 켠다. 오류 메시지에 userId가 포함될 수 있다.
-- **접속 실패**: DB 비밀번호 불일치 같은 접속 실패는 `SqlExceptionHelper`로 보이지 않는다. 실행해 보면 Hibernate 6.5.2가
-  부트스트랩 중 원래 예외를 `NullPointerException`으로 덮어쓰는 것으로 관찰된다. 그래서 연결 풀(Hikari)을 DEBUG로 켜
-  `Wrong user name or password [28000-224]` 같은 실제 원인이 로그에 남게 한다. Hikari DEBUG는 풀 설정을 출력하므로
-  JDBC URL과 사용자명이 보이지만, 비밀번호는 `<masked>`로 출력되는 것을 확인했다.
-- **바인딩 값**: 기본은 꺼져 있다. 보려면 `application-local.yaml`의 `org.hibernate.orm.jdbc.bind: TRACE` 주석을 풀되
-  이메일·비밀번호 해시·암호문이 로그에 남으므로 로컬 테스트 데이터에서만 쓴다.
+local은 콘솔을 켜고 프레임 정책을 SAMEORIGIN으로 바꾼다. 콘솔은 앱 JWT 대신 DB 로그인으로 보호되며 기본 DB 비밀번호는 빈 값이다. 공유 환경에 local을 적용하지 않는다. 기본 실행은 콘솔이 꺼지고 프레임 정책은 DENY다.
 
-공유 환경이나 운영에서는 `local` 프로파일을 쓰지 않는다. `application.yaml`의 `spring.h2.console.enabled`를
-`true`로 직접 고치면 프레임 허용이 함께 적용되지만 콘솔이 항상 노출되므로 커밋하지 않는다.
+local에서는 Hibernate SQL DEBUG, SqlExceptionHelper WARN, Hikari DEBUG를 켠다. SQL 바인딩 값은 기본적으로 출력하지 않지만 DB 오류에는 이메일이 포함될 수 있고 연결 풀 진단에는 URL·사용자명이 보일 수 있다. 바인딩 TRACE를 추가하면 해시·암호문도 기록될 수 있으므로 테스트 데이터에서만 사용한다. 기본 프로파일의 오류 로그 정책과 구분한다.
 
-## API
+### Flyway 스키마 관리
 
-모든 성공·오류 응답은 JSON이다. 본문이 있는 요청은 `Content-Type: application/json`,
-송금 API는 로그인 응답의 `Authorization: Bearer <token>`을 사용한다.
+`src/main/resources/db/migration`의 버전 SQL로 스키마를 적용하고 Hibernate는 `ddl-auto: validate`로 컬럼·타입을 검사한다.
 
-| API | 입력 | 결과 |
-| --- | --- | --- |
-| POST /user/signup | userId(email), password, name, idType, idValue | resultCode, resultMsg |
-| POST /user/login | userId, password | 기본 응답 + token |
-| POST /transfer/quote | amount(KRW), targetCurrency(USD/JPY) | 기본 응답 + quote |
-| POST /transfer/request | quoteId(문자열), 선택 헤더 Idempotency-Key | 기본 응답 |
-| GET /transfer/list | 선택 size, cursor | 기본 응답 + 사용자, 오늘 집계, 접수 이력 한 페이지, nextCursor |
-
-성공 응답의 `resultCode=200`, `resultMsg=OK`. JWT는 id/userId/name/expireTime 및
-표준 인증 클레임을 포함하고 발급 후 30분 만료한다. 견적은 10분 유효하다.
-API 날짜 표시는 KST `yyyy-MM-dd HH:mm:ss`, 저장은 UTC Instant다.
-원문 만료 오류의 철자 `QUOTE_EXPRIED`를 계약으로 유지한다.
-
-오류의 `resultCode`는 HTTP 상태와 같으며 `resultMsg`는 고정 코드다.
-
-| HTTP | 대표 오류 |
+| 버전 | 내용 |
 | --- | --- |
-| 400 | INVALID_REQUEST, NEGATIVE_NUMBER, QUOTE_EXPRIED, LIMIT_EXCESS |
-| 401 | UNAUTHORIZED |
-| 403 | FORBIDDEN(타인 견적) |
-| 404 | QUOTE_NOT_FOUND, NOT_FOUND |
-| 409 | DUPLICATE_USER, ALREADY_REQUESTED |
-| 422 | IDEMPOTENCY_KEY_REUSED(같은 키를 다른 견적에 사용) |
-| 503 | LOCK_TIMEOUT(사용자 잠금 대기 초과, 재시도 가능. `Retry-After: 1` 헤더) |
-| 405 / 406 / 415 | METHOD_NOT_ALLOWED / NOT_ACCEPTABLE / UNSUPPORTED_MEDIA_TYPE |
-| 500 | UNKNOWN_ERROR(내부 정보 미노출) |
+| V1 | users·remittances 및 사용자/접수시각 인덱스 |
+| V2 | idempotency_key와 (user_id, idempotency_key) 유일 제약 |
 
-비밀번호는 UTF-8 최대 72바이트(BCrypt 제한), 식별번호는 최대 64바이트(AES 저장 길이)다.
-견적 ID는 양의 INT 범위를 받고, 원화 입력은 정수부 최대 10자리·소수 최대 12자리다.
+새 DB는 V1부터 적용한다. Flyway 이력이 없는 비어 있지 않은 DB는 버전 0으로 기준선을 잡은 뒤 V1·V2를 적용한다. 두 SQL의 IF NOT EXISTS는 이전 앱이 만든 객체를 보존하기 위한 것이며 임의의 구 스키마를 정상 상태로 복구한다는 의미는 아니다. 적용 이력은 flyway_schema_history에 저장한다.
+
+적용한 SQL을 수정하지 않고 새 번호로 변경을 추가한다. Hibernate validate만으로 모든 인덱스·유일 제약·FK 이름을 검사한다고 가정하지 않는다. 기존 데이터 업그레이드는 MigrationTest에서 다루며 다른 시스템의 데이터를 이전하는 도구는 제공하지 않는다.
+
+## API 사용
+
+본문 요청은 `Content-Type: application/json`, 송금 API는 `Authorization: Bearer <token>`을 사용한다. 성공은 HTTP 200과 `{"resultCode":200,"resultMsg":"OK"}`가 기본이다.
+
+| API | 입력 | 주요 응답 |
+| --- | --- | --- |
+| POST /user/signup | userId, password, name, idType, idValue | 기본 응답 |
+| POST /user/login | userId, password | token |
+| POST /transfer/quote | amount(KRW), targetCurrency(USD/JPY) | quoteId, exchangeRate, expireTime, targetAmount |
+| POST /transfer/request | quoteId, 선택 Idempotency-Key 헤더 | 기본 응답 |
+| GET /transfer/list | 선택 size·cursor | 사용자, 오늘 집계, history, nextCursor |
+
+JWT는 30분, 견적은 10분 유효하며 만료 순간부터 거부한다. API 견적·이력 시각은 KST `yyyy-MM-dd HH:mm:ss`다. 이력은 접수시각·ID 내림차순으로 기본 50건, 최대 100건씩 조회한다. 오늘 건수·합계는 페이지와 무관하게 KST 당일 전체를 집계한다. 목록과 집계는 별개 조회여서 동시 접수와 겹치면 시점이 다를 수 있다.
+
+### 접수 재시도
 
 ```sh
-curl -X POST http://localhost:8080/user/signup \
+TOKEN='<로그인 응답의 token>'
+# quoteId는 실제 견적 응답의 값으로 바꾼다.
+curl -i -X POST http://localhost:8080/transfer/request \
   -H 'Content-Type: application/json' \
-  -d '{"userId":"demo@example.com","password":"example-password","name":"테스트 사용자","idType":"REG_NO","idValue":"example-identity"}'
-curl -X POST http://localhost:8080/user/login \
-  -H 'Content-Type: application/json' \
-  -d '{"userId":"demo@example.com","password":"example-password"}'
-curl -X POST http://localhost:8080/transfer/quote \
-  -H 'Content-Type: application/json' -H 'Authorization: Bearer <token>' \
-  -d '{"amount":400000,"targetCurrency":"USD"}'
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'Idempotency-Key: demo-transfer-001' \
+  -d '{"quoteId":"1"}'
 ```
 
-### Swagger UI
+키는 `[A-Za-z0-9._~-]{1,64}`이며 사용자별로 구분한다. 처음부터 같은 키·견적을 사용한 성공 요청은 접수 시각부터 24시간 미만 동안 200으로 재현한다. 두 번 접수하거나 일일 합계에 다시 더하지 않는다. 재현은 인증을 생략하지 않으므로 JWT가 만료되면 재로그인해야 한다.
 
-실행 후 `http://localhost:8080/swagger-ui.html`에서 API를 확인하고 호출할 수 있다.
-OpenAPI 명세(JSON)는 `/v3/api-docs`다. 송금 API는 로그인 응답의 `token`을 UI의 Authorize에
-입력한다. 명세는 코드의 어노테이션에서 생성되며 인증 없이 열린다. 외부에 노출하지 않을 환경에서는
-`REMITTANCE_API_DOCS_ENABLED=false`로 UI와 명세를 함께 끈다.
+정확히 24시간부터 같은 견적은 409 ALREADY_REQUESTED다. 키의 DB 귀속은 삭제되지 않아 다른 견적에 재사용하면 기간과 관계없이 422 IDEMPOTENCY_KEY_REUSED다. 실패 응답은 저장하지 않는다. 키 없이 성공한 접수에 나중에 키를 붙여도 재현되지 않는다.
 
-## 계산과 한도
+### 오류와 추적 헤더
 
-- BigDecimal과 HALF_UP를 사용한다. KRW/JPY 0자리, USD 2자리는 Java Currency 기준이다.
-- USD 100만원 이하: 고정 1000원 + 0.002, 초과: 고정 3000원 + 0.001.
-- JPY: 고정 3000원 + 0.05. ratedFee를 원화로 반올림한 후 고정 수수료를 더한다.
-- 수취금액=(보내는금액-수수료)/수취통화→KRW 환율. 일일 한도도 순송금 USD 금액으로 계산한다.
-- 견적 생성 시 환율·수수료를 고정한다. REG_NO는 KST 하루 1000 USD, BUSINESS_NO는 5000 USD.
-- 같은 사용자 DB 행 잠금으로 한도 집계와 접수를 원자적으로 처리한다. 같은 견적은 한 번만 접수한다.
-- 소유권을 검사하며 만료 순간도 거부한다. 이력은 접수시간·ID 내림차순이고 견적만 만든 건 제외한다.
+| HTTP | 대표 코드 |
+| --- | --- |
+| 400 | INVALID_REQUEST, NEGATIVE_NUMBER, QUOTE_EXPRIED, LIMIT_EXCESS |
+| 401 / 403 | UNAUTHORIZED / FORBIDDEN |
+| 404 | QUOTE_NOT_FOUND, NOT_FOUND |
+| 409 / 422 | DUPLICATE_USER, ALREADY_REQUESTED / IDEMPOTENCY_KEY_REUSED |
+| 405 / 406 / 415 | METHOD_NOT_ALLOWED / NOT_ACCEPTABLE / UNSUPPORTED_MEDIA_TYPE |
+| 500 / 503 | UNKNOWN_ERROR / LOCK_TIMEOUT |
 
-## 구조
+LOCK_TIMEOUT만 `Retry-After: 1`을 반환한다. 고정 1초의 재시도 안내이며 그 뒤 성공을 보장하거나 서버가 자동 재시도하는 기능은 아니다. 원 요구사항 철자인 QUOTE_EXPRIED를 유지한다.
 
-기본 패키지는 개인 프로젝트 이름 공간인 `com.nelson.remittance`다.
+응답의 `X-Request-Id`로 로그를 찾는다. 클라이언트가 `[A-Za-z0-9._-]{1,64}` 값을 보내면 채택하고 그 외에는 UUID를 생성한다. 멱등성 키와 용도가 다르며 오류 JSON 본문에는 넣지 않는다. 기본 오류 로그는 예외 메시지·본문·쿼리스트링·토큰 대신 코드·요청 위치·예외 클래스·SQLState 등의 선별 정보를 남긴다. 보안 필터와 /error의 모든 실패를 이 예외 로깅이 수집하는 것은 아니다.
 
-```text
-domain                         업무 모델·금액 정책 (프레임워크 없음)
-application                    사용 사례·외부 포트
-adapter/web      JSON HTTP와 인증 사용자 변환
-adapter/persistence            JPA 모델·저장소·트랜잭션
-adapter/security, adapter/forex 암호화·토큰·환율 공급
-bootstrap                      Spring 조립·시간 공급
-```
+## 설계와 문서
 
-외부 기술이 내부 정책을 의존한다. JPA 객체나 HTTP DTO를 내부 모델로 전달하지 않는다.
-한글 주석은 금액·한도·잠금·암호화의 불변식과 설계 이유를 설명한다.
+BigDecimal·HALF_UP과 통화별 자릿수(KRW/JPY 0, USD 2)를 사용한다. 견적 시 환율·수수료·USD 금액을 고정하고, 접수에서는 사용자 DB 행을 잠근 뒤 KST 일일 SUM·한도·중복을 검사한다. 개인은 1000 USD, 법인은 5000 USD까지 허용한다.
 
-## 요구사항과 검증 연결
+기본 패키지의 domain/application은 Spring·JPA·웹 구현에 의존하지 않는다. adapter가 외부 기술을 연결하고 bootstrap이 객체를 조립한다.
 
-| 요구사항 | 구현 | 검증 |
-| --- | --- | --- |
-| 회원가입·로그인·5개 JSON API | application 사용 사례, web/security 어댑터 | RemittanceApiTest |
-| BCrypt·AES-GCM·30분 JWT | 보안 어댑터, 환경변수 키 | SecurityAdaptersTest, DB 저장/API 테스트 |
-| 수수료 구간·반올림·환율 방향 | 프레임워크 없는 QuotePolicy | QuotePolicyTest |
-| 10분 만료·소유권·중복 | Quote와 접수 사용 사례 | API 만료/타인/중복 테스트 |
-| 개인/법인 한도·KST 오늘 집계 | 견적 USD + 사용자 DB 잠금 | 정확한 한도·자정·동시 접수 테스트 |
-| H2 순차 ID·FK·인덱스·DECIMAL | Flyway SQL + 외부 JPA 모델 | 실제 H2 스키마/감사 값 테스트, MigrationTest(구 DB 업그레이드) |
-| 클린 아키텍처·한글 주석 | domain/application/adapter/bootstrap | ArchitectureTest + 내부 리뷰 |
+- [개요](docs/application/overview.md): 기능과 실행 설정
+- [아키텍처](docs/application/architecture.md): 계층, 요청·저장·기동 흐름
+- [API 문서](docs/application/api.md): 필드, JSON 예시, 오류·헤더 계약
+- [주요 설계](docs/application/design.md): 상세 동시성·멱등성·페이지네이션·관측·마이그레이션 근거와 한계
+- [요구사항](docs/requirements/project-goals.md) 및 [초기 재구현 결정](docs/decisions/remittance-rebuild.md)
 
-## 검증과 회고
+## 검증
 
 ```sh
 ./gradlew spotlessApply
@@ -208,34 +140,19 @@ bootstrap                      Spring 조립·시간 공급
 python3 -m unittest discover -s scripts/tests -v
 ```
 
-`spotlessApply`는 Java 코드를 자동 정리한다. `check`는 main/test 전체의 포맷과
-Checkstyle 규칙을 검사하고 위반 시 실패한다. 하네스 커밋 게이트도 같은 명령을 사용한다.
+check는 JUnit 테스트, Spotless, main/test Checkstyle을 실행한다. 포맷은 Google Java Format 1.22.0 AOSP·Spotless 6.25.0, lint는 Checkstyle 10.17.0이다. 검증 결과는 실행한 커밋·환경과 함께 하네스·PR 기록에서 확인하며 이 문서가 새 실행 결과를 대신하지 않는다.
 
-Java 17에서 전체 애플리케이션 테스트, Spotless 포맷 검사와 Checkstyle main/test 검사를
-통과했고 실행 JAR도 빌드했다. 커밋 게이트는 `clean check bootJar`, 하네스 회귀 검사와
-독립 리뷰를 통과한 최신 snapshot만 커밋한다.
+| 검증 영역 | 주요 테스트 |
+| --- | --- |
+| 금액·반올림·저장 범위 | QuotePolicyTest |
+| 암호화·JWT·BCrypt | SecurityAdaptersTest |
+| API·동시 접수·멱등성·KST·페이지 조회 | RemittanceApiTest |
+| Swagger·인증 및 기본/local 설정 | OpenApiTest, H2ConsoleTest, LocalLoggingTest |
+| 요청 ID·오류 로그·시작 실패 진단 | ObservabilityTest |
+| 잠금 대기 설정과 Retry-After | LockTimeoutSettingsTest, RemittanceApiTest |
+| 스키마 신규 생성·업그레이드 | MigrationTest |
+| 내부 계층 의존성 | ArchitectureTest |
 
-포맷은 Google Java Format 1.22.0 AOSP(4칸)를 Spotless 6.25.0으로 적용한다.
-Checkstyle 10.17.0은 wildcard·불필요 import, 중괄호, 제어 흐름과 명명 규칙을 검사한다.
-설정은 `build.gradle`, `config/checkstyle/checkstyle.xml`, `.editorconfig`에 있다.
+현재 검증은 H2와 격리된 테스트 범위다. 운영 DB·다중 인스턴스·지급 기관 장애·외부 로그 수집과 알림은 별도 과제다. 실제 배포·CI/CD는 구성하지 않는다.
 
-검증 범위는 금액·수수료·정밀도, 30분 JWT와 암호화, 10분 견적 만료, KST 날짜 변경,
-개인/법인 정확한 한도와 초과, 타인 견적, 중복/동시 접수, 동시 회원가입, 실제 Tomcat의
-JSON 오류 경로, H2 스키마/감사 데이터와 내부 계층 의존성이다. 실제 실행 로그는
-Git에서 제외되는 `.harness/check-*.log`에 남고 PR 본문에는 최종 결과를 요약한다.
-기존 홈 파일 DB/외부 환율 의존 테스트는 기준선으로 실행하지 않았다.
-새 테스트는 도메인, 보안 어댑터, JSON API, H2 영속성·동시성, 계층 의존성을 검증한다.
-
-목표 문서의 일부 예시와 명시 규칙은 충돌한다. JPY의 소수 예시보다 Currency의
-0자리 규칙, 환율 표기보다 명시된 나눗셈 공식을 우선했다. 과도한 저장 자릿수를
-명시적으로 거부하고, 견적별 반올림된 USD를 합산하여 한도 정책을 재현 가능하게 했다.
-
-현재 환율은 설정 기반 예시이며 실시간 시세 연동은 미구현이다. embedded H2와 DB 잠금은
-과제 조건의 구현이며 다른 운영 DB에서의 잠금·장애 복구 검증을 대신하지 않는다.
-ORM 유일 제약 오류에 이메일이 포함될 수 있어 SqlExceptionHelper의 원시 오류 로그는 기본 설정에서 차단한다.
-대신 모든 응답에 `X-Request-Id`를 붙이고, 예상 밖 오류는 요청 ID·메서드·경로·예외 클래스·SQLState만 로그에 남긴다
-(예외 메시지·쿼리스트링·요청 본문·토큰은 남기지 않는다). 외부 로그 수집·알림 체계는 별도로 설계해야 한다.
-스키마는 Flyway로 관리하지만 다른 시스템의 데이터를 옮기는 이전 도구와 실제 금융기관 송금 실행은 제공하지 않는다. 요청 API는 접수 기록을 생성한다.
-실제 배포·CI/CD는 구성하지 않는다. dev 대상 PR의 승인·병합은 사람이 수행한다.
-
-에이전트 실행은 [AGENTS.md](AGENTS.md), 옵시디언 연결은 [문서화 사용법](docs/harness/obsidian.md)을 따른다.
+에이전트 실행은 [AGENTS.md](AGENTS.md), 옵시디언 연결은 [문서화 사용법](docs/harness/obsidian.md)을 따른다. 일반 작업은 dev PR 생성에서 끝나며 승인·병합은 사람이 한다.
