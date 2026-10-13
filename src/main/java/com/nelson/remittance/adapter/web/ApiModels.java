@@ -3,6 +3,7 @@ package com.nelson.remittance.adapter.web;
 import com.nelson.remittance.application.TransferUseCases;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.User;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -28,11 +29,22 @@ public final class ApiModels {
 
     // 가입 입력의 검증과 민감 값의 로그 노출 방지를 함께 담당한다.
     public record Signup(
-            @NotBlank @Email @Size(max = 255) String userId,
-            @NotBlank @Size(max = 72) String password,
-            @NotBlank @Size(max = 128) String name,
-            @NotNull User.IdentityType idType,
-            @NotBlank @Size(max = 64) String idValue) {
+            @Schema(description = "이메일 형식의 사용자 ID(유일)", example = "demo@example.com")
+                    @NotBlank
+                    @Email
+                    @Size(max = 255)
+                    String userId,
+            @Schema(description = "비밀번호. 최대 72자이며 UTF-8 72바이트 이하", example = "example-password")
+                    @NotBlank
+                    @Size(max = 72)
+                    String password,
+            @Schema(description = "이름", example = "테스트 사용자") @NotBlank @Size(max = 128) String name,
+            @Schema(description = "식별번호 종류. REG_NO는 개인, BUSINESS_NO는 법인") @NotNull
+                    User.IdentityType idType,
+            @Schema(description = "식별번호. 최대 64자이며 UTF-8 64바이트 이하", example = "example-identity")
+                    @NotBlank
+                    @Size(max = 64)
+                    String idValue) {
         @Override
         public String toString() {
             return "Signup[redacted]";
@@ -41,8 +53,15 @@ public final class ApiModels {
 
     // 로그인 입력을 검증하며 record 문자열 표현에 비밀번호를 노출하지 않는다.
     public record Login(
-            @NotBlank @Email @Size(max = 255) String userId,
-            @NotBlank @Size(max = 72) String password) {
+            @Schema(description = "가입한 이메일", example = "demo@example.com")
+                    @NotBlank
+                    @Email
+                    @Size(max = 255)
+                    String userId,
+            @Schema(description = "비밀번호. 최대 72자이며 UTF-8 72바이트 이하", example = "example-password")
+                    @NotBlank
+                    @Size(max = 72)
+                    String password) {
         @Override
         public String toString() {
             return "Login[redacted]";
@@ -51,11 +70,24 @@ public final class ApiModels {
 
     // 입력 정밀도와 통화를 검증하며 금액의 업무 부호 판단은 도메인 정책에 맡긴다.
     public record QuoteInput(
-            @NotNull @Digits(integer = 10, fraction = 12) BigDecimal amount,
-            @NotBlank @Pattern(regexp = "USD|JPY") String targetCurrency) {}
+            @Schema(description = "KRW 금액. 양수이며 정수부 최대 10자리, 소수부 최대 12자리", example = "400000")
+                    @NotNull
+                    @Digits(integer = 10, fraction = 12)
+                    BigDecimal amount,
+            @Schema(
+                            description = "수취 통화",
+                            allowableValues = {"USD", "JPY"},
+                            example = "USD")
+                    @NotBlank
+                    @Pattern(regexp = "USD|JPY")
+                    String targetCurrency) {}
 
     // 견적 ID를 양수 형식의 JSON 문자열로 받고 숫자 범위는 컨트롤러가 확인한다.
-    public record RequestInput(@NotBlank @Pattern(regexp = "[1-9][0-9]{0,18}") String quoteId) {}
+    public record RequestInput(
+            @Schema(description = "견적 응답의 quoteId. 양의 숫자 문자열이며 INT 범위 이내", example = "1")
+                    @NotBlank
+                    @Pattern(regexp = "[1-9][0-9]{0,18}")
+                    String quoteId) {}
 
     // 성공·실패의 공통 상태 코드와 메시지 형식이다.
     public record Result(int resultCode, String resultMsg) {

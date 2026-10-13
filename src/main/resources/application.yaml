@@ -33,6 +33,16 @@ remittance:
   # 사용자 행 잠금을 기다리는 최대 시간(ms)이며 H2 URL의 LOCK_TIMEOUT으로 적용된다. 초과하면 503 LOCK_TIMEOUT이다.
   lock-timeout-ms: ${REMITTANCE_LOCK_TIMEOUT_MS:5000}
 
+# API 명세와 Swagger UI는 함께 켜고 끈다. 외부에 노출하지 않을 환경에서는 REMITTANCE_API_DOCS_ENABLED=false로 끈다.
+springdoc:
+  # 오류 처리용 /error는 공개 API가 아니므로 명세에서 뺀다.
+  paths-to-exclude: /error
+  api-docs:
+    enabled: ${REMITTANCE_API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${REMITTANCE_API_DOCS_ENABLED:true}
+    path: /swagger-ui.html
+
 # DB 제약 오류의 원시 메시지에는 userId가 포함될 수 있어 해당 진단 로그를 차단한다.
 logging:
   level:

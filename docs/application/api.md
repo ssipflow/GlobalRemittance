@@ -10,6 +10,16 @@
 
 JWT는 발급 후 30분 유효하다. id, userId, name, expireTime과 표준 인증 클레임을 포함하며, 토큰 내부 expireTime은 KST ISO offset 형식이다.
 
+## Swagger UI와 OpenAPI 명세
+
+서버를 실행하면 `/swagger-ui.html`에서 API를 읽고 직접 호출할 수 있고, 기계가 읽는 OpenAPI 3 명세는 `/v3/api-docs`에서 JSON으로 받는다. 명세는 컨트롤러와 요청 DTO의 어노테이션에서 생성되며 아래 계약(필드 제약, 주요 오류 코드, `Idempotency-Key`·`size`·`cursor`)을 요약해서 담는다. 두 경로는 토큰 없이 열린다.
+
+1. `POST /user/signup`, `POST /user/login`을 Swagger UI에서 호출해 token을 얻는다.
+2. 우측 상단 Authorize에 token 값만 입력한다(`Bearer ` 접두사는 UI가 붙인다).
+3. `/transfer/*`를 호출한다.
+
+공통 오류(404, 405, 406, 415, 500)는 오퍼레이션마다 반복하지 않고 아래 오류 계약에서 설명한다. `REMITTANCE_API_DOCS_ENABLED=false`이면 UI와 명세 모두 일반 경로처럼 404 NOT_FOUND JSON을 반환한다. 이 명세는 코드에서 생성한 설명이며 계약의 기준은 이 문서와 테스트다.
+
 ## 호출 순서
 
 가입 후 로그인 응답의 token을 TOKEN에 넣고, 견적 응답의 quoteId를 접수 본문에 사용한다. 아래 접수 예시의 `"1"`은 실제 받은 ID로 바꾼다.

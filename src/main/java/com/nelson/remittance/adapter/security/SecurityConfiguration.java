@@ -24,7 +24,14 @@ public class SecurityConfiguration {
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
                         auth ->
-                                auth.requestMatchers("/transfer", "/transfer/**")
+                                // API 명세와 Swagger UI는 토큰을 얻기 전에도 열람해야 하므로 인증 없이 연다.
+                                // 노출 여부는 REMITTANCE_API_DOCS_ENABLED로 제어한다.
+                                auth.requestMatchers(
+                                                "/swagger-ui.html",
+                                                "/swagger-ui/**",
+                                                "/v3/api-docs/**")
+                                        .permitAll()
+                                        .requestMatchers("/transfer", "/transfer/**")
                                         .authenticated()
                                         .anyRequest()
                                         .permitAll())

@@ -48,8 +48,8 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 | POST /user/signup | userId(email), password, name, idType, idValue | resultCode, resultMsg |
 | POST /user/login | userId, password | 기본 응답 + token |
 | POST /transfer/quote | amount(KRW), targetCurrency(USD/JPY) | 기본 응답 + quote |
-| POST /transfer/request | quoteId(문자열) | 기본 응답 |
-| GET /transfer/list | 없음 | 기본 응답 + 사용자, 오늘 집계, 전체 접수 이력 |
+| POST /transfer/request | quoteId(문자열), 선택 헤더 Idempotency-Key | 기본 응답 |
+| GET /transfer/list | 선택 size, cursor | 기본 응답 + 사용자, 오늘 집계, 접수 이력 한 페이지, nextCursor |
 
 성공 응답의 `resultCode=200`, `resultMsg=OK`. JWT는 id/userId/name/expireTime 및
 표준 인증 클레임을 포함하고 발급 후 30분 만료한다. 견적은 10분 유효하다.
@@ -65,6 +65,8 @@ API 날짜 표시는 KST `yyyy-MM-dd HH:mm:ss`, 저장은 UTC Instant다.
 | 403 | FORBIDDEN(타인 견적) |
 | 404 | QUOTE_NOT_FOUND, NOT_FOUND |
 | 409 | DUPLICATE_USER, ALREADY_REQUESTED |
+| 422 | IDEMPOTENCY_KEY_REUSED(같은 키를 다른 견적에 사용) |
+| 503 | LOCK_TIMEOUT(사용자 잠금 대기 초과, 재시도 가능) |
 | 405 / 406 / 415 | METHOD_NOT_ALLOWED / NOT_ACCEPTABLE / UNSUPPORTED_MEDIA_TYPE |
 | 500 | UNKNOWN_ERROR(내부 정보 미노출) |
 
@@ -82,6 +84,13 @@ curl -X POST http://localhost:8080/transfer/quote \
   -H 'Content-Type: application/json' -H 'Authorization: Bearer <token>' \
   -d '{"amount":400000,"targetCurrency":"USD"}'
 ```
+
+### Swagger UI
+
+실행 후 `http://localhost:8080/swagger-ui.html`에서 API를 확인하고 호출할 수 있다.
+OpenAPI 명세(JSON)는 `/v3/api-docs`다. 송금 API는 로그인 응답의 `token`을 UI의 Authorize에
+입력한다. 명세는 코드의 어노테이션에서 생성되며 인증 없이 열린다. 외부에 노출하지 않을 환경에서는
+`REMITTANCE_API_DOCS_ENABLED=false`로 UI와 명세를 함께 끈다.
 
 ## 계산과 한도
 
@@ -132,7 +141,7 @@ python3 -m unittest discover -s scripts/tests -v
 `spotlessApply`는 Java 코드를 자동 정리한다. `check`는 main/test 전체의 포맷과
 Checkstyle 규칙을 검사하고 위반 시 실패한다. 하네스 커밋 게이트도 같은 명령을 사용한다.
 
-Java 17에서 전체 애플리케이션 테스트 27개, Spotless 포맷 검사와 Checkstyle main/test 검사를
+Java 17에서 전체 애플리케이션 테스트, Spotless 포맷 검사와 Checkstyle main/test 검사를
 통과했고 실행 JAR도 빌드했다. 커밋 게이트는 `clean check bootJar`, 하네스 회귀 검사와
 독립 리뷰를 통과한 최신 snapshot만 커밋한다.
 
@@ -153,8 +162,7 @@ Git에서 제외되는 `.harness/check-*.log`에 남고 PR 본문에는 최종 �
 
 현재 환율은 설정 기반 예시이며 실시간 시세 연동은 미구현이다. embedded H2와 DB 잠금은
 과제 조건의 구현이며 다른 운영 DB에서의 잠금·장애 복구 검증을 대신하지 않는다.
-현재 전체 이력을 메모리에 불러 집계하므로 대량 거래에서는 기간별 DB 집계와 페이지네이션을
-도입할 필요가 있다. ORM 유일 제약 오류에 이메일이 포함될 수 있어 SqlExceptionHelper의
+ORM 유일 제약 오류에 이메일이 포함될 수 있어 SqlExceptionHelper의
 원시 오류 로그를 차단했다. 이로 인해 DB 진단 상세가 줄어들며, 운영에서는 개인정보를
 제거한 오류 관측 체계를 별도로 설계해야 한다.
 데이터 마이그레이션과 실제 금융기관 송금 실행은 제공하지 않는다. 요청 API는 접수 기록을 생성한다.
