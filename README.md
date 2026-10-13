@@ -55,9 +55,10 @@ export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18)"
 
 이미 `./data/remittance`가 있으면 그 DB를 만들 때의 비밀번호로만 접속된다. 빈 비밀번호로 만든 DB에
 환경변수만 추가하거나 다른 값으로 실행하면 `Wrong user name or password`(H2 28000)로 거부되어 기동에
-실패한다. 이때 앱 로그에는 `BeanCreationException`과 `Unable to determine Dialect without JDBC metadata`만
-보이고 인증 오류는 나타나지 않는다(개인정보 보호를 위해 `SqlExceptionHelper` 로그를 껐기 때문이다).
-원인은 `data/remittance.trace.db`에 `wrong user or password`로 남는다.
+실패한다. 앱 로그에는 `Unable to determine Dialect without JDBC metadata`만 보이고 인증 오류는 나타나지 않지만
+(개인정보 보호를 위해 `SqlExceptionHelper` 로그를 껐고 Hibernate가 원래 예외를 덮어쓴다),
+시작 실패 진단이 "DB 접속 실패"라는 설명과 조치를 `APPLICATION FAILED TO START` 블록으로 출력한다.
+원인은 `data/remittance.trace.db`에 `wrong user or password`로 남고, `local` 프로파일로 실행하면 로그에도 나온다.
 
 - 로컬 테스트 데이터를 버려도 되면 앱을 끄고 `data/` 디렉터리를 삭제한 뒤 원하는 비밀번호로 다시 실행한다.
 - 데이터를 유지해야 하면 만들 때의 비밀번호를 계속 쓰거나, 그 비밀번호로 접속해 H2의 `ALTER USER`로 바꾼다.
@@ -219,9 +220,9 @@ Git에서 제외되는 `.harness/check-*.log`에 남고 PR 본문에는 최종 �
 
 현재 환율은 설정 기반 예시이며 실시간 시세 연동은 미구현이다. embedded H2와 DB 잠금은
 과제 조건의 구현이며 다른 운영 DB에서의 잠금·장애 복구 검증을 대신하지 않는다.
-ORM 유일 제약 오류에 이메일이 포함될 수 있어 SqlExceptionHelper의
-원시 오류 로그를 차단했다. 이로 인해 DB 진단 상세가 줄어들며, 운영에서는 개인정보를
-제거한 오류 관측 체계를 별도로 설계해야 한다.
+ORM 유일 제약 오류에 이메일이 포함될 수 있어 SqlExceptionHelper의 원시 오류 로그는 기본 설정에서 차단한다.
+대신 모든 응답에 `X-Request-Id`를 붙이고, 예상 밖 오류는 요청 ID·메서드·경로·예외 클래스·SQLState만 로그에 남긴다
+(예외 메시지·쿼리스트링·요청 본문·토큰은 남기지 않는다). 외부 로그 수집·알림 체계는 별도로 설계해야 한다.
 데이터 마이그레이션과 실제 금융기관 송금 실행은 제공하지 않는다. 요청 API는 접수 기록을 생성한다.
 실제 배포·CI/CD는 구성하지 않는다. dev 대상 PR의 승인·병합은 사람이 수행한다.
 
