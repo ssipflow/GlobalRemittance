@@ -146,7 +146,7 @@ quoteId는 양의 숫자 문자열이며 실제 INT 식별자 범위를 검증�
 
 현재 사용자 소유이며 아직 접수하지 않은 유효 견적만 접수한다. 일일 순송금 USD 한도는 REG_NO 1000, BUSINESS_NO 5000이고 동일한 금액은 허용한다.
 
-인증 후에는 사용자 잠금을 얻고 견적 존재 → 소유권 → (멱등성 키가 있으면 재현·재사용 판단) → 중복 → 만료 → 한도 순서로 검사한다. 잠금을 얻기 전에 대기 한도를 넘기면 503 LOCK_TIMEOUT을 반환한다.
+인증 후에는 사용자 잠금을 얻고 견적 존재 → 소유권 → (멱등성 키가 있으면 재현·재사용 판단) → 중복 → 만료 → 한도 순서로 검사한다. 잠금을 얻기 전에 대기 한도를 넘기면 503 LOCK_TIMEOUT을 반환하며 응답에 `Retry-After: 1` 헤더가 붙는다(고정 1초, 이 오류에만). 처음 요청에 `Idempotency-Key`를 보냈다면 같은 키로 재시도해도 중복 반영되지 않는다(24시간 안). 키 없이 보낸 요청은 재시도가 이미 접수된 상태(ALREADY_REQUESTED)로 이어질 수 있으니 이력으로 확인한다.
 
 ### 멱등성 키 (선택)
 
@@ -264,4 +264,4 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 | 415 | UNSUPPORTED_MEDIA_TYPE | 본문 요청 | 지원하지 않는 요청 Content-Type |
 | 422 | IDEMPOTENCY_KEY_REUSED | 접수 | 이미 다른 견적에 사용한 Idempotency-Key |
 | 500 | UNKNOWN_ERROR | 모든 곳 | 내부 오류. 원시 예외와 개인정보는 노출하지 않음 |
-| 503 | LOCK_TIMEOUT | 접수 | 사용자 행 잠금 대기 한도 초과. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS로 설정 |
+| 503 | LOCK_TIMEOUT | 접수 | 사용자 행 잠금 대기 한도 초과. `Retry-After: 1`(초) 헤더가 붙는다. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS(1~30000)로 설정 |

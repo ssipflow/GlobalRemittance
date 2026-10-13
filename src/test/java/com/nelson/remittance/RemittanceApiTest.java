@@ -381,10 +381,10 @@ class RemittanceApiTest {
     // 중복 가입과 잘못된 인증 정보가 안전한 오류 계약을 따르는지 확인한다.
     void duplicateSignupAndInvalidCredentialsReturnSafeErrors() throws Exception {
         user("duplicate@example.com", "REG_NO");
-        error(
-                signup("duplicate@example.com", "REG_NO", "other-password", "3333333333333"),
-                409,
-                "DUPLICATE_USER");
+        MvcResult duplicate =
+                signup("duplicate@example.com", "REG_NO", "other-password", "3333333333333");
+        error(duplicate, 409, "DUPLICATE_USER");
+        assertNull(duplicate.getResponse().getHeader("Retry-After"));
         error(
                 mvc.perform(
                                 post("/user/login")
@@ -405,10 +405,10 @@ class RemittanceApiTest {
     @Test
     // UTF-8 바이트 경계로 BCrypt 절단과 암호문 열 길이 초과를 방지하는지 확인한다.
     void utf8ByteLimitsPreventBcryptTruncationAndCiphertextOverflow() throws Exception {
-        error(
-                signup("long-pass@example.com", "REG_NO", "한".repeat(25), "1234567890123"),
-                400,
-                "INVALID_REQUEST");
+        MvcResult invalid =
+                signup("long-pass@example.com", "REG_NO", "한".repeat(25), "1234567890123");
+        assertNull(invalid.getResponse().getHeader("Retry-After"));
+        error(invalid, 400, "INVALID_REQUEST");
         error(
                 signup("long-id@example.com", "REG_NO", "test-password", "한".repeat(22)),
                 400,
@@ -926,7 +926,9 @@ class RemittanceApiTest {
         RowLock lock = holdUserLock(actor);
         try {
             long started = System.nanoTime();
-            error(request(token, id), 503, "LOCK_TIMEOUT");
+            MvcResult timedOut = request(token, id);
+            error(timedOut, 503, "LOCK_TIMEOUT");
+            assertEquals("1", timedOut.getResponse().getHeader("Retry-After"));
             long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
             assertTrue(elapsedMs < 5000, "락 대기가 설정 한도 근처에서 끝나야 한다: " + elapsedMs);
         } finally {

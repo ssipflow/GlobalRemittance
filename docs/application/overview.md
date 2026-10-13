@@ -37,7 +37,7 @@ Java 17, Spring Boot 3, Spring Security, JPA, Flyway, embedded H2를 사용한�
 | REMITTANCE_USD_TO_KRW | USD 1단위당 KRW | 1300, 예시 환율 |
 | REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI(`/swagger-ui.html`)와 OpenAPI 명세(`/v3/api-docs`) 노출 | true |
-| REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms) | 5000 |
+| REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms). 1~30000 정수가 아니면 기동을 거부한다 | 5000 |
 | REMITTANCE_DB_PASSWORD | 로컬 H2 `sa` 비밀번호. DB 파일을 처음 만들 때 고정되며 DB와 다른 값으로 실행하면 기동이 거부된다 | 빈 값 |
 | SPRING_PROFILES_ACTIVE | `local`이면 H2 콘솔(`/h2-console`)과 SQL·DB 오류 로그를 켠다. 로컬 개발 전용 | 없음(꺼짐) |
 

@@ -6,6 +6,7 @@ import com.nelson.remittance.domain.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -40,7 +41,15 @@ public class ApiExceptionHandler {
                     LOG.error("business error code={} {}", error.code(), where(request));
             default -> LOG.debug("business error code={} {}", error.code(), where(request));
         }
-        return response(status.value(), error.code().name());
+        ResponseEntity<Result> body = response(status.value(), error.code().name());
+        if (error.code() == BusinessException.Code.LOCK_TIMEOUT) {
+            // 잠금은 보유 트랜잭션이 끝나면 풀리므로 짧은 재시도가 의미 있다. 초 단위 정수 고정값이다.
+            return ResponseEntity.status(body.getStatusCode())
+                    .header(HttpHeaders.RETRY_AFTER, "1")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body.getBody());
+        }
+        return body;
     }
 
     @ExceptionHandler(Exception.class)

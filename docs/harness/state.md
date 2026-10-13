@@ -21,11 +21,11 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/flyway-migrations. `ddl-auto: update`를 Flyway 버전 SQL로 대체하고 기존 파일 DB 업그레이드 경로를 검증한다(후속 후보, 사용자 선택).
-- 시작 기준: 2026-10-13 dev f1c3a5d, PR #22까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/flyway-migrations.md)의 MigrationTest·실제 구 DB 파일 업그레이드 확인, Java 17 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
+- 현재 작업: feature/lock-timeout-guidance. LOCK_TIMEOUT 503에 Retry-After를 붙이고 잘못된 REMITTANCE_LOCK_TIMEOUT_MS를 기동 시점에 안내와 함께 거부한다(후속 후보, 사용자 선택).
+- 시작 기준: 2026-10-13 dev 09faa4b, PR #23까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/lock-timeout-guidance.md)의 헤더·설정 경계 검증, 실제 기동 거부 확인, Java 17 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
 - 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md)에서 다음 범위를 정한다.
-- 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 검증 결과는 이번 문서 작업의 새 앱 실행 결과가 아니다.
+- 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 '확인된 구현과 검증'의 앱 검증 수치는 이전 기준 시점의 기록이며 이번 작업의 최신 결과는 해당 작업 기록과 PR에 있다.
 
 ## 남은 한계
 

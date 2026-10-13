@@ -136,7 +136,7 @@ API 날짜 표시는 KST `yyyy-MM-dd HH:mm:ss`, 저장은 UTC Instant다.
 | 404 | QUOTE_NOT_FOUND, NOT_FOUND |
 | 409 | DUPLICATE_USER, ALREADY_REQUESTED |
 | 422 | IDEMPOTENCY_KEY_REUSED(같은 키를 다른 견적에 사용) |
-| 503 | LOCK_TIMEOUT(사용자 잠금 대기 초과, 재시도 가능) |
+| 503 | LOCK_TIMEOUT(사용자 잠금 대기 초과, 재시도 가능. `Retry-After: 1` 헤더) |
 | 405 / 406 / 415 | METHOD_NOT_ALLOWED / NOT_ACCEPTABLE / UNSUPPORTED_MEDIA_TYPE |
 | 500 | UNKNOWN_ERROR(내부 정보 미노출) |
 

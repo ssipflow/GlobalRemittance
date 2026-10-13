@@ -37,6 +37,7 @@ remittance:
   usd-to-krw: ${REMITTANCE_USD_TO_KRW:1300}
   jpy-to-krw: ${REMITTANCE_JPY_TO_KRW:9}
   # 사용자 행 잠금을 기다리는 최대 시간(ms)이며 H2 URL의 LOCK_TIMEOUT으로 적용된다. 초과하면 503 LOCK_TIMEOUT이다.
+  # 허용 범위는 1~30000이며 벗어나면 DB 연결 전에 기동을 거부한다(대기 요청이 스레드·연결을 오래 점유하지 않게 한다).
   lock-timeout-ms: ${REMITTANCE_LOCK_TIMEOUT_MS:5000}
 
 # API 명세와 Swagger UI는 함께 켜고 끈다. 외부에 노출하지 않을 환경에서는 REMITTANCE_API_DOCS_ENABLED=false로 끈다.
