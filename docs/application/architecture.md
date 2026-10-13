@@ -61,7 +61,7 @@ sequenceDiagram
 
 사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 멱등성 키 조회도 같은 잠금 안에서 하므로 같은 키의 동시 재시도는 한 번만 반영된다. 키는 접수된 견적 행의 `idempotency_key`에 저장하고 (user_id, idempotency_key) 유일 제약이 한 키를 한 견적에만 묶는다. 구체적인 경쟁 상황은 [[주요 설계]]에서 설명한다.
 
-H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 JpaStore가 LOCK_TIMEOUT 업무 오류로 변환하고 웹 계층은 HTTP 503을 반환한다. 롤백 실패가 원래 업무 오류를 덮는 경우 TransactionalWork가 해당 업무 오류를 다시 전달한다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
+H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 JpaStore가 LOCK_TIMEOUT 업무 오류로 변환하고 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000 정수인지 검사하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우 TransactionalWork가 해당 업무 오류를 다시 전달한다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
 
 ## 이력 조회
 
