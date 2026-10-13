@@ -36,6 +36,7 @@ Java 17, Spring Boot 3, Spring Security, JPA, embedded H2를 사용한다. 기�
 | REMITTANCE_JWT_SECRET | Base64로 인코딩한 32바이트 이상 JWT 키 | 필수 |
 | REMITTANCE_USD_TO_KRW | USD 1단위당 KRW | 1300, 예시 환율 |
 | REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
+| REMITTANCE_API_DOCS_ENABLED | Swagger UI(`/swagger-ui.html`)와 OpenAPI 명세(`/v3/api-docs`) 노출 | true |
 | REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms) | 5000 |
 | REMITTANCE_DB_PASSWORD | 로컬 H2 비밀번호 | 빈 값 |
 

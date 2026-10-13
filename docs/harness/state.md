@@ -21,9 +21,9 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/request-idempotency. POST /transfer/request에 선택적 Idempotency-Key를 도입한다(백로그 1번).
-- 시작 기준: 2026-10-12 dev 240d55d, PR #15까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/request-idempotency.md)의 계약·불변식 검증, Java 17 check·bootJar, docs/application 갱신, dev PR 후 Vault 동기화.
+- 현재 작업: feature/swagger-openapi. springdoc-openapi로 Swagger UI와 OpenAPI 명세를 제공한다.
+- 시작 기준: 2026-10-13 dev 495435d, PR #16(멱등성 키)까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/swagger-openapi.md)의 계약 검증, Java 17 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
 - 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 정한다.
 - 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 검증 결과는 이번 문서 작업의 새 앱 실행 결과가 아니다.
 
