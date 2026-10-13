@@ -31,6 +31,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     runtimeOnly 'com.h2database:h2'
     implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
+    // API 명세(/v3/api-docs)와 Swagger UI를 코드에서 생성한다. 버전은 Spring Boot 3.3과 맞춰 고정한다.
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.2'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.2'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
