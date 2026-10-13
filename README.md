@@ -19,6 +19,27 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 
 위 명령은 개발용 키 생성 예시다. 이미 저장한 데이터의 암호화 키를 유지해야 한다.
 
+로컬에서 키를 매번 만들지 않으려면 `export` 줄을 모은 `secret.local` 파일을 만들어
+`source ./secret.local` 후 실행한다. 이 파일은 `.gitignore`로 제외되며 저장소에 올리지 않는다.
+다른 사람과 공유하거나 PR·이슈·문서에 붙여 넣지 않는다. 이 파일에 `REMITTANCE_DB_PASSWORD`를 넣을 때는
+아래 "데이터베이스 비밀번호"의 고정 규칙을 먼저 확인한다.
+
+### 데이터베이스 비밀번호
+
+H2 접속 사용자는 `sa`이고 비밀번호는 `REMITTANCE_DB_PASSWORD`로 지정한다. 기본값은 빈 값이다.
+
+```sh
+export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18)"
+./gradlew bootRun
+```
+
+비밀번호는 `./data/remittance`를 **처음 만들 때 고정**된다. 이미 빈 비밀번호로 만들어진 DB에
+환경변수만 추가하거나, 다른 비밀번호로 실행하면 `Wrong user name or password`(H2 28000)로 거부되어
+기동에 실패한다. 이때 앱 로그에는 `Unable to determine Dialect without JDBC metadata`만 보이고 인증 오류는
+나타나지 않는다(개인정보 보호를 위해 `SqlExceptionHelper` 로그를 껐기 때문이다).
+비밀번호를 쓰려면 새 DB 파일로 시작하거나, 기존 비밀번호로 접속해 H2의 `ALTER USER`로 바꾼다.
+이 비밀번호는 접속 인증용이며 DB 파일 내용을 암호화하지는 않는다.
+
 환경변수 대신 Gradle 인자로 넘길 수도 있다. `bootRun --args`는 애플리케이션 인자로 전달되고,
 같은 이름의 설정(`remittance.aes-key` 등)을 환경변수보다 우선해 덮어쓴다.
 
