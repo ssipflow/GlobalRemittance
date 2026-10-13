@@ -21,9 +21,9 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/local-sql-logging. local 프로파일에서 JPA SQL 디버그 로그와 DB 오류 로그를 보이게 한다.
-- 시작 기준: 2026-10-13 dev 90f7ff8, PR #20까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/local-sql-logging.md)의 계약 검증, Java 17 check·bootJar, 실제 local 기동에서 SQL 로그 확인, dev PR 후 Vault 동기화.
+- 현재 작업: feature/error-observability. 개인정보 없이 요청을 추적하고 오류 원인을 관측할 수 있게 한다(백로그 1번).
+- 시작 기준: 2026-10-13 dev 5b63a17, PR #21까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/error-observability.md)의 계약·민감 값 미노출 검증, Java 17 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
 - 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 정한다.
 - 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 검증 결과는 이번 문서 작업의 새 앱 실행 결과가 아니다.
 
