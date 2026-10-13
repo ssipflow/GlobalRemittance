@@ -38,7 +38,7 @@ Java 17, Spring Boot 3, Spring Security, JPA, embedded H2를 사용한다. 기�
 | REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI(`/swagger-ui.html`)와 OpenAPI 명세(`/v3/api-docs`) 노출 | true |
 | REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms) | 5000 |
-| REMITTANCE_DB_PASSWORD | 로컬 H2 비밀번호 | 빈 값 |
+| REMITTANCE_DB_PASSWORD | 로컬 H2 `sa` 비밀번호. DB 파일을 처음 만들 때 고정되며 DB와 다른 값으로 실행하면 기동이 거부된다 | 빈 값 |
 
 필수 키를 설정한 뒤 `./gradlew bootRun`으로 실행한다. 파일 DB는 `./data/remittance`에 생성된다. 암호화한 식별번호를 읽으려면 기존 AES 키를 유지해야 한다. 실제 키와 개인정보는 저장소나 문서에 넣지 않는다.
 
