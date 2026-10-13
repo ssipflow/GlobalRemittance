@@ -1,6 +1,23 @@
-# 로컬 개발 전용 설정이다. SPRING_PROFILES_ACTIVE=local 일 때만 H2 콘솔을 켠다.
-# 기본 설정(application.yaml)은 콘솔을 끈 채로 두어 운영 환경에 콘솔이 노출되지 않게 한다.
+# 로컬 개발 전용 설정이다. SPRING_PROFILES_ACTIVE=local 일 때만 적용된다.
+# 기본 설정(application.yaml)은 콘솔을 끄고 DB 로그를 줄여 운영 환경에 노출되지 않게 한다.
 spring:
   h2:
     console:
       enabled: true
+  jpa:
+    properties:
+      hibernate:
+        # SQL을 줄바꿈해 읽기 쉽게 출력한다.
+        format_sql: true
+logging:
+  level:
+    # 실행되는 SQL 문장을 DEBUG로 출력한다. 값은 ?로만 보이므로 이메일·해시 같은 개인정보는 나오지 않는다.
+    # 바인딩 값까지 보려면 아래 줄의 주석을 풀되 이메일·비밀번호 해시·암호문이 로그에 남으니 로컬 테스트 데이터에서만 쓴다.
+    org.hibernate.SQL: DEBUG
+    # org.hibernate.orm.jdbc.bind: TRACE
+    # 기본 설정이 끈 DB 오류 로그를 켜서 제약 위반 같은 SQL 오류의 원인이 앱 로그에 보이게 한다.
+    # 오류 메시지에 userId가 포함될 수 있으므로 로컬 전용이다.
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: WARN
+    # DB 접속 실패(비밀번호 불일치 등)는 Hibernate가 예외를 NPE로 덮어써 위 로그로는 보이지 않는다.
+    # 연결 풀의 DEBUG 로그에는 'Wrong user name or password [28000]' 같은 실제 원인이 남는다.
+    com.zaxxer.hikari: DEBUG

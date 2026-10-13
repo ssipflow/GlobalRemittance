@@ -63,7 +63,7 @@ export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18)"
 - 데이터를 유지해야 하면 만들 때의 비밀번호를 계속 쓰거나, 그 비밀번호로 접속해 H2의 `ALTER USER`로 바꾼다.
 - 이 비밀번호는 접속 인증용이며 DB 파일 내용을 암호화하지는 않는다.
 
-### H2 콘솔 (로컬 전용)
+### 로컬 프로파일: H2 콘솔과 SQL 로그
 
 기본 실행에서는 H2 콘솔이 꺼져 있다. 로컬에서 DB를 직접 보려면 `local` 프로파일로 실행한다.
 
@@ -80,6 +80,18 @@ SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
 `/h2-console`은 앱의 JWT 인증을 거치지 않고 콘솔 자체의 DB 로그인만 있다. 기본 비밀번호가 빈 값이라
 로컬에서는 사실상 인증이 없고, 로그인 화면에서 임의의 JDBC URL을 입력할 수 있다. 외부 접속은 H2 콘솔의
 기본 설정(`webAllowOthers` 꺼짐)이 막는 것으로 알고 있으나 이 저장소에서 확인하지는 않았다.
+`local` 프로파일은 로그도 더 자세히 출력한다.
+
+- **SQL**: `org.hibernate.SQL`을 DEBUG로 켜 실행되는 SQL을 줄바꿈 포맷으로 보여 준다. 요청 하나가 `select`·`insert`로
+  어떻게 바뀌는지 터미널에서 볼 수 있다. 값은 `?`로만 보여 이메일·해시는 나오지 않는다.
+- **SQL 오류**: 기본 설정이 꺼 둔 `SqlExceptionHelper`를 WARN으로 켠다. 오류 메시지에 userId가 포함될 수 있다.
+- **접속 실패**: DB 비밀번호 불일치 같은 접속 실패는 `SqlExceptionHelper`로 보이지 않는다. 실행해 보면 Hibernate 6.5.2가
+  부트스트랩 중 원래 예외를 `NullPointerException`으로 덮어쓰는 것으로 관찰된다. 그래서 연결 풀(Hikari)을 DEBUG로 켜
+  `Wrong user name or password [28000-224]` 같은 실제 원인이 로그에 남게 한다. Hikari DEBUG는 풀 설정을 출력하므로
+  JDBC URL과 사용자명이 보이지만, 비밀번호는 `<masked>`로 출력되는 것을 확인했다.
+- **바인딩 값**: 기본은 꺼져 있다. 보려면 `application-local.yaml`의 `org.hibernate.orm.jdbc.bind: TRACE` 주석을 풀되
+  이메일·비밀번호 해시·암호문이 로그에 남으므로 로컬 테스트 데이터에서만 쓴다.
+
 공유 환경이나 운영에서는 `local` 프로파일을 쓰지 않는다. `application.yaml`의 `spring.h2.console.enabled`를
 `true`로 직접 고치면 프레임 허용이 함께 적용되지만 콘솔이 항상 노출되므로 커밋하지 않는다.
 
