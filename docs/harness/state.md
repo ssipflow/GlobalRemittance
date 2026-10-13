@@ -21,10 +21,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/request-idempotency. POST /transfer/request에 선택적 Idempotency-Key를 도입한다(백로그 1번).
-- 시작 기준: 2026-10-12 dev 240d55d, PR #15까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/request-idempotency.md)의 계약·불변식 검증, Java 17 check·bootJar, docs/application 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 정한다.
+- 현재 작업: feature/readme-run-args. README 실행 안내에 `bootRun --args` 인자 방식을 환경변수와 함께 서술한다.
+- 시작 기준: 2026-10-13 dev 495435d. PR #17(Swagger)은 아직 열려 있다.
+- 완료 기준: [작업 기록](tasks/readme-run-args.md)의 서술이 실제 기동 확인과 일치, 독립 문서 리뷰, dev PR 후 Vault 동기화는 앱 문서 변경이 없으므로 생략.
+- 다음: 사람이 PR을 승인·병합한다.
 - 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 검증 결과는 이번 문서 작업의 새 앱 실행 결과가 아니다.
 
 ## 남은 한계
