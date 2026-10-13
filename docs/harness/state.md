@@ -10,22 +10,19 @@
 
 ## 확인된 구현과 검증
 
-- 확인 기준: 2026-10-11 dev 079e963, PR #1~#10 병합 확인. 아래는 이번 문서 작업의 시작 기준이다.
-- 구현: 회원가입·로그인·견적·접수·이력 API, JSON 오류, BCrypt/AES-GCM/JWT, 금액·만료·KST 한도·소유권·중복 검사.
-- 접수: 사용자 행 잠금으로 직렬화, 일일 합계는 KST 당일 구간의 DB SUM, 락 대기 초과는 503 LOCK_TIMEOUT.
-- 이력 조회는 사용자 쓰기 락 없이 하나의 조회 결과에서 목록과 오늘 합계를 계산한다.
-- 최근 앱 검증: PR #10 작업 커밋 40d468c에서 Java 17 clean check bootJar 통과, 로컬 XML 30개 성공·실패/건너뜀 0.
-- Python 하네스·옵시디언 검증: 이전 주석 작업에서 46개 통과. 이번 기억 정리에서 앱/Python 테스트를 재실행한 결과로 간주하지 않는다.
-- 품질 게이트: Spotless와 main/test Checkstyle을 Gradle check에 연결. 테스트는 별도 메모리 H2·고정 시간/환율 사용.
-- 옵시디언: docs/application의 개요·아키텍처·API·주요 설계 네 문서만 동기화. 작업 이력·PR 정보는 내보내지 않는다.
+- 시작 기준: 2026-10-13 dev f0834e1, PR #24까지 로컬 병합 이력 확인.
+- 구현: 회원·송금 API, 사용자 잠금과 일일 DB 집계, keyset 이력, 24시간 미만 성공 응답 멱등 재현.
+- 후속 구현: Swagger/OpenAPI, local H2·SQL 진단, X-Request-Id와 선별 오류 로그, Flyway V1/V2, Retry-After와 잠금 설정 사전 검증.
+- 최근 검증 기록: PR #24 작업에서 Java 17 check·bootJar 및 앱 96개 통과로 기록됐다. 이번 문서 작업의 새 앱 실행 결과가 아니다.
+- 품질 게이트: Spotless·Checkstyle·회귀 테스트. 기본 테스트는 격리된 메모리 H2를 사용하고 마이그레이션은 임시 DB로 검증한다.
+- 옵시디언: 앱 문서 네 종류만 내보내며 작업 내역·PR 상태는 별도 하네스 기억에 보존한다.
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/lock-timeout-guidance. LOCK_TIMEOUT 503에 Retry-After를 붙이고 잘못된 REMITTANCE_LOCK_TIMEOUT_MS를 기동 시점에 안내와 함께 거부한다(후속 후보, 사용자 선택).
-- 시작 기준: 2026-10-13 dev 09faa4b, PR #23까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/lock-timeout-guidance.md)의 헤더·설정 경계 검증, 실제 기동 거부 확인, Java 17 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md)에서 다음 범위를 정한다.
-- 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 '확인된 구현과 검증'의 앱 검증 수치는 이전 기준 시점의 기록이며 이번 작업의 최신 결과는 해당 작업 기록과 PR에 있다.
+- 현재 작업: feature/current-docs-refresh. README와 앱 문서를 현재 코드·설정·테스트에 맞춰 갱신한다.
+- 완료 기준: 코드·이력 대조, 독립 문서 검토·정적 검증, dev PR 생성 후 네 Vault 노트 보존·동기화 확인.
+- 다음: 사람이 이번 문서 PR을 승인·병합한다. 이후 [검토 후보](backlog.md)에서 다음 범위를 정한다.
+- 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
 
