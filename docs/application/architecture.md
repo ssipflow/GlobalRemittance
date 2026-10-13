@@ -24,7 +24,7 @@ flowchart LR
 | domain | 수수료·수취액 계산, 견적 상태와 만료, 신원 유형별 한도 | QuotePolicy, Quote, User, BusinessException |
 | application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트 | UserUseCases, TransferUseCases, Ports |
 | adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, RequestIdFilter, ErrorDescriptions |
-| adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금 | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
+| adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
 | adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
 | adapter/forex | 설정 환율 제공 | ConfiguredRates |
 | bootstrap | DI, Clock와 BCrypt 구성, 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer |
@@ -109,6 +109,8 @@ erDiagram
 ```
 
 users는 계정·비밀번호 해시·암호화 식별번호·신원 유형을 저장한다. remittances는 사용자 FK와 견적의 금액·수수료·환율·시각을 저장하며 금액 필드는 DECIMAL(22,12)다. requestedTime이 null이면 미접수 견적이다. 접수에 성공한 요청의 멱등성 키는 같은 행의 idempotency_key(nullable, 사용자별 유일)에 남는다. 이력과 일일 집계는 접수된 항목만 조회한다.
+
+스키마는 `db/migration`의 Flyway SQL이 만들고 Hibernate는 `ddl-auto: validate`로 엔티티와의 일치만 확인한다. 이력이 없는 기존 파일 DB는 버전 0으로 기준선을 잡은 뒤 멱등하게 쓴 V1·V2를 적용한다.
 
 도메인 ID는 long이고 DB ID는 순차 INT다. 영속 어댑터에서 범위를 검사하고 변환한다. 시각 저장은 UTC, 일일 한도 판정과 견적·이력 응답 표시는 KST다.
 

@@ -24,7 +24,7 @@
 
 ## 구현 환경
 
-Java 17, Spring Boot 3, Spring Security, JPA, embedded H2를 사용한다. 기본 패키지는 `com.nelson.remittance`다. 금액은 BigDecimal로 계산하고 시각은 UTC Instant로 저장한다. API의 견적·이력 시각은 KST로 표시한다.
+Java 17, Spring Boot 3, Spring Security, JPA, Flyway, embedded H2를 사용한다. 스키마는 Flyway SQL 마이그레이션으로 만들고 Hibernate는 검증만 한다. 기본 패키지는 `com.nelson.remittance`다. 금액은 BigDecimal로 계산하고 시각은 UTC Instant로 저장한다. API의 견적·이력 시각은 KST로 표시한다.
 
 테스트는 컨텍스트마다 분리된 메모리 H2와 고정 Clock·환율을 사용한다. 외부 환율 서비스나 사용자 홈 DB 없이 금액·만료·한도·동시 접수·페이지 경계를 재현한다.
 
@@ -43,4 +43,4 @@ Java 17, Spring Boot 3, Spring Security, JPA, embedded H2를 사용한다. 기�
 
 필수 키를 설정한 뒤 `./gradlew bootRun`으로 실행한다. 파일 DB는 `./data/remittance`에 생성된다. 암호화한 식별번호를 읽으려면 기존 AES 키를 유지해야 한다. 실제 키와 개인정보는 저장소나 문서에 넣지 않는다.
 
-접수 API는 선택적 `Idempotency-Key`로 재시도를 안전하게 한다(성공 응답을 24시간 재현). 운영 DB의 잠금·장애 복구, 실제 금융기관 송금, 실시간 환율 공급과 기존 데이터 마이그레이션은 구현·검증 범위에 포함하지 않았다.
+접수 API는 선택적 `Idempotency-Key`로 재시도를 안전하게 한다(성공 응답을 24시간 재현). 운영 DB의 잠금·장애 복구, 실제 금융기관 송금, 실시간 환율 공급과 다른 시스템에서의 데이터 이전은 구현·검증 범위에 포함하지 않았다.
