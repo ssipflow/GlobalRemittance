@@ -21,9 +21,9 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/swagger-openapi. springdoc-openapi로 Swagger UI와 OpenAPI 명세를 제공한다.
-- 시작 기준: 2026-10-13 dev 495435d, PR #16(멱등성 키)까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/swagger-openapi.md)의 계약 검증, Java 17 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
+- 현재 작업: feature/readme-run-args. README 실행 안내에 `bootRun --args` 인자 방식을 환경변수와 함께 서술한다.
+- 시작 기준: 2026-10-13 dev 495435d에서 분기. PR #17(Swagger) 병합(dev b120a08) 뒤 충돌을 병합 커밋으로 해결했다.
+- 완료 기준: [작업 기록](tasks/readme-run-args.md)의 서술이 실제 기동 확인과 일치, 독립 문서 리뷰, 앱 문서 변경이 없으므로 Vault 동기화는 생략.
 - 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 정한다.
 - 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 검증 결과는 이번 문서 작업의 새 앱 실행 결과가 아니다.
 

@@ -18,6 +18,19 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 ```
 
 위 명령은 개발용 키 생성 예시다. 이미 저장한 데이터의 암호화 키를 유지해야 한다.
+
+환경변수 대신 Gradle 인자로 넘길 수도 있다. `bootRun --args`는 애플리케이션 인자로 전달되고,
+같은 이름의 설정(`remittance.aes-key` 등)을 환경변수보다 우선해 덮어쓴다.
+
+```sh
+./gradlew bootRun --args="--remittance.aes-key=$(openssl rand -base64 32) --remittance.jwt-secret=$(openssl rand -base64 32)"
+```
+
+`--remittance.usd-to-krw=1350`처럼 다른 설정도 같은 방식으로 지정한다. 환경변수 없이 이 방식만으로
+기동된다. 예시는 실행마다 새 키를 만들므로 `./data/remittance`에 기존 데이터가 있으면 이전과 같은 AES 키를
+직접 지정해야 한다. 인자로 준 키는 `ps` 같은 프로세스 목록과 셸 히스토리에 남으므로
+로컬 개발용 대안으로만 쓰고, 공유 환경이나 운영에서는 환경변수(또는 비밀 관리 도구)를 사용한다.
+`./gradlew -Dremittance.aes-key=...`는 Gradle 자신의 JVM 프로퍼티라 앱에 전달되지 않는다.
 환경변수 누락·잘못된 키는 시작 시 거부한다. H2 파일은 `./data/remittance`에 저장된다.
 테스트는 별도 메모리 H2와 테스트 전용 키·환율·시간을 사용한다.
 
