@@ -1,0 +1,6 @@
+# 로컬 개발 전용 설정이다. SPRING_PROFILES_ACTIVE=local 일 때만 H2 콘솔을 켠다.
+# 기본 설정(application.yaml)은 콘솔을 끈 채로 두어 운영 환경에 콘솔이 노출되지 않게 한다.
+spring:
+  h2:
+    console:
+      enabled: true
