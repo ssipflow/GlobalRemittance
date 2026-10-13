@@ -24,22 +24,6 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 다른 사람과 공유하거나 PR·이슈·문서에 붙여 넣지 않는다. 이 파일에 `REMITTANCE_DB_PASSWORD`를 넣을 때는
 아래 "데이터베이스 비밀번호"의 고정 규칙을 먼저 확인한다.
 
-### 데이터베이스 비밀번호
-
-H2 접속 사용자는 `sa`이고 비밀번호는 `REMITTANCE_DB_PASSWORD`로 지정한다. 기본값은 빈 값이다.
-
-```sh
-export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18)"
-./gradlew bootRun
-```
-
-비밀번호는 `./data/remittance`를 **처음 만들 때 고정**된다. 이미 빈 비밀번호로 만들어진 DB에
-환경변수만 추가하거나, 다른 비밀번호로 실행하면 `Wrong user name or password`(H2 28000)로 거부되어
-기동에 실패한다. 이때 앱 로그에는 `Unable to determine Dialect without JDBC metadata`만 보이고 인증 오류는
-나타나지 않는다(개인정보 보호를 위해 `SqlExceptionHelper` 로그를 껐기 때문이다).
-비밀번호를 쓰려면 새 DB 파일로 시작하거나, 기존 비밀번호로 접속해 H2의 `ALTER USER`로 바꾼다.
-이 비밀번호는 접속 인증용이며 DB 파일 내용을 암호화하지는 않는다.
-
 환경변수 대신 Gradle 인자로 넘길 수도 있다. `bootRun --args`는 애플리케이션 인자로 전달되고,
 같은 이름의 설정(`remittance.aes-key` 등)을 환경변수보다 우선해 덮어쓴다.
 
@@ -58,6 +42,46 @@ export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18)"
 환율 기본 설정은 재현 가능한 예시 USD→KRW 1300, JPY→KRW 9다. 실제 시장 환율이 아니다.
 `REMITTANCE_USD_TO_KRW`, `REMITTANCE_JPY_TO_KRW`로 값을 공급할 수 있다.
 외부 시세 제공처가 정해지면 환율 포트의 어댑터를 교체한다.
+
+### 데이터베이스 비밀번호
+
+H2 접속 사용자는 `sa`이고 비밀번호는 `REMITTANCE_DB_PASSWORD`로 지정한다. 기본값은 빈 값이다.
+비밀번호는 `./data/remittance`를 **처음 만들 때 고정**되므로, 아래 예시는 **새 DB로 시작할 때만** 쓴다.
+
+```sh
+export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18)"
+./gradlew bootRun
+```
+
+이미 `./data/remittance`가 있으면 그 DB를 만들 때의 비밀번호로만 접속된다. 빈 비밀번호로 만든 DB에
+환경변수만 추가하거나 다른 값으로 실행하면 `Wrong user name or password`(H2 28000)로 거부되어 기동에
+실패한다. 이때 앱 로그에는 `BeanCreationException`과 `Unable to determine Dialect without JDBC metadata`만
+보이고 인증 오류는 나타나지 않는다(개인정보 보호를 위해 `SqlExceptionHelper` 로그를 껐기 때문이다).
+원인은 `data/remittance.trace.db`에 `wrong user or password`로 남는다.
+
+- 로컬 테스트 데이터를 버려도 되면 앱을 끄고 `data/` 디렉터리를 삭제한 뒤 원하는 비밀번호로 다시 실행한다.
+- 데이터를 유지해야 하면 만들 때의 비밀번호를 계속 쓰거나, 그 비밀번호로 접속해 H2의 `ALTER USER`로 바꾼다.
+- 이 비밀번호는 접속 인증용이며 DB 파일 내용을 암호화하지는 않는다.
+
+### H2 콘솔 (로컬 전용)
+
+기본 실행에서는 H2 콘솔이 꺼져 있다. 로컬에서 DB를 직접 보려면 `local` 프로파일로 실행한다.
+
+```sh
+SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
+# 또는 ./gradlew bootRun --args="--spring.profiles.active=local"
+```
+
+`http://localhost:8080/h2-console`에서 JDBC URL `jdbc:h2:file:./data/remittance`, 사용자 `sa`,
+비밀번호는 `REMITTANCE_DB_PASSWORD`(기본 빈 값)로 접속한다. 콘솔은 화면을 프레임으로 구성하므로 이 프로파일에서만
+보안 헤더의 프레임 정책을 기본 거부(`DENY`)에서 같은 출처 허용(`SAMEORIGIN`)으로 바꾼다.
+콘솔은 앱과 같은 프로세스에서 같은 URL로 DB를 열기 때문에, 앱이 떠 있는 동안에도 파일 잠금 충돌 없이
+접속된다(다른 프로세스의 H2 도구로 같은 파일을 열면 잠금 충돌이 날 수 있다).
+`/h2-console`은 앱의 JWT 인증을 거치지 않고 콘솔 자체의 DB 로그인만 있다. 기본 비밀번호가 빈 값이라
+로컬에서는 사실상 인증이 없고, 로그인 화면에서 임의의 JDBC URL을 입력할 수 있다. 외부 접속은 H2 콘솔의
+기본 설정(`webAllowOthers` 꺼짐)이 막는 것으로 알고 있으나 이 저장소에서 확인하지는 않았다.
+공유 환경이나 운영에서는 `local` 프로파일을 쓰지 않는다. `application.yaml`의 `spring.h2.console.enabled`를
+`true`로 직접 고치면 프레임 허용이 함께 적용되지만 콘솔이 항상 노출되므로 커밋하지 않는다.
 
 ## API
 

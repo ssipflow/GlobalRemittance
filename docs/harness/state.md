@@ -21,9 +21,9 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/readme-db-password. README에 DB 비밀번호 설정과 고정 주의를 서술하고 secret.local을 git에서 제외한다.
-- 시작 기준: 2026-10-13 dev d7bac98, PR #18까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/readme-db-password.md)의 서술이 실제 확인과 일치, 독립 문서 리뷰, dev PR 후 Vault 동기화.
+- 현재 작업: feature/h2-console-local. H2 콘솔을 local 프로파일에서만 제공하고 README의 DB 비밀번호 예시를 보완한다.
+- 시작 기준: 2026-10-13 dev 7686d3d, PR #19까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/h2-console-local.md)의 계약 검증, Java 17 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
 - 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md) 중 다음 범위를 정한다.
 - 과거 작업의 상세 이력은 tasks와 Git/PR에 보존한다. 아래 검증 결과는 이번 문서 작업의 새 앱 실행 결과가 아니다.
 
