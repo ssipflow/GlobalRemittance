@@ -30,6 +30,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     runtimeOnly 'com.h2database:h2'
+    // 스키마 변경을 버전 관리되는 SQL로 적용한다. H2 지원은 flyway-core에 포함돼 있다.
+    implementation 'org.flywaydb:flyway-core'
     implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
     // API 명세(/v3/api-docs)와 Swagger UI를 코드에서 생성한다. 버전은 Spring Boot 3.3과 맞춰 고정한다.
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'

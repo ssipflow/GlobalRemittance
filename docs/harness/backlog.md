@@ -26,6 +26,7 @@ Retry-After 헤더와 락 타임아웃 환경변수 검증은 [동시성 작업]
 | 앱 이해용 문서 | 개요·아키텍처·API·설계 원본과 네 노트 동기화 | [앱 문서화](tasks/application-docs.md), PR #8 |
 | 이력 페이지네이션 | 선택 size·cursor 키셋 페이지, nextCursor, 페이지 무관한 KST 오늘 집계와 경계·동시 접수 회귀 | [이력 페이지네이션](tasks/history-pagination.md) |
 | 요청 멱등성 키 | 접수의 선택 Idempotency-Key, 같은 키·견적 24시간 성공 재현, 다른 견적 422, 실패 비소비, 사용자 잠금 안 동시 재시도 1회 반영 | [멱등성](tasks/request-idempotency.md) |
+| 스키마 마이그레이션(Flyway) | ddl-auto 대신 버전 SQL(V1 기준선·V2 멱등성 키), validate, 이력 없는 기존 파일 DB의 기준선 업그레이드와 실제 구 DB 파일 확인 | [Flyway](tasks/flyway-migrations.md) |
 | 개인정보 없는 오류 관측 | X-Request-Id, 예외 메시지·본문·쿼리 없이 클래스·SQLState·경로만 남기는 오류 로그, DB 접속 실패 진단, 로그 캡처 검증 | [오류 관측](tasks/error-observability.md) |
 | 한글 설명 주석 | 직접 작성 코드·테스트·하네스·설정 주석과 지속 지침 | Git db6634b, PR #9 |
 

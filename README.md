@@ -43,6 +43,18 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 `REMITTANCE_USD_TO_KRW`, `REMITTANCE_JPY_TO_KRW`로 값을 공급할 수 있다.
 외부 시세 제공처가 정해지면 환율 포트의 어댑터를 교체한다.
 
+### 데이터베이스 스키마(Flyway)
+
+스키마는 `src/main/resources/db/migration`의 `V<번호>__설명.sql`을 Flyway가 기동 시 순서대로 적용해 만든다.
+Hibernate는 `ddl-auto: validate`로 엔티티와 스키마가 어긋나면 기동을 거부할 뿐 스키마를 바꾸지 않는다.
+스키마를 바꾸려면 새 번호의 SQL을 추가하고, **이미 적용된 파일은 수정하지 않는다**(체크섬이 달라져 기동이 거부된다).
+
+- 새 DB: V1부터 모두 적용한다.
+- 예전(`ddl-auto: update`) 앱이 만든 `./data/remittance`: Flyway 이력이 없으므로 버전 0으로 기준선을 잡고 V1부터 다시 적용한다.
+  V1·V2는 `IF NOT EXISTS`로 써서 이미 있는 테이블·컬럼·제약을 건드리지 않고 데이터도 그대로 유지한다.
+  V2가 추가하는 멱등성 키 컬럼과 유일 제약이 없는 DB에는 그 둘이 보충된다. 그 밖의 컬럼이 빠진 DB는 `validate`가 기동을 거부한다.
+- 적용 이력은 DB의 `flyway_schema_history` 테이블에 남는다.
+
 ### 데이터베이스 비밀번호
 
 H2 접속 사용자는 `sa`이고 비밀번호는 `REMITTANCE_DB_PASSWORD`로 지정한다. 기본값은 빈 값이다.
@@ -185,7 +197,7 @@ bootstrap                      Spring 조립·시간 공급
 | 수수료 구간·반올림·환율 방향 | 프레임워크 없는 QuotePolicy | QuotePolicyTest |
 | 10분 만료·소유권·중복 | Quote와 접수 사용 사례 | API 만료/타인/중복 테스트 |
 | 개인/법인 한도·KST 오늘 집계 | 견적 USD + 사용자 DB 잠금 | 정확한 한도·자정·동시 접수 테스트 |
-| H2 순차 ID·FK·인덱스·DECIMAL | 외부 JPA 모델 | 실제 H2 스키마/감사 값 테스트 |
+| H2 순차 ID·FK·인덱스·DECIMAL | Flyway SQL + 외부 JPA 모델 | 실제 H2 스키마/감사 값 테스트, MigrationTest(구 DB 업그레이드) |
 | 클린 아키텍처·한글 주석 | domain/application/adapter/bootstrap | ArchitectureTest + 내부 리뷰 |
 
 ## 검증과 회고
@@ -223,7 +235,7 @@ Git에서 제외되는 `.harness/check-*.log`에 남고 PR 본문에는 최종 �
 ORM 유일 제약 오류에 이메일이 포함될 수 있어 SqlExceptionHelper의 원시 오류 로그는 기본 설정에서 차단한다.
 대신 모든 응답에 `X-Request-Id`를 붙이고, 예상 밖 오류는 요청 ID·메서드·경로·예외 클래스·SQLState만 로그에 남긴다
 (예외 메시지·쿼리스트링·요청 본문·토큰은 남기지 않는다). 외부 로그 수집·알림 체계는 별도로 설계해야 한다.
-데이터 마이그레이션과 실제 금융기관 송금 실행은 제공하지 않는다. 요청 API는 접수 기록을 생성한다.
+스키마는 Flyway로 관리하지만 다른 시스템의 데이터를 옮기는 이전 도구와 실제 금융기관 송금 실행은 제공하지 않는다. 요청 API는 접수 기록을 생성한다.
 실제 배포·CI/CD는 구성하지 않는다. dev 대상 PR의 승인·병합은 사람이 수행한다.
 
 에이전트 실행은 [AGENTS.md](AGENTS.md), 옵시디언 연결은 [문서화 사용법](docs/harness/obsidian.md)을 따른다.
