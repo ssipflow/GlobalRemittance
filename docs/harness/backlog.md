@@ -9,7 +9,7 @@
 | 순서 | 후보 | 현재 근거 | 선택 시 완료 기준 |
 | --- | --- | --- | --- |
 | 1 | 환율 공급 어댑터 | 설정 기반 예시 환율만 제공 | 공급처·최신성·실패/지연 정책을 먼저 결정하고 Rates 포트 및 격리 회귀 검증 |
-| 2 | 운영 DB의 잠금·장애 복구 검증(남은 단계) | PostgreSQL 기동·스키마는 검증, 동시 한도·중복·락 타임아웃(55P03)·롤백/장애 복구는 미검증 | PostgreSQL에서 동시 한도·중복·멱등성·락 타임아웃·롤백 실패의 재현 가능한 통합 검증 |
+| 2 | 운영 DB 검증의 남은 범위 | 단일 앱 프로세스의 PostgreSQL 16 동시성·락·연결 끊김 복구는 검증. 다중 인스턴스·고부하·DB 재시작·롤백 실패 주입·연결 끊김 직후 500 완화는 미검증 | 필요한 항목을 골라 범위를 정하고 재현 가능한 통합 검증 |
 
 ## 완료된 기존 개선 범위
 
@@ -26,6 +26,7 @@
 | 요청 멱등성 키 | 접수의 선택 Idempotency-Key, 같은 키·견적 24시간 성공 재현, 다른 견적 422, 실패 비소비, 사용자 잠금 안 동시 재시도 1회 반영 | [멱등성](tasks/request-idempotency.md) |
 | 스키마 마이그레이션(Flyway) | ddl-auto 대신 버전 SQL(V1 기준선·V2 멱등성 키), validate, 이력 없는 기존 파일 DB의 기준선 업그레이드와 실제 구 DB 파일 확인 | [Flyway](tasks/flyway-migrations.md) |
 | 잠금 대기 안내와 설정 검증 | LOCK_TIMEOUT 503의 `Retry-After: 1`, REMITTANCE_LOCK_TIMEOUT_MS 1~30000 검증과 시작 실패 안내 | [잠금 안내](tasks/lock-timeout-guidance.md) |
+| PostgreSQL 동시성·락·복구 검증(운영 DB 검증 2단계) | 동시 접수·한도·멱등성 경쟁, 락 타임아웃(503·`Retry-After`), 55P03 직접 확인, 연결 끊김 복구를 Testcontainers로 재현 | [PostgreSQL 동시성](tasks/postgres-concurrency.md) |
 | PostgreSQL 프로파일(운영 DB 검증 1단계) | `postgres` 프로파일, PostgreSQL 전용 Flyway V1/V2, `SET lock_timeout`, 태그 분리된 Testcontainers 스키마·기동·API 스모크 테스트 | [PostgreSQL 프로파일](tasks/postgres-profile.md) |
 | 테스트 가드 강화 | ArchitectureTest의 Swagger/springdoc 참조 금지와 양성 대조, OpenApiTest의 swagger-ui.html 302·Location 정밀 검증 | [가드 강화](tasks/test-guard-hardening.md) |
 | 개인정보 없는 오류 관측 | X-Request-Id, 예외 메시지·본문·쿼리 없이 클래스·SQLState·경로만 남기는 오류 로그, DB 접속 실패 진단, 로그 캡처 검증 | [오류 관측](tasks/error-observability.md) |

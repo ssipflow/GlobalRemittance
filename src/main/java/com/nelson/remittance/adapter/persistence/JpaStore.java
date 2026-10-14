@@ -65,7 +65,8 @@ public class JpaStore implements Ports.Accounts, Ports.Quotes {
     public User lockUser(long id) {
         UserEntity user;
         try {
-            // 대기 한도는 JDBC URL의 LOCK_TIMEOUT(remittance.lock-timeout-ms)이 정한다. Hibernate의
+            // 대기 한도(remittance.lock-timeout-ms)는 H2의 JDBC URL LOCK_TIMEOUT 또는
+            // postgres 프로파일의 SET lock_timeout이 정한다. Hibernate의
             // jakarta.persistence.lock.timeout 힌트는 H2 방언이 'for update wait'를 내지 않아 무시된다.
             user = em.find(UserEntity.class, integerId(id), LockModeType.PESSIMISTIC_WRITE);
         } catch (PersistenceException error) {

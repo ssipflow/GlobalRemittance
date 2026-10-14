@@ -101,7 +101,10 @@ SPRING_PROFILES_ACTIVE=postgres ./gradlew bootRun
   H2의 `ENUM`은 `VARCHAR + CHECK`로 옮겼다. 새 DB 전용이라 `IF NOT EXISTS`를 쓰지 않으며, 이력 없는 기존 DB를 자동으로 인수하지 않는다.
 - 잠금 대기 한도(`REMITTANCE_LOCK_TIMEOUT_MS`)는 연결마다 `SET lock_timeout`으로 적용한다(H2의 URL `LOCK_TIMEOUT`에 해당).
 - 검증은 Docker가 필요한 `./gradlew postgresTest`로 따로 실행한다. 기본 `check`에는 포함되지 않아 Docker 없이도 통과한다.
-- 지금 검증된 것은 스키마·Hibernate validate·기동·기본 API 흐름·`lock_timeout` 설정이다. **동시 접수·한도·락 타임아웃·장애 복구는 아직 PostgreSQL에서 검증하지 않았다.**
+- `postgresTest`가 PostgreSQL 16에서 검증하는 것: 스키마·Hibernate validate·기동·기본 API 흐름·`lock_timeout` 설정, 같은 견적/다른 견적(일일 한도)/같은 멱등성 키의 동시 접수(6스레드),
+  잠금 대기 초과의 503 `LOCK_TIMEOUT`(`Retry-After: 1`)과 해제 후 성공, 잠금 중에도 막히지 않는 이력 조회, DB가 연결을 모두 끊은 뒤의 풀 복구.
+- **검증하지 않은 것**: 다중 앱 인스턴스, 고부하·장시간 경쟁, DB 재시작·네트워크 분리, 롤백 실패 주입, 다른 PostgreSQL 버전·관리형 서비스.
+  연결이 끊긴 직후의 첫 요청은 500(`UNKNOWN_ERROR`)이 될 수 있고 재시도하면 복구된다(현재의 실제 동작).
 
 ## API 사용
 
@@ -181,6 +184,6 @@ check는 JUnit 테스트, Spotless, main/test Checkstyle을 실행한다. 포맷
 | 스키마 신규 생성·업그레이드 | MigrationTest |
 | 내부 계층 의존성 | ArchitectureTest |
 
-현재 검증은 H2와 격리된 테스트 범위다. 운영 DB·다중 인스턴스·지급 기관 장애·외부 로그 수집과 알림은 별도 과제다. 실제 배포·CI/CD는 구성하지 않는다.
+현재 검증은 H2와 단일 프로세스 대상 PostgreSQL 16(Testcontainers) 범위다. 다중 인스턴스·지급 기관 장애·외부 로그 수집과 알림은 별도 과제다. 실제 배포·CI/CD는 구성하지 않는다.
 
 에이전트 실행은 [AGENTS.md](AGENTS.md), 옵시디언 연결은 [문서화 사용법](docs/harness/obsidian.md)을 따른다. 일반 작업은 dev PR 생성에서 끝나며 승인·병합은 사람이 한다.

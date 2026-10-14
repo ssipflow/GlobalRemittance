@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/postgres-profile. PostgreSQL 프로파일·전용 Flyway SQL·Docker 통합 테스트(운영 DB 검증 1단계, 사용자 선택). 동시성·장애 복구 검증은 다음 PR.
-- 시작 기준: 2026-10-15 dev f1a968e, PR #26까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/postgres-profile.md)의 postgresTest·기본 check·실제 컨테이너 기동 확인, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 PostgreSQL 동시성·잠금·장애 복구 검증 PR.
+- 현재 작업: feature/postgres-concurrency. PostgreSQL에서 동시 접수·한도·중복·멱등성 경쟁, 락 타임아웃(55P03)·연결 끊김 복구 검증(운영 DB 검증 2단계, 사용자 선택).
+- 시작 기준: 2026-10-15 dev 58b602a, PR #27까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/postgres-concurrency.md)의 postgresTest 반복 통과, 기본 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 DB 접속 실패 안내 분석기를 Flyway 경로에 맞추는 작은 PR.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
