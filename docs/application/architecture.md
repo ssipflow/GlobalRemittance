@@ -116,7 +116,7 @@ users는 계정·비밀번호 해시·암호화 식별번호·신원 유형을 �
 
 도메인 ID는 long이고 DB ID는 순차 INT다. 영속 어댑터에서 범위를 검사하고 변환한다. 시각 저장은 UTC, 일일 한도 판정과 견적·이력 응답 표시는 KST다.
 
-ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의존성을 검사한다. H2/API 테스트는 실제 인증·금액·동시 접수·페이지 경계·JSON 오류 디스패치를 검증한다. 다른 운영 DB나 다중 프로세스에서의 잠금·복구는 별도 검증이 필요하다.
+ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의존성을 검사한다. H2/API 테스트는 실제 인증·금액·동시 접수·페이지 경계·JSON 오류 디스패치를 검증한다. PostgreSQL 16에서는 `postgres` 태그 테스트가 단일 앱 프로세스의 동시 접수·락 타임아웃·연결 끊김 복구를 검증한다. 다중 프로세스·다른 DB 버전에서의 잠금·복구는 별도 검증이 필요하다.
 
 ## 기동과 스키마 변경
 
@@ -135,7 +135,7 @@ Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별
 
 DatabaseConnectionFailureAnalyzer는 Hibernate의 JDBC metadata/Dialect 실패 표지를 찾아 비밀번호·URL 값 없이 확인 방법을 안내한다. 이 표지가 없는 모든 DB 시작 오류를 분류하는 분석기는 아니다. Flyway 도입 이후에는 DB 접속 실패가 Flyway 초기화에서 먼저 드러나 이 표지가 나타나지 않는 것을 H2(기본 프로파일)로 확인했고, PostgreSQL도 로그에 `password authentication failed`가 남고 비밀번호·URL이 없는 것을 수동으로 확인했다.
 
-`postgres` 프로파일은 같은 애플리케이션 코드에 PostgreSQL 데이터소스와 전용 Flyway 위치(`db/postgresql/migration`)만 바꾼다. 영속 어댑터와 사용 사례 코드는 그대로이며 잠금 대기 한도만 H2의 URL 옵션 대신 연결 초기화 SQL(`SET lock_timeout`)로 적용한다. 해당 프로파일의 동시성 동작은 아직 검증하지 않았다.
+`postgres` 프로파일은 같은 애플리케이션 코드에 PostgreSQL 데이터소스와 전용 Flyway 위치(`db/postgresql/migration`)만 바꾼다. 영속 어댑터와 사용 사례 코드는 그대로이며 잠금 대기 한도만 H2의 URL 옵션 대신 연결 초기화 SQL(`SET lock_timeout`)로 적용한다. 해당 프로파일의 동시 접수·락 타임아웃(잠금 대기 초과 → 503, PostgreSQL이 내는 SQLState 55P03은 별도 확인)·연결 끊김 복구는 PostgreSQL 16에서 단일 앱 프로세스 기준으로 검증했다. 다중 인스턴스는 검증하지 않았다.
 
 ## 오류 응답과 관측 경계
 
