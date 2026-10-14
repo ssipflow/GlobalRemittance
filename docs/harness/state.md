@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/postgres-concurrency. PostgreSQL에서 동시 접수·한도·중복·멱등성 경쟁, 락 타임아웃(55P03)·연결 끊김 복구 검증(운영 DB 검증 2단계, 사용자 선택).
-- 시작 기준: 2026-10-15 dev 58b602a, PR #27까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/postgres-concurrency.md)의 postgresTest 반복 통과, 기본 check·bootJar, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 DB 접속 실패 안내 분석기를 Flyway 경로에 맞추는 작은 PR.
+- 현재 작업: feature/db-connection-diagnostics. Flyway 단계에서 드러나는 DB 접속 실패를 SQLState로 분류해 개인정보 없는 안내 블록을 출력한다(권장 순서 1순위).
+- 시작 기준: 2026-10-15 dev 983a024, PR #28까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/db-connection-diagnostics.md)의 분류·비노출 테스트, 실제 jar 기동 확인, check·postgresTest, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 환율 정책과 모의 공급 어댑터.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

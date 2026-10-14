@@ -133,7 +133,7 @@ flowchart TD
 
 Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별 유일 제약을 적용한다. 기존 앱의 비어 있지 않은 DB에 Flyway 이력이 없으면 baseline 0 후 V1·V2를 적용한다. IF NOT EXISTS는 기존 객체를 건너뛰는 방식이고 스키마 오류 전체를 보정하지 않는다. Hibernate validate는 컬럼·타입을 검사하며 제약과 인덱스는 마이그레이션 및 스키마 테스트로 확인한다.
 
-DatabaseConnectionFailureAnalyzer는 Hibernate의 JDBC metadata/Dialect 실패 표지를 찾아 비밀번호·URL 값 없이 확인 방법을 안내한다. 이 표지가 없는 모든 DB 시작 오류를 분류하는 분석기는 아니다. Flyway 도입 이후에는 DB 접속 실패가 Flyway 초기화에서 먼저 드러나 이 표지가 나타나지 않는 것을 H2(기본 프로파일)로 확인했고, PostgreSQL도 로그에 `password authentication failed`가 남고 비밀번호·URL이 없는 것을 수동으로 확인했다.
+DatabaseConnectionFailureAnalyzer는 두 경로를 안내한다. (1) Flyway 초기화의 접속 실패(`FlywaySqlException: Unable to obtain connection from database`): 원인 연쇄의 SQLState(5자 영문 대문자·숫자 형식일 때만)로 인증 거부(`28xxx`)·DB 없음(`3D000`)·연결 불가(`08xxx`) 순으로 분류하고 그 밖은 일반 안내로 처리하며, 조치 문구는 예외 클래스명으로 H2·PostgreSQL을 구분한다. 예외 메시지는 감지 조건(접두사 비교)에만 쓰고 출력하지 않는다. 감지는 Flyway 내부 클래스와 영어 메시지 접두사에 의존하므로 Flyway를 올리면 `DatabaseConnectionFailureTest`로 다시 확인한다. (2) Hibernate의 JDBC metadata/Dialect 실패 표지(Flyway가 꺼져 있을 때 등). 출력에는 비밀번호·사용자명·호스트·URL을 넣지 않는다. 접속 실패가 아닌 Flyway 오류(마이그레이션 SQL 실패 등)와 이 표지가 없는 DB 시작 오류는 분류하지 않는다.
 
 `postgres` 프로파일은 같은 애플리케이션 코드에 PostgreSQL 데이터소스와 전용 Flyway 위치(`db/postgresql/migration`)만 바꾼다. 영속 어댑터와 사용 사례 코드는 그대로이며 잠금 대기 한도만 H2의 URL 옵션 대신 연결 초기화 SQL(`SET lock_timeout`)로 적용한다. 해당 프로파일의 동시 접수·락 타임아웃(잠금 대기 초과 → 503, PostgreSQL이 내는 SQLState 55P03은 별도 확인)·연결 끊김 복구는 PostgreSQL 16에서 단일 앱 프로세스 기준으로 검증했다. 다중 인스턴스는 검증하지 않았다.
 

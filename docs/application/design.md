@@ -275,7 +275,9 @@ JWT 서명·만료로 확인한 사용자를 기준으로 견적 소유권을 �
 
 ApiExceptionHandler가 다루는 LOCK_TIMEOUT은 WARN, 일반 업무·입력 오류는 DEBUG, UNKNOWN_ERROR와 예상 밖 오류는 ERROR다. 기본 INFO 수준에서는 일부 4xx 로그가 보이지 않는다. 이 허용 목록은 해당 코드가 직접 남기는 로그의 정책이다. 보안 필터·서블릿 sendError·/error 디스패치의 모든 오류를 수집하지 않으며 오류 디스패치의 MDC와 라이브러리 로그도 별도 범위다.
 
-DB 접속 실패가 JDBC metadata/Dialect 오류로 가려질 때는 DatabaseConnectionFailureAnalyzer가 확인 방법을 안내한다. 실제 비밀번호·URL은 출력하지 않는다. 감지는 Hibernate 실패 표지에 의존하므로 버전이나 실패 유형이 달라지면 다시 검증해야 한다. Flyway 도입 후 기본 프로파일의 틀린 H2 비밀번호는 Flyway가 먼저 실패해 이 안내가 나오지 않는 것을 직접 확인했다. 대신 예외 연쇄에 실제 원인이 남고 비밀번호·JDBC URL은 로그에 없었다(PostgreSQL도 같은 방식으로 수동 확인). 분석기를 이 경로에 맞추는 일은 후속 과제다.
+DB 접속 실패는 Flyway 초기화에서 먼저 드러난다(Flyway 도입 후). DatabaseConnectionFailureAnalyzer는 이 경우 원인 연쇄의 SQLState만으로 인증 거부(`28xxx`)·연결 불가(`08xxx`)·DB 없음(`3D000`)·그 밖의 접속 실패를 분류해 한국어 조치를 안내한다. 예외 메시지에는 사용자명·호스트가 섞일 수 있어 읽지 않고 SQLState 코드만 출력한다. Hibernate의 `Dialect` 표지 경로는 Flyway 없이 Hibernate가 먼저 실패할 때를 위해 남겼다.
+
+직접 확인한 것: 단위 테스트(실제 H2 인증 실패와 `SpringApplication` 콘솔 블록 출력, PostgreSQL 16의 틀린 비밀번호 28P01·닫힌 포트 08001·없는 DB 3D000, 안내에 비밀번호·사용자명·호스트·포트·JDBC URL 없음, 우선순위·형식 오류·비접속 Flyway 예외 합성 테스트)와 실제 jar 기동(H2 기본 프로파일 틀린 비밀번호, PostgreSQL 세 경우)에서 안내 블록이 나오고 비밀번호·JDBC URL이 로그에 없었다. 보장하지 않는 것: 안내 블록 밖의 라이브러리 로그와 스택에는 사용자명·호스트:포트가 나올 수 있다(WARN 줄에서 확인). 분류는 SQLState에 의존하므로 드라이버가 다른 코드를 내면 "그 밖의 접속 실패" 안내로 떨어진다. 조치 문구는 예외 클래스명(`org.h2.`/`org.postgresql.`)으로 DB 종류를 구분하고, 알 수 없으면 두 종류의 항목을 모두 보여 준다. 안내 블록 아래에는 스택이 나오지 않으며(직접 확인) 원래 메시지는 블록 바로 위 WARN 한 줄에 있다. 감지가 Flyway 내부 클래스와 영어 메시지 접두사에 의존해 Flyway 업그레이드 시 조용히 안내가 사라질 수 있으므로 테스트가 이를 잡게 두었다. 28xxx를 한 가지로만 안내하지 않고 PostgreSQL에서는 접근 규칙(`pg_hba.conf`)도 확인하도록 했다. 접속 이후 단계(풀 고갈, 쿼리 중 연결 끊김)는 이 분석기의 대상이 아니다.
 
 local 프로파일은 H2 콘솔과 Hibernate SQL DEBUG, SqlExceptionHelper WARN, Hikari DEBUG로 개발 진단을 넓힌다. 바인딩 TRACE는 기본적으로 꺼져 있지만 오류 메시지·연결 풀 정보에는 이메일·URL·사용자명이 포함될 수 있다. 이 환경을 기본 프로파일과 같은 로그 보장으로 해석하지 않는다.
 
