@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -127,8 +128,10 @@ class OpenApiTest {
 
     @Test
     void swaggerUiIsReachableWithoutAuthentication() throws Exception {
-        int first = mvc.perform(get("/swagger-ui.html")).andReturn().getResponse().getStatus();
-        assertTrue(first == 200 || first == 302, "상태 " + first);
+        // 인증 헤더 없이 호출해도 UI 진입점이 고정된 위치로 리다이렉트되고 그 페이지가 열려야 한다.
+        mvc.perform(get("/swagger-ui.html"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/swagger-ui/index.html"));
         mvc.perform(get("/swagger-ui/index.html")).andExpect(status().isOk());
     }
 
