@@ -19,9 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/current-docs-refresh. README와 앱 문서를 현재 코드·설정·테스트에 맞춰 갱신한다.
-- 완료 기준: 코드·이력 대조, 독립 문서 검토·정적 검증, dev PR 생성 후 네 Vault 노트 보존·동기화 확인.
-- 다음: 사람이 이번 문서 PR을 승인·병합한다. 이후 [검토 후보](backlog.md)에서 다음 범위를 정한다.
+- 현재 작업: feature/test-guard-hardening. ArchitectureTest의 Swagger/springdoc 참조 금지와 OpenApiTest의 swagger-ui.html 리다이렉트 정밀 검증(후속 후보, 사용자 선택).
+- 시작 기준: 2026-10-14 dev 112c640, PR #25까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/test-guard-hardening.md)의 가드 동작 확인(금지 검사가 실제로 잡음), Java 17 check·bootJar, dev PR. 앱 문서는 바뀌지 않아 Vault 동기화는 불필요.
+- 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md)에서 다음 범위를 정한다.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

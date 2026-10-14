@@ -26,6 +26,7 @@
 | 요청 멱등성 키 | 접수의 선택 Idempotency-Key, 같은 키·견적 24시간 성공 재현, 다른 견적 422, 실패 비소비, 사용자 잠금 안 동시 재시도 1회 반영 | [멱등성](tasks/request-idempotency.md) |
 | 스키마 마이그레이션(Flyway) | ddl-auto 대신 버전 SQL(V1 기준선·V2 멱등성 키), validate, 이력 없는 기존 파일 DB의 기준선 업그레이드와 실제 구 DB 파일 확인 | [Flyway](tasks/flyway-migrations.md) |
 | 잠금 대기 안내와 설정 검증 | LOCK_TIMEOUT 503의 `Retry-After: 1`, REMITTANCE_LOCK_TIMEOUT_MS 1~30000 검증과 시작 실패 안내 | [잠금 안내](tasks/lock-timeout-guidance.md) |
+| 테스트 가드 강화 | ArchitectureTest의 Swagger/springdoc 참조 금지와 양성 대조, OpenApiTest의 swagger-ui.html 302·Location 정밀 검증 | [가드 강화](tasks/test-guard-hardening.md) |
 | 개인정보 없는 오류 관측 | X-Request-Id, 예외 메시지·본문·쿼리 없이 클래스·SQLState·경로만 남기는 오류 로그, DB 접속 실패 진단, 로그 캡처 검증 | [오류 관측](tasks/error-observability.md) |
 | 한글 설명 주석 | 직접 작성 코드·테스트·하네스·설정 주석과 지속 지침 | Git db6634b, PR #9 |
 
