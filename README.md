@@ -46,7 +46,7 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 
 H2 비밀번호는 파일 DB를 처음 만들 때 정해진다. 기본 빈 비밀번호로 만든 DB에 나중에 다른 REMITTANCE_DB_PASSWORD를 지정해도 기존 비밀번호가 변경되지는 않는다. 새 DB를 만들 때만 원하는 값을 지정하고, 기존 DB는 만들 때의 값을 사용한다.
 
-DB 접속 실패 시 시작 실패 분석기가 원인 확인 방향을 안내한다. `Unable to determine Dialect without JDBC metadata`는 비밀번호 불일치 등으로 연결 정보 조회가 실패할 때 나타날 수 있으며, 그 문구만으로 원인을 확정하지 않는다. 기존 키·DB 비밀번호를 확인하고 로컬 프로파일의 연결 풀 로그나 `data/remittance.trace.db`를 살펴본다.
+DB 비밀번호가 맞지 않으면 Flyway 초기화 단계(`flywayInitializer`)에서 먼저 실패한다. 직접 확인한 결과 기본 프로파일에서도 예외 연쇄에 실제 원인이 남았다(H2는 `Wrong user name or password`, PostgreSQL은 `password authentication failed`). 이때 비밀번호와 JDBC URL은 로그에 출력되지 않았다. 안내 블록(`APPLICATION FAILED TO START`)은 나오지 않는다. Flyway 도입 전에 만든 `Unable to determine Dialect...` 안내(DatabaseConnectionFailureAnalyzer)는 이 시나리오에서 더 이상 동작하지 않으며, 분석기 개선은 후속 과제다. 기존 키·DB 비밀번호를 확인하고 로컬 프로파일의 연결 풀 로그나 `data/remittance.trace.db`를 살펴본다.
 
 데이터를 유지해야 하면 기존 비밀번호로 접속해 H2의 ALTER USER로 변경한다. DB를 재생성하는 방법은 기존 로컬 데이터를 버려도 되는 경우에만 사용한다. DB 접속 비밀번호가 파일 내용을 암호화하는 것은 아니다.
 
@@ -74,6 +74,34 @@ local에서는 Hibernate SQL DEBUG, SqlExceptionHelper WARN, Hikari DEBUG를 켠
 새 DB는 V1부터 적용한다. Flyway 이력이 없는 비어 있지 않은 DB는 버전 0으로 기준선을 잡은 뒤 V1·V2를 적용한다. 두 SQL의 IF NOT EXISTS는 이전 앱이 만든 객체를 보존하기 위한 것이며 임의의 구 스키마를 정상 상태로 복구한다는 의미는 아니다. 적용 이력은 flyway_schema_history에 저장한다.
 
 적용한 SQL을 수정하지 않고 새 번호로 변경을 추가한다. Hibernate validate만으로 모든 인덱스·유일 제약·FK 이름을 검사한다고 가정하지 않는다. 기존 데이터 업그레이드는 MigrationTest에서 다루며 다른 시스템의 데이터를 이전하는 도구는 제공하지 않는다.
+
+### PostgreSQL로 실행(선택)
+
+기본 실행은 H2 파일 DB다. `postgres` 프로파일을 켜면 PostgreSQL을 쓴다. 로컬에서는 Docker로 띄울 수 있다.
+
+```sh
+export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=')"
+docker run -d --name remittance-pg -e POSTGRES_USER=remittance \
+  -e POSTGRES_PASSWORD="$REMITTANCE_DB_PASSWORD" -e POSTGRES_DB=remittance \
+  -p 127.0.0.1:5432:5432 postgres:16-alpine
+until docker exec remittance-pg pg_isready -U remittance; do sleep 1; done
+SPRING_PROFILES_ACTIVE=postgres ./gradlew bootRun
+```
+
+`127.0.0.1`로 묶어 같은 PC에서만 접속되게 하고, `pg_isready`로 DB가 준비될 때까지 기다린 뒤 앱을 띄운다.
+끝나면 `docker rm -f remittance-pg`로 컨테이너를 지운다(데이터도 함께 사라진다).
+
+| 환경변수 | 용도 | 기본값 |
+| --- | --- | --- |
+| REMITTANCE_DB_URL | PostgreSQL JDBC URL | `jdbc:postgresql://localhost:5432/remittance` |
+| REMITTANCE_DB_USER | 접속 사용자 | `remittance` |
+| REMITTANCE_DB_PASSWORD | 접속 비밀번호(H2와 같은 변수) | 빈 값 |
+
+- 스키마는 `src/main/resources/db/postgresql/migration`의 PostgreSQL 전용 SQL로 만든다. H2용 `db/migration`의 하위 폴더가 아니다(Flyway가 하위까지 읽기 때문).
+  H2의 `ENUM`은 `VARCHAR + CHECK`로 옮겼다. 새 DB 전용이라 `IF NOT EXISTS`를 쓰지 않으며, 이력 없는 기존 DB를 자동으로 인수하지 않는다.
+- 잠금 대기 한도(`REMITTANCE_LOCK_TIMEOUT_MS`)는 연결마다 `SET lock_timeout`으로 적용한다(H2의 URL `LOCK_TIMEOUT`에 해당).
+- 검증은 Docker가 필요한 `./gradlew postgresTest`로 따로 실행한다. 기본 `check`에는 포함되지 않아 Docker 없이도 통과한다.
+- 지금 검증된 것은 스키마·Hibernate validate·기동·기본 API 흐름·`lock_timeout` 설정이다. **동시 접수·한도·락 타임아웃·장애 복구는 아직 PostgreSQL에서 검증하지 않았다.**
 
 ## API 사용
 

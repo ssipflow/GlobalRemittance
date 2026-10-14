@@ -1,0 +1,16 @@
+# PostgreSQL 실행 프로파일이다. SPRING_PROFILES_ACTIVE=postgres 일 때 기본(H2) 설정 위에 덮어쓴다.
+# 비밀번호는 기본 설정의 REMITTANCE_DB_PASSWORD를 그대로 쓰며 이 파일에 값을 두지 않는다.
+spring:
+  datasource:
+    url: ${REMITTANCE_DB_URL:jdbc:postgresql://localhost:5432/remittance}
+    username: ${REMITTANCE_DB_USER:remittance}
+    hikari:
+      # H2 URL의 LOCK_TIMEOUT에 해당하는 PostgreSQL 방식이며 연결마다 락 대기 한도(ms)를 건다.
+      # 값은 기동 시 1~30000 정수로 검증되므로 SQL에 그대로 붙여도 주입 위험이 없다.
+      connection-init-sql: SET lock_timeout = ${remittance.lock-timeout-ms}
+  flyway:
+    # H2 마이그레이션(db/migration)과 방언이 달라 전용 위치만 읽는다.
+    locations: classpath:db/postgresql/migration
+    # 기본 설정의 기준선 옵션은 ddl-auto로 만든 H2 파일 DB용이다. PostgreSQL은 이력 없는 기존 DB를
+    # 0 버전으로 인수하지 않고 비어 있지 않으면 실패하도록 끈다.
+    baseline-on-migrate: false

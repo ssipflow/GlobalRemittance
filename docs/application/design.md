@@ -275,7 +275,7 @@ JWT 서명·만료로 확인한 사용자를 기준으로 견적 소유권을 �
 
 ApiExceptionHandler가 다루는 LOCK_TIMEOUT은 WARN, 일반 업무·입력 오류는 DEBUG, UNKNOWN_ERROR와 예상 밖 오류는 ERROR다. 기본 INFO 수준에서는 일부 4xx 로그가 보이지 않는다. 이 허용 목록은 해당 코드가 직접 남기는 로그의 정책이다. 보안 필터·서블릿 sendError·/error 디스패치의 모든 오류를 수집하지 않으며 오류 디스패치의 MDC와 라이브러리 로그도 별도 범위다.
 
-DB 접속 실패가 JDBC metadata/Dialect 오류로 가려질 때는 DatabaseConnectionFailureAnalyzer가 확인 방법을 안내한다. 실제 비밀번호·URL은 출력하지 않는다. 감지는 Hibernate 실패 표지에 의존하므로 버전이나 실패 유형이 달라지면 다시 검증해야 한다.
+DB 접속 실패가 JDBC metadata/Dialect 오류로 가려질 때는 DatabaseConnectionFailureAnalyzer가 확인 방법을 안내한다. 실제 비밀번호·URL은 출력하지 않는다. 감지는 Hibernate 실패 표지에 의존하므로 버전이나 실패 유형이 달라지면 다시 검증해야 한다. Flyway 도입 후 기본 프로파일의 틀린 H2 비밀번호는 Flyway가 먼저 실패해 이 안내가 나오지 않는 것을 직접 확인했다. 대신 예외 연쇄에 실제 원인이 남고 비밀번호·JDBC URL은 로그에 없었다(PostgreSQL도 같은 방식으로 수동 확인). 분석기를 이 경로에 맞추는 일은 후속 과제다.
 
 local 프로파일은 H2 콘솔과 Hibernate SQL DEBUG, SqlExceptionHelper WARN, Hikari DEBUG로 개발 진단을 넓힌다. 바인딩 TRACE는 기본적으로 꺼져 있지만 오류 메시지·연결 풀 정보에는 이메일·URL·사용자명이 포함될 수 있다. 이 환경을 기본 프로파일과 같은 로그 보장으로 해석하지 않는다.
 
@@ -292,6 +292,22 @@ Flyway SQL은 스키마 변경을 명시적으로 남기는 원본이다. V1은 
 MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이력만 없는 최신 스키마와 구 스키마의 기준선 적용을 확인한다. 이전 작업의 실제 파일 DB 기동·로그인·접수 확인은 [Flyway 작업 기록](https://github.com/ssipflow/Moin-GlobalRemittance/blob/f0834e1/docs/harness/tasks/flyway-migrations.md)의 수동 검증 근거이며 이번 문서 작업에서 재실행하지 않았다. 구 DB의 Hibernate 생성 FK 이름과 새 DB의 명시 이름은 다를 수 있다.
 
 이력만 없는 최신 스키마 테스트는 Flyway 생성 DB에서 이력만 지운 재현이며, Hibernate의 실제 DDL과 동일한지를 별도로 증명하지 않는다. 지원하지 않는 외부 스키마를 기준선 설정만으로 받아들이지 않는다. H2 ENUM·시간 타입·DDL은 다른 운영 DB에서 재검토해야 한다. 버전 지원 경고와 실패한 마이그레이션의 부분 적용 복구도 별도 확인 대상이다. 다른 시스템 데이터의 변환·이전 도구는 제공하지 않는다.
+
+## PostgreSQL 프로파일
+
+핵심 주장(사용자 행 잠금으로 동시 접수를 직렬화해 일일 한도를 지킨다)을 지금까지 embedded H2에서만 검증했다. 운영 DB 후보인 PostgreSQL에서 같은 주장을 확인하려면 먼저 그 DB로 앱이 뜨고 스키마가 맞아야 한다. 이 단계는 그 토대를 만든다.
+
+| 결정 | 이유 | 대가 |
+| --- | --- | --- |
+| 기본 실행은 H2 그대로 두고 `postgres` 프로파일에서만 PostgreSQL을 쓴다 | 기존 실행·`./data` 파일 DB·기존 테스트가 영향받지 않는다 | 두 DB의 스키마 SQL을 따로 유지해야 한다 |
+| PostgreSQL 전용 마이그레이션을 `db/postgresql/migration`(H2 폴더의 형제)에 둔다 | H2 문법(`ENUM`, `ADD CONSTRAINT IF NOT EXISTS`)이 PostgreSQL에서 안 된다. 하위 폴더는 Flyway가 함께 읽어 방언이 섞인다 | V1/V2가 두 벌이라 새 변경은 양쪽에 같은 번호로 추가해야 한다 |
+| `ENUM`을 `VARCHAR + CHECK`로 옮기고 새 DB 전용(`IF NOT EXISTS` 없음)으로 쓴다 | 같은 값 제한을 유지하고, 이력 없이 객체가 이미 있는 DB를 조용히 인수하지 않고 충돌로 실패시킨다 | 기존 PostgreSQL DB를 가져오려면 별도 절차가 필요하다 |
+| 잠금 대기 한도를 연결 초기화 SQL `SET lock_timeout`으로 적용한다 | H2의 URL `LOCK_TIMEOUT`과 같은 역할이다. 값은 기동 시 1~30000 정수로 검증되어 SQL에 안전하다 | 풀에서 만든 모든 연결에 설정되지만 사용자가 직접 연결을 열면 적용되지 않는다 |
+| PostgreSQL 테스트는 태그 `postgres`와 `postgresTest` 태스크로 분리한다 | Docker 없는 환경에서도 기본 `check`가 통과한다 | 기본 검증만으로는 PostgreSQL 경로가 확인되지 않는다. Docker가 없으면 건너뛰지 않고 실패한다 |
+
+직접 확인한 것: Testcontainers의 PostgreSQL 16에서 V1·V2가 적용되고 `ddl-auto: validate`를 통과했으며, 풀 연결의 `lock_timeout`이 설정값이고, 가입·로그인·견적·접수·이력 조회·키 재현(200)·키 없는 재접수(409)가 H2와 같은 계약으로 동작했다. 같은 흐름을 실제 컨테이너에 jar로 띄워 수동으로도 확인했다.
+
+보장하지 않는 것: 동시 접수·한도·중복·멱등성의 경쟁, 락 타임아웃(SQLState 55P03 매핑), 롤백·장애 복구는 PostgreSQL에서 검증하지 않았다. 코드의 55P03 매핑은 문서와 표준 지식에 기댄 것이다. 이 검증은 다음 단계다. PostgreSQL 16 한 버전만 사용했고 다른 버전·관리형 서비스·커넥션 풀 크기 변화는 확인하지 않았다.
 
 ## 검증 범위와 남은 과제
 

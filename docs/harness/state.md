@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/test-guard-hardening. ArchitectureTest의 Swagger/springdoc 참조 금지와 OpenApiTest의 swagger-ui.html 리다이렉트 정밀 검증(후속 후보, 사용자 선택).
-- 시작 기준: 2026-10-14 dev 112c640, PR #25까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/test-guard-hardening.md)의 가드 동작 확인(금지 검사가 실제로 잡음), Java 17 check·bootJar, dev PR. 앱 문서는 바뀌지 않아 Vault 동기화는 불필요.
-- 다음: 사람이 PR을 승인·병합한다. 이후 [검토 후보](backlog.md)에서 다음 범위를 정한다.
+- 현재 작업: feature/postgres-profile. PostgreSQL 프로파일·전용 Flyway SQL·Docker 통합 테스트(운영 DB 검증 1단계, 사용자 선택). 동시성·장애 복구 검증은 다음 PR.
+- 시작 기준: 2026-10-15 dev f1a968e, PR #26까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/postgres-profile.md)의 postgresTest·기본 check·실제 컨테이너 기동 확인, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 PostgreSQL 동시성·잠금·장애 복구 검증 PR.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
