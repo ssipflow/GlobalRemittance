@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.nelson.remittance.adapter.security.AesIdentityCipher;
+import com.nelson.remittance.adapter.security.BCryptPasswordHasher;
 import com.nelson.remittance.adapter.security.JwtTokens;
-import com.nelson.remittance.bootstrap.ApplicationConfiguration;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.User;
 import io.jsonwebtoken.Jwts;
@@ -82,7 +82,7 @@ class SecurityAdaptersTest {
     @Test
     // BCrypt 솔트와 잘못된 비밀번호 거부를 검증한다.
     void bcryptHashesAreSaltedAndCannotAuthenticateWrongPassword() {
-        var passwords = new ApplicationConfiguration().passwords();
+        var passwords = new BCryptPasswordHasher();
         String first = passwords.hash("test-password"), second = passwords.hash("test-password");
         assertNotEquals(first, second);
         assertTrue(first.startsWith("$2"));

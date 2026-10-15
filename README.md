@@ -164,7 +164,7 @@ LOCK_TIMEOUT만 `Retry-After: 1`을 반환한다. 고정 1초의 재시도 안�
 
 BigDecimal·HALF_UP과 통화별 자릿수(KRW/JPY 0, USD 2)를 사용한다. 견적 시 환율·수수료·USD 금액을 고정하고, 접수에서는 사용자 DB 행을 잠근 뒤 KST 일일 SUM·한도·중복을 검사한다. 개인은 1000 USD, 법인은 5000 USD까지 허용한다.
 
-domain은 Spring·JPA·웹 구현에 의존하지 않는다. application은 유스케이스 선언용 `@Service`와 `@Transactional` 두 Spring 타입만 참조할 수 있고(`ArchitectureTest`가 그 밖의 Spring·JPA·어댑터 참조를 막는다), 유스케이스는 컴포넌트 스캔과 생성자 주입으로 등록된다. adapter가 외부 기술을 연결하고 bootstrap은 어댑터·설정 빈을 조립한다.
+domain은 Spring·JPA·웹 구현에 의존하지 않는다. application은 유스케이스 선언용 `@Service`와 `@Transactional` 두 Spring 타입만 참조할 수 있고(`ArchitectureTest`가 그 밖의 Spring·JPA·어댑터 참조를 막는다), 유스케이스는 컴포넌트 스캔과 생성자 주입으로 등록된다. adapter가 외부 기술을 연결하고 스스로 등록되는 어댑터 구현(`@Component`)을 제공하며, bootstrap은 설정 기반 조립(시계, 환율 공급처, 트랜잭션 매니저)과 시작 실패 진단을 맡는다.
 
 - [개요](docs/application/overview.md): 기능과 실행 설정
 - [아키텍처](docs/application/architecture.md): 계층, 요청·저장·기동 흐름

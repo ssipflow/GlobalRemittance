@@ -9,13 +9,17 @@ import java.util.Base64;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 // 식별 번호를 무작위 nonce 기반 AES-GCM으로 암호화하는 저장 경계다.
+// 필수 환경 키를 읽어 AES 키 길이를 시작 시점에 확인한다.
+@Component
 public final class AesIdentityCipher implements IdentityCipher {
     private final SecretKeySpec key;
     private final SecureRandom random = new SecureRandom();
 
-    public AesIdentityCipher(String base64Key) {
+    public AesIdentityCipher(@Value("${remittance.aes-key}") String base64Key) {
         byte[] bytes;
         try {
             bytes = Base64.getDecoder().decode(base64Key);

@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/split-jpa-repositories. `JpaStore`를 `JpaAccountRepository`·`JpaQuoteRepository`로 분리하고 오류 판별·ID 변환을 공용 클래스로 추출(책임 분리 리팩터링 3개 PR 중 ①, 동작 불변).
-- 시작 기준: 2026-10-15 dev 338c4b4, PR #34까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/split-jpa-repositories.md)의 `JpaStore` 잔존 참조 없음·유틸 단위 테스트, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 ② `ApplicationConfiguration` 정리, ③ `ApiModels` 분리·커서 클래스 추출. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
+- 현재 작업: feature/split-application-configuration. `ApplicationConfiguration`을 책임별 클래스로 분리하고 어댑터 구현(BCrypt 익명 구현 등)을 어댑터로 이동(책임 분리 리팩터링 3개 PR 중 ②, 동작 불변).
+- 시작 기준: 2026-10-15 dev 77094cb, PR #35까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/split-application-configuration.md)의 잔존 참조 없음·파서 단위 테스트, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 ③ `ApiModels` 분리·커서 클래스 추출. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

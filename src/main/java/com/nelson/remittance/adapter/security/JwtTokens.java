@@ -15,13 +15,17 @@ import java.time.Clock;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Date;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 // 서명된 인증 토큰을 발급하고 서명·사용자 식별자·만료 조건을 확인한다.
+// JWT 키와 공통 Clock을 연결하고 잘못된 키 설정은 시작 단계에서 실패시킨다.
+@Component
 public final class JwtTokens implements TokenProvider {
     private final Key key;
     private final Clock clock;
 
-    public JwtTokens(String base64Secret, Clock clock) {
+    public JwtTokens(@Value("${remittance.jwt-secret}") String base64Secret, Clock clock) {
         byte[] bytes;
         try {
             bytes = Base64.getDecoder().decode(base64Secret);
