@@ -19,13 +19,15 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/service-usecases. 유스케이스를 `@Service` 빈으로 등록하고 `ApplicationConfiguration`의 수동 조립을 제거(동작 불변, 사용자 결정).
-- 시작 기준: 2026-10-15 dev 46d18cf, PR #33까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/service-usecases.md)의 중복 빈 없음·프록시 유지·기동 거부 유지, check·bootJar·postgresTest, jar 스모크, 문서 정정, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 기본 프로파일(H2/PostgreSQL) 방향 결정(사용자 대기)과 남은 후보(연결 끊김 직후 500 완화, 로그인 시도 제한 등).
+- 현재 작업: feature/split-jpa-repositories. `JpaStore`를 `JpaAccountRepository`·`JpaQuoteRepository`로 분리하고 오류 판별·ID 변환을 공용 클래스로 추출(책임 분리 리팩터링 3개 PR 중 ①, 동작 불변).
+- 시작 기준: 2026-10-15 dev 338c4b4, PR #34까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/split-jpa-repositories.md)의 `JpaStore` 잔존 참조 없음·유틸 단위 테스트, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 ② `ApplicationConfiguration` 정리, ③ `ApiModels` 분리·커서 클래스 추출. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
+
+- 2026-10-15 사용자 요청으로 옵시디언 프로젝트 폴더에 `하네스 워크플로우.md`를 별도 작성하고 읽기·원본 일치를 확인했다. 자동 export 대상은 그대로이며, 진행 중인 구현의 리뷰·검증·커밋·publish는 이 문서 작업에서 수행하지 않았다.
 
 - 환율은 설정 예시이며 실시간 시세·실제 금융기관 송금·다른 시스템의 데이터 이전은 미구현이다(스키마는 Flyway로 관리).
 - 멱등성 키는 접수의 성공 응답만 24시간 재현한다(실패 응답 미저장, 요청 본문 전체 비교 없음). 잠금·복구 검증은 H2 범위이며 운영 DB에 대한 근거는 없다.
