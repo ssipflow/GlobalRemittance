@@ -63,6 +63,11 @@ public class TransferController {
             responseCode = "401",
             description = "토큰 누락·오류·만료(UNAUTHORIZED)",
             content = @Content(schema = @Schema(implementation = Result.class)))
+    @ApiResponse(
+            responseCode = "503",
+            description =
+                    "환율 조회 실패(RATE_UNAVAILABLE) 또는 환율 기준 시각이 허용 범위를 벗어남(RATE_STALE). 견적은 발급되지 않는다.",
+            content = @Content(schema = @Schema(implementation = Result.class)))
     @PostMapping(value = "/quote", consumes = "application/json", produces = "application/json")
     // 인증된 사용자로 견적을 생성하고 저장 식별자·환율·만료·수취액만 노출한다.
     public QuoteResult quote(

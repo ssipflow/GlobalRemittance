@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/db-connection-diagnostics. Flyway 단계에서 드러나는 DB 접속 실패를 SQLState로 분류해 개인정보 없는 안내 블록을 출력한다(권장 순서 1순위).
-- 시작 기준: 2026-10-15 dev 983a024, PR #28까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/db-connection-diagnostics.md)의 분류·비노출 테스트, 실제 jar 기동 확인, check·postgresTest, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 환율 정책과 모의 공급 어댑터.
+- 현재 작업: feature/rate-freshness-policy. 환율 기준 시각과 허용 지연 정책(지연·실패 시 견적 503 거부), 지연·실패를 주입하는 모의 공급 어댑터(권장 순서 2순위).
+- 시작 기준: 2026-10-15 dev ca04f6c, PR #29까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/rate-freshness-policy.md)의 정책 경계·모의 공급처 API 테스트, 실제 jar 기동 확인, check·postgresTest, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 남은 후보(연결 끊김 직후 500 완화, 로그인 시도 제한 등)에서 범위를 정한다.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

@@ -125,6 +125,8 @@ userId는 이메일 형식·최대 255자, password는 공백 불가·최대 72�
 
 예시 환율 1300에서 수수료는 1800원, 순송금액은 398200원이다. 만료시각은 생성시각 +10분이다. quoteId와 시각은 예시 값이다.
 
+환율의 기준 시각이 현재와 허용 지연(기본 60초, `REMITTANCE_RATES_MAX_AGE_SECONDS`로 1~3600)을 초과해 벗어나면(같으면 신선) 견적을 만들지 않고 503 `RATE_STALE`을, 환율 조회가 실패하면 503 `RATE_UNAVAILABLE`을 반환한다. 오래된 환율을 몰래 쓰지 않고 `Retry-After`도 붙이지 않는다. 클라이언트는 잠시 뒤 다시 요청한다. 이미 발급된 견적은 발급 시점 환율로 10분간 고정이므로 환율 장애와 무관하게 접수할 수 있다. 기본 설정(설정 환율)에서는 기준 시각이 항상 현재라 이 오류가 나지 않는다.
+
 소수 입력은 HALF_UP으로 KRW 정수화한 뒤 정책을 적용한다. 입력이 양수가 아니거나 수수료 차감 후 음수이면 NEGATIVE_NUMBER, 저장 가능한 DECIMAL 범위를 넘으면 INVALID_REQUEST다.
 
 ## POST /transfer/request
@@ -267,4 +269,6 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 | 415 | UNSUPPORTED_MEDIA_TYPE | 본문 요청 | 지원하지 않는 요청 Content-Type |
 | 422 | IDEMPOTENCY_KEY_REUSED | 접수 | 이미 다른 견적에 사용한 Idempotency-Key |
 | 500 | UNKNOWN_ERROR | 모든 곳 | 내부 오류. 원시 예외와 개인정보는 노출하지 않음 |
+| 503 | RATE_UNAVAILABLE | 견적 | 환율 조회 실패. 발급된 견적의 접수에는 영향이 없다 |
+| 503 | RATE_STALE | 견적 | 환율 기준 시각이 허용 지연(기본 60초)을 벗어남 |
 | 503 | LOCK_TIMEOUT | 접수 | 사용자 행 잠금 대기 한도 초과. `Retry-After: 1`(초) 헤더가 붙는다. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS(1~30000)로 설정 |

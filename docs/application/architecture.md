@@ -26,7 +26,7 @@ flowchart LR
 | adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, RequestIdFilter, ErrorDescriptions |
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
 | adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
-| adapter/forex | 설정 환율 제공 | ConfiguredRates |
+| adapter/forex | 설정 환율 제공, 지연·장애를 주입하는 모의 공급처 | ConfiguredRates, SimulatedRates |
 | bootstrap | DI, Clock와 BCrypt 구성, 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer |
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 OpenApiConfiguration에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
@@ -39,7 +39,7 @@ RequestIdFilter가 보안 필터보다 먼저 실행돼 요청 ID를 응답 헤�
 
 송금 인증은 JwtAuthenticationFilter가 처리한다. 필터가 JWT 서명·만료를 확인하고 인증 사용자 ID를 컨트롤러에 전달한다. 송금 본문에서 별도의 사용자 ID를 받지 않는다. 인증 실패는 JSON 401로 응답한다.
 
-견적 생성은 사용자 확인 → 대상 통화·USD 환율 조회 → QuotePolicy 계산 → 견적 저장 순서로 진행한다. 환율·수수료·수취액·USD 금액과 만료 시각을 함께 저장한다. 사용자 행에 접수 잠금을 걸지는 않지만, 저장 과정은 Work의 트랜잭션 안에서 실행한다.
+견적 생성은 사용자 확인 → 대상 통화·USD 환율 스냅샷(환율+기준 시각) 조회 → 신선도 검사(허용 지연 초과 시 RATE_STALE) → QuotePolicy 계산 → 견적 저장 순서로 진행한다. 대상이 USD면 스냅샷을 한 번만 조회한다. 공급 실패는 어댑터가 RATE_UNAVAILABLE로 알리며 둘 다 503이다. 신선도 판단은 도메인 규칙(`RateSnapshot.isFresh`)이고 어떤 공급처를 쓸지는 bootstrap이 설정으로 고른다(`configured`/`simulated`). 환율·수수료·수취액·USD 금액과 만료 시각을 함께 저장한다. 사용자 행에 접수 잠금을 걸지는 않지만, 저장 과정은 Work의 트랜잭션 안에서 실행한다.
 
 ## 송금 접수
 
