@@ -147,7 +147,7 @@ sequenceDiagram
 
 가입 전에 userId 존재 여부를 조회하지만 이 조회만으로 동시 가입을 막지 않는다. 두 요청이 모두 계정이 없다고 판단한 후 같은 이메일을 저장할 수 있기 때문이다. users의 userId 유일 제약이 최종 충돌 지점이다.
 
-한 요청이 저장되고 다른 요청이 유일 제약 위반을 받으면 JpaStore가 DUPLICATE_USER로 변환한다. DB 진단에 이메일이 포함될 수 있어 원시 SQL 오류 로그를 차단한다. 사용자 접수 잠금과 이메일 유일 제약은 서로 다른 경쟁을 해결한다.
+한 요청이 저장되고 다른 요청이 유일 제약 위반을 받으면 `JpaAccountRepository`가 DUPLICATE_USER로 변환한다(판별은 `PersistenceErrors.isUniqueViolation`). DB 진단에 이메일이 포함될 수 있어 원시 SQL 오류 로그를 차단한다. 사용자 접수 잠금과 이메일 유일 제약은 서로 다른 경쟁을 해결한다.
 
 ## 이력 조회의 일관성
 
@@ -174,7 +174,7 @@ sequenceDiagram
 
 ## 잠금 실패·롤백·재시도
 
-잠금 대기는 H2 JDBC URL의 LOCK_TIMEOUT으로 제한한다. 기본값은 5000ms이며 REMITTANCE_LOCK_TIMEOUT_MS로 설정한다. 현재 H2 조합에서 JPA 잠금 timeout 힌트는 대기 한도 적용에 사용하지 않는다. 잠금 대기 초과는 JpaStore에서 업무 오류로 변환해 HTTP 503 LOCK_TIMEOUT을 반환한다.
+잠금 대기는 H2 JDBC URL의 LOCK_TIMEOUT으로 제한한다. 기본값은 5000ms이며 REMITTANCE_LOCK_TIMEOUT_MS로 설정한다. 현재 H2 조합에서 JPA 잠금 timeout 힌트는 대기 한도 적용에 사용하지 않는다. 잠금 대기 초과는 `JpaAccountRepository`에서 업무 오류로 변환해 HTTP 503 LOCK_TIMEOUT을 반환한다.
 
 현재 구현은 서버에서 자동 재시도하지 않는다. 잠금 대기 한도는 HTTP 전체 처리 시간의 상한도 아니다. 인증·커넥션 획득·조회·응답 처리 시간까지 포함해 5초 이내를 보장하는 설정으로 해석하지 않는다.
 
@@ -320,7 +320,7 @@ MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이�
 | 같은 `Idempotency-Key`·같은 견적 동시 요청 | 모두 200, 효과는 1회(접수 행·접수 시각 하나) |
 | 같은 키·다른 견적 6개 동시 요청 | 1건 성공, 나머지 422 `IDEMPOTENCY_KEY_REUSED` |
 | 다른 연결이 사용자 행을 `FOR UPDATE`로 잡은 채 접수 | 설정 한도(2000ms) 후 503 `LOCK_TIMEOUT`과 `Retry-After: 1`(측정 약 2.03초). 해제 후 같은 키 요청이 200, 타임아웃된 시도는 접수 시각·키를 남기지 않음 |
-| 별도 JDBC 연결이 같은 행을 `lock_timeout` 500ms로 `FOR UPDATE` | PostgreSQL이 실제로 SQLState `55P03`을 냄. 코드(`JpaStore.isLockTimeout`)가 기대하는 값임을 직접 확인한 것이며, 앱 경로에서 어느 매핑 분기(JPA 예외 또는 SQLState)로 변환됐는지까지는 구분해 확인하지 않았다 |
+| 별도 JDBC 연결이 같은 행을 `lock_timeout` 500ms로 `FOR UPDATE` | PostgreSQL이 실제로 SQLState `55P03`을 냄. 코드(`PersistenceErrors.isLockTimeout`)가 기대하는 값임을 직접 확인한 것이며, 앱 경로에서 어느 매핑 분기(JPA 예외 또는 SQLState)로 변환됐는지까지는 구분해 확인하지 않았다 |
 | 위와 같은 잠금 중 이력 조회 | 1초 안에 200(읽기는 쓰기 잠금에 막히지 않음. PostgreSQL 기본 격리 수준(READ COMMITTED)에 의존) |
 | DB가 앱의 모든 연결을 끊음(`pg_terminate_backend`) | 끊긴 직후 첫 요청은 500(`UNKNOWN_ERROR`)이었고 두 번째 시도에 200으로 복구(3회 모두 `[500, 200]`). 실패한 시도는 부분 상태를 남기지 않아 접수는 정확히 1건 |
 

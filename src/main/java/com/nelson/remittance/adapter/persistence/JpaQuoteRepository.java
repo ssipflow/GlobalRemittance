@@ -1,129 +1,35 @@
 package com.nelson.remittance.adapter.persistence;
 
-import static com.nelson.remittance.domain.BusinessException.Code.DUPLICATE_USER;
 import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
-import static com.nelson.remittance.domain.BusinessException.Code.LOCK_TIMEOUT;
 import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
-import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
-import com.nelson.remittance.application.port.AccountRepository;
 import com.nelson.remittance.application.port.DailyTotal;
 import com.nelson.remittance.application.port.QuotePosition;
 import com.nelson.remittance.application.port.QuoteRepository;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.QuotePolicy;
-import com.nelson.remittance.domain.User;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.LockModeType;
-import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PersistenceException;
-import jakarta.persistence.PessimisticLockException;
 import java.math.BigDecimal;
-import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.stereotype.Repository;
 
 @Repository
-// JPA 조회와 모델 변환을 담당하며 DB 잠금과 유일 제약으로 동시 처리 경계를 지킨다.
-public class JpaStore implements AccountRepository, QuoteRepository {
+// 견적 저장·조회·집계를 담당한다.
+public class JpaQuoteRepository implements QuoteRepository {
     private final EntityManager em;
 
-    public JpaStore(EntityManager em) {
+    public JpaQuoteRepository(EntityManager em) {
         this.em = em;
-    }
-
-    // 외부 long 식별자가 DB INT 범위를 넘거나 양수가 아니면 변환 전에 거부한다.
-    private static int integerId(long id) {
-        if (id <= 0 || id > Integer.MAX_VALUE) {
-            throw new BusinessException(INVALID_REQUEST);
-        }
-        return (int) id;
-    }
-
-    @Override
-    // 필요한 사용자만 조회해 내부 모델로 변환한다. 트랜잭션은 사용 사례의 포트 경계가 제공한다.
-    public Optional<User> findUser(long id) {
-        return Optional.ofNullable(em.find(UserEntity.class, integerId(id)))
-                .map(UserEntity::toDomain);
-    }
-
-    @Override
-    // 필요한 사용자만 조회해 내부 모델로 변환한다. 트랜잭션은 사용 사례의 포트 경계가 제공한다.
-    public Optional<User> findUser(String userId) {
-        return em.createQuery(
-                        "select u from UserEntity u where u.userId = :userId", UserEntity.class)
-                .setParameter("userId", userId)
-                .getResultStream()
-                .findFirst()
-                .map(UserEntity::toDomain);
-    }
-
-    @Override
-    // 사용자 행의 배타 잠금을 잡아 같은 사용자의 다른 견적 접수도 직렬화한다.
-    public User lockUser(long id) {
-        UserEntity user;
-        try {
-            // 대기 한도(remittance.lock-timeout-ms)는 H2의 JDBC URL LOCK_TIMEOUT 또는
-            // postgres 프로파일의 SET lock_timeout이 정한다. Hibernate의
-            // jakarta.persistence.lock.timeout 힌트는 H2 방언이 'for update wait'를 내지 않아 무시된다.
-            user = em.find(UserEntity.class, integerId(id), LockModeType.PESSIMISTIC_WRITE);
-        } catch (PersistenceException error) {
-            // 다른 접수가 오래 잠금을 쥐면 500이 아닌 재시도 가능한 업무 오류로 알린다.
-            if (isLockTimeout(error)) {
-                throw new BusinessException(LOCK_TIMEOUT);
-            }
-            throw error;
-        }
-        if (user == null) {
-            throw new BusinessException(UNAUTHORIZED);
-        }
-        return user.toDomain();
-    }
-
-    // 락 대기 초과를 JPA 예외 또는 DB 상태 코드(H2·표준 HYT00, PostgreSQL 55P03)로 식별한다.
-    private static boolean isLockTimeout(Throwable error) {
-        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-            if (cause instanceof LockTimeoutException
-                    || cause instanceof PessimisticLockException) {
-                return true;
-            }
-            if (cause instanceof SQLException sql
-                    && ("HYT00".equals(sql.getSQLState()) || "55P03".equals(sql.getSQLState()))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    // 저장을 즉시 반영해 동시 가입의 유일 제약 실패를 업무 오류로 바꾼다.
-    public User saveUser(User user) {
-        UserEntity entity = new UserEntity(user);
-        try {
-            em.persist(entity);
-            em.flush();
-        } catch (PersistenceException error) {
-            // 사전 중복 조회만으로 동시 가입을 막을 수 없다. DB 유일 제약을 최종 방어로 둔다.
-            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-                if (cause instanceof ConstraintViolationException violation
-                        && "23505".equals(violation.getSQLState())) {
-                    throw new BusinessException(DUPLICATE_USER);
-                }
-            }
-            throw error;
-        }
-        return entity.toDomain();
     }
 
     @Override
     // 견적과 소유자를 내부 모델로 변환하되 접수 여부와 만료 판단은 도메인에 맡긴다.
     public Optional<Quote> findQuote(long id) {
-        return Optional.ofNullable(em.find(QuoteEntity.class, integerId(id)))
+        return Optional.ofNullable(em.find(QuoteEntity.class, EntityIds.toInt(id)))
                 .map(QuoteEntity::toDomain);
     }
 
@@ -134,7 +40,7 @@ public class JpaStore implements AccountRepository, QuoteRepository {
                         "select q from QuoteEntity q where q.user.id = :userId "
                                 + "and q.idempotencyKey = :key",
                         QuoteEntity.class)
-                .setParameter("userId", integerId(userId))
+                .setParameter("userId", EntityIds.toInt(userId))
                 .setParameter("key", idempotencyKey)
                 .getResultStream()
                 .findFirst()
@@ -147,12 +53,13 @@ public class JpaStore implements AccountRepository, QuoteRepository {
         if (quote.id() == 0) {
             QuoteEntity entity =
                     new QuoteEntity(
-                            quote, em.getReference(UserEntity.class, integerId(quote.userId())));
+                            quote,
+                            em.getReference(UserEntity.class, EntityIds.toInt(quote.userId())));
             em.persist(entity);
             em.flush();
             return entity.toDomain();
         }
-        QuoteEntity entity = em.find(QuoteEntity.class, integerId(quote.id()));
+        QuoteEntity entity = em.find(QuoteEntity.class, EntityIds.toInt(quote.id()));
         if (entity == null) {
             throw new BusinessException(QUOTE_NOT_FOUND);
         }
@@ -165,11 +72,8 @@ public class JpaStore implements AccountRepository, QuoteRepository {
         } catch (PersistenceException error) {
             // 사용자 잠금 안에서 직렬화되므로 정상 경로에서는 일어나지 않는다. 잠금 밖 쓰기 같은
             // 예외 상황에서도 한 키가 두 견적에 묶이지 않도록 유일 제약을 최종 방어로 둔다.
-            for (Throwable cause = error; cause != null; cause = cause.getCause()) {
-                if (cause instanceof ConstraintViolationException violation
-                        && "23505".equals(violation.getSQLState())) {
-                    throw new BusinessException(IDEMPOTENCY_KEY_REUSED);
-                }
+            if (PersistenceErrors.isUniqueViolation(error)) {
+                throw new BusinessException(IDEMPOTENCY_KEY_REUSED);
             }
             throw error;
         }
@@ -188,10 +92,10 @@ public class JpaStore implements AccountRepository, QuoteRepository {
                                         : "and (q.requestedTime < :time or (q.requestedTime = :time and q.id < :id)) ")
                                 + "order by q.requestedTime desc, q.id desc",
                         QuoteEntity.class);
-        query.setParameter("userId", integerId(userId));
+        query.setParameter("userId", EntityIds.toInt(userId));
         if (after != null) {
             query.setParameter("time", after.requestedTime());
-            query.setParameter("id", integerId(after.id()));
+            query.setParameter("id", EntityIds.toInt(after.id()));
         }
         return query.setMaxResults(limit).getResultList().stream()
                 .map(QuoteEntity::toDomain)
@@ -206,7 +110,7 @@ public class JpaStore implements AccountRepository, QuoteRepository {
                                 "select count(q), sum(q.usdAmount) from QuoteEntity q where q.user.id = :userId "
                                         + "and q.requestedTime >= :from and q.requestedTime < :to",
                                 Object[].class)
-                        .setParameter("userId", integerId(userId))
+                        .setParameter("userId", EntityIds.toInt(userId))
                         .setParameter("from", from)
                         .setParameter("to", to)
                         .getSingleResult();
@@ -224,7 +128,7 @@ public class JpaStore implements AccountRepository, QuoteRepository {
                                 "select sum(q.usdAmount) from QuoteEntity q where q.user.id = :userId "
                                         + "and q.requestedTime >= :from and q.requestedTime < :to",
                                 BigDecimal.class)
-                        .setParameter("userId", integerId(userId))
+                        .setParameter("userId", EntityIds.toInt(userId))
                         .setParameter("from", from)
                         .setParameter("to", to)
                         .getSingleResult();

@@ -330,7 +330,7 @@ class PostgresConcurrencyTest {
     }
 
     @Test
-    // 앱 경로의 503 테스트가 의존하는 전제, 즉 JpaStore.isLockTimeout이 기대하는 SQLState 55P03을
+    // 앱 경로의 503 테스트가 의존하는 전제, 즉 PersistenceErrors.isLockTimeout이 기대하는 SQLState 55P03을
     // 실제 PostgreSQL이 lock_timeout 초과 시 내는지를 JDBC로 직접 증명한다.
     void postgresRaisesSqlState55P03OnLockTimeout() throws Exception {
         Subject user = newUser("pg-sqlstate");
