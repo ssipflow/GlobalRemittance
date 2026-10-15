@@ -138,4 +138,61 @@ class ArchitectureTest {
                 "",
                 withoutAllowed(SERVICE_ANNOTATION + TRANSACTION_ANNOTATION, APPLICATION_ALLOWED));
     }
+
+    // 엔티티 생성자·toDomain은 저장소 패키지가 쓰도록 public이라 컴파일러가 다른 계층의 접근을 막지 못한다.
+    // 그래서 persistence 밖에서 엔티티 타입이 상수 풀에 나타나는지를 바이트코드로 직접 막는다.
+    private static final String ENTITY_PACKAGE =
+            "com/nelson/remittance/adapter/persistence/entity/";
+    private static final Path PERSISTENCE = CLASSES.resolve("adapter/persistence");
+
+    // classFiles는 계층 하나만 걷는다. 이 규칙은 계층을 가로지르는 참조가 대상이라 전체를 걷는다.
+    private static List<Path> allClassFiles() throws IOException {
+        assertTrue(Files.isDirectory(CLASSES));
+        try (var files = Files.walk(CLASSES)) {
+            return files.filter(p -> p.toString().endsWith(".class")).toList();
+        }
+    }
+
+    // 판정을 파일 입출력과 분리해 위반 샘플 문자열만으로도 규칙 자체를 검증할 수 있게 한다.
+    private static boolean referencesEntity(String constants) {
+        return constants.contains(ENTITY_PACKAGE);
+    }
+
+    @Test
+    // persistence 밖 클래스가 엔티티를 참조하면 public 생성자·toDomain 오용이 가능해지므로 막는다.
+    void onlyPersistenceAdapterReferencesJpaEntities() throws Exception {
+        List<Path> files = allClassFiles();
+        assertFalse(files.isEmpty(), "main 바이트코드를 찾지 못했다");
+        for (Path file : files) {
+            if (file.startsWith(PERSISTENCE)) {
+                continue;
+            }
+            assertFalse(
+                    referencesEntity(constants(file)),
+                    file.getFileName() + " references JPA entity package " + ENTITY_PACKAGE);
+        }
+    }
+
+    @Test
+    // 문자열 형식이 바이트코드와 어긋나면 위 규칙이 항상 통과해 버리므로, 저장소가 실제로 엔티티를 참조함을 확인한다.
+    void entityPackageIsVisibleInRepositoryBytecode() throws Exception {
+        boolean found = false;
+        for (Path file : classFiles("adapter/persistence/repository")) {
+            found |= referencesEntity(constants(file));
+        }
+        assertTrue(found, "adapter/persistence/repository 바이트코드에서 " + ENTITY_PACKAGE + " 를 찾지 못했다");
+    }
+
+    @Test
+    // 타입 표기·메서드 시그니처 어느 형태로 나타나도 잡히고, 비슷한 이름의 다른 패키지는 오탐하지 않는다.
+    void entityReferenceDetectionCatchesViolationSamples() {
+        assertTrue(
+                referencesEntity(
+                        "Lcom/nelson/remittance/adapter/persistence/entity/AccountEntity;"));
+        assertTrue(
+                referencesEntity(
+                        "(Lcom/nelson/remittance/adapter/persistence/entity/TransferEntity;)V"));
+        assertFalse(referencesEntity("Lcom/nelson/remittance/adapter/persistence/repository/Foo;"));
+        assertFalse(referencesEntity("Lcom/nelson/remittance/domain/entity/Account;"));
+    }
 }
