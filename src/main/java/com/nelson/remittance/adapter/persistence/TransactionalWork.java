@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.persistence;
 
-import com.nelson.remittance.application.Ports;
+import com.nelson.remittance.application.port.Work;
 import com.nelson.remittance.domain.BusinessException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -10,7 +10,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Component
 // 내부 트랜잭션 포트를 Spring 트랜잭션으로 구현하여 예외 시 전체 업무 변경을 되돌린다.
-public class TransactionalWork implements Ports.Work {
+public class TransactionalWork implements Work {
     private final TransactionTemplate transaction;
 
     public TransactionalWork(PlatformTransactionManager manager) {

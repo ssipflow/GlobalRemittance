@@ -4,9 +4,15 @@ import com.nelson.remittance.adapter.forex.ConfiguredRates;
 import com.nelson.remittance.adapter.forex.SimulatedRates;
 import com.nelson.remittance.adapter.security.AesIdentityCipher;
 import com.nelson.remittance.adapter.security.JwtTokens;
-import com.nelson.remittance.application.Ports;
 import com.nelson.remittance.application.TransferUseCases;
 import com.nelson.remittance.application.UserUseCases;
+import com.nelson.remittance.application.port.AccountRepository;
+import com.nelson.remittance.application.port.IdentityCipher;
+import com.nelson.remittance.application.port.PasswordHasher;
+import com.nelson.remittance.application.port.QuoteRepository;
+import com.nelson.remittance.application.port.RateProvider;
+import com.nelson.remittance.application.port.TokenProvider;
+import com.nelson.remittance.application.port.Work;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -59,9 +65,9 @@ public class ApplicationConfiguration {
 
     @Bean
     // BCrypt의 비용과 솔트를 적용하며 비밀번호 원문을 저장 포트에 전달하지 않는다.
-    public Ports.Passwords passwords() {
+    public PasswordHasher passwords() {
         var encoder = new BCryptPasswordEncoder(12);
-        return new Ports.Passwords() {
+        return new PasswordHasher() {
             @Override
             public String hash(String raw) {
                 return encoder.encode(raw);
@@ -76,19 +82,19 @@ public class ApplicationConfiguration {
 
     @Bean
     // 필수 환경 키를 읽어 AES 키 길이를 시작 시점에 확인한다.
-    Ports.IdentityCipher cipher(@Value("${remittance.aes-key}") String key) {
+    IdentityCipher cipher(@Value("${remittance.aes-key}") String key) {
         return new AesIdentityCipher(key);
     }
 
     @Bean
     // JWT 키와 공통 Clock을 연결하고 잘못된 키 설정은 시작 단계에서 실패시킨다.
-    Ports.Tokens tokens(@Value("${remittance.jwt-secret}") String secret, Clock clock) {
+    TokenProvider tokens(@Value("${remittance.jwt-secret}") String secret, Clock clock) {
         return new JwtTokens(secret, clock);
     }
 
     @Bean
     // 환율 공급처를 설정으로 고른다. 설정값이 잘못되면 요청 시점이 아니라 기동 시점에 실패시킨다.
-    Ports.Rates rates(
+    RateProvider rates(
             @Value("${remittance.usd-to-krw}") BigDecimal usd,
             @Value("${remittance.jpy-to-krw}") BigDecimal jpy,
             @Value("${remittance.rates.source:configured}") String source,
@@ -118,11 +124,11 @@ public class ApplicationConfiguration {
     @Bean
     // 계정·보안·트랜잭션 포트를 조합해 내부 가입·로그인 사용 사례를 만든다.
     UserUseCases users(
-            Ports.Accounts accounts,
-            Ports.Passwords passwords,
-            Ports.IdentityCipher cipher,
-            Ports.Tokens tokens,
-            Ports.Work work,
+            AccountRepository accounts,
+            PasswordHasher passwords,
+            IdentityCipher cipher,
+            TokenProvider tokens,
+            Work work,
             Clock clock) {
         return new UserUseCases(accounts, passwords, cipher, tokens, work, clock);
     }
@@ -130,10 +136,10 @@ public class ApplicationConfiguration {
     @Bean
     // 저장·환율·시간·트랜잭션 포트를 조합해 내부 송금 사용 사례를 만든다. 환율 허용 지연은 1~3600초다.
     TransferUseCases transfers(
-            Ports.Accounts accounts,
-            Ports.Quotes quotes,
-            Ports.Rates rates,
-            Ports.Work work,
+            AccountRepository accounts,
+            QuoteRepository quotes,
+            RateProvider rates,
+            Work work,
             Clock clock,
             @Value("${remittance.rates.max-age-seconds:60}") String maxAgeSeconds) {
         Duration maxAge =

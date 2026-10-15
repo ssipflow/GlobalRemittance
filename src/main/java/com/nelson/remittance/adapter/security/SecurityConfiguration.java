@@ -2,7 +2,7 @@ package com.nelson.remittance.adapter.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nelson.remittance.adapter.web.ApiModels.Result;
-import com.nelson.remittance.application.Ports;
+import com.nelson.remittance.application.port.TokenProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,7 +18,7 @@ public class SecurityConfiguration {
     // Bearer 인증 경로와 오류 처리를 설정한다. 별도 세션 로그인과 CSRF 쿠키 인증은 사용하지 않는다.
     SecurityFilterChain security(
             HttpSecurity http,
-            Ports.Tokens tokens,
+            TokenProvider tokens,
             ObjectMapper json,
             @Value("${spring.h2.console.enabled:false}") boolean h2ConsoleEnabled)
             throws Exception {

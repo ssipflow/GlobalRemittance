@@ -14,8 +14,11 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nelson.remittance.adapter.forex.ConfiguredRates;
-import com.nelson.remittance.application.Ports;
 import com.nelson.remittance.application.TransferUseCases;
+import com.nelson.remittance.application.port.AccountRepository;
+import com.nelson.remittance.application.port.QuoteRepository;
+import com.nelson.remittance.application.port.RateProvider;
+import com.nelson.remittance.application.port.Work;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.BusinessException.Code;
 import com.nelson.remittance.domain.RateSnapshot;
@@ -37,15 +40,15 @@ class RatePolicyTest {
     static final BigDecimal AMOUNT = new BigDecimal("100000");
 
     Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
-    Ports.Accounts accounts = mock(Ports.Accounts.class);
-    Ports.Quotes quotes = mock(Ports.Quotes.class);
-    Ports.Rates rates = mock(Ports.Rates.class);
+    AccountRepository accounts = mock(AccountRepository.class);
+    QuoteRepository quotes = mock(QuoteRepository.class);
+    RateProvider rates = mock(RateProvider.class);
     TransferUseCases transfers;
 
     @BeforeEach
     void setUp() {
-        Ports.Work work =
-                new Ports.Work() {
+        Work work =
+                new Work() {
                     @Override
                     public <T> T required(Supplier<T> action) {
                         return action.get();
@@ -139,7 +142,7 @@ class RatePolicyTest {
                         accounts,
                         quotes,
                         new ConfiguredRates(new BigDecimal("1000"), new BigDecimal("10"), clock),
-                        new Ports.Work() {
+                        new Work() {
                             @Override
                             public <T> T required(Supplier<T> action) {
                                 return action.get();

@@ -7,7 +7,10 @@ import static com.nelson.remittance.domain.BusinessException.Code.LOCK_TIMEOUT;
 import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
-import com.nelson.remittance.application.Ports;
+import com.nelson.remittance.application.port.AccountRepository;
+import com.nelson.remittance.application.port.DailyTotal;
+import com.nelson.remittance.application.port.QuotePosition;
+import com.nelson.remittance.application.port.QuoteRepository;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.QuotePolicy;
@@ -27,7 +30,7 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 // JPA 조회와 모델 변환을 담당하며 DB 잠금과 유일 제약으로 동시 처리 경계를 지킨다.
-public class JpaStore implements Ports.Accounts, Ports.Quotes {
+public class JpaStore implements AccountRepository, QuoteRepository {
     private final EntityManager em;
 
     public JpaStore(EntityManager em) {
@@ -176,7 +179,7 @@ public class JpaStore implements Ports.Accounts, Ports.Quotes {
     @Override
     // 접수된 거래만 최신 시각·ID 순으로 읽는다. 경계 조건은 정렬 키와 같아 중복·누락이 없고,
     // 항상 userId 조건을 포함하므로 다른 사용자의 위치값으로도 타인 데이터에 접근할 수 없다.
-    public List<Quote> requestedPage(long userId, Position after, int limit) {
+    public List<Quote> requestedPage(long userId, QuotePosition after, int limit) {
         var query =
                 em.createQuery(
                         "select q from QuoteEntity q where q.user.id = :userId and q.requestedTime is not null "

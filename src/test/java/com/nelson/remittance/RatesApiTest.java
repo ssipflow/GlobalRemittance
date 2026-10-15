@@ -11,7 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nelson.remittance.application.Ports;
+import com.nelson.remittance.application.port.RateProvider;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.RateSnapshot;
 import java.math.BigDecimal;
@@ -196,7 +196,7 @@ class RatesApiTest {
     }
 
     // 장애 토글이 가능한 공급처다. 발급된 견적의 접수가 환율 상태와 무관함을 확인한다.
-    static class SwitchableRates implements Ports.Rates {
+    static class SwitchableRates implements RateProvider {
         final AtomicBoolean down = new AtomicBoolean();
         final Clock clock = Clock.systemUTC();
 

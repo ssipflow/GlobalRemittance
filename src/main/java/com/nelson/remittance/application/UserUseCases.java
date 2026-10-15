@@ -4,6 +4,11 @@ import static com.nelson.remittance.domain.BusinessException.Code.DUPLICATE_USER
 import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
+import com.nelson.remittance.application.port.AccountRepository;
+import com.nelson.remittance.application.port.IdentityCipher;
+import com.nelson.remittance.application.port.PasswordHasher;
+import com.nelson.remittance.application.port.TokenProvider;
+import com.nelson.remittance.application.port.Work;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.User;
 import java.nio.charset.StandardCharsets;
@@ -12,19 +17,19 @@ import java.time.Instant;
 
 // 가입과 로그인을 조정하며 암호화·해시·토큰·저장 구현을 포트로 호출한다.
 public final class UserUseCases {
-    private final Ports.Accounts accounts;
-    private final Ports.Passwords passwords;
-    private final Ports.IdentityCipher cipher;
-    private final Ports.Tokens tokens;
-    private final Ports.Work work;
+    private final AccountRepository accounts;
+    private final PasswordHasher passwords;
+    private final IdentityCipher cipher;
+    private final TokenProvider tokens;
+    private final Work work;
     private final Clock clock;
 
     public UserUseCases(
-            Ports.Accounts accounts,
-            Ports.Passwords passwords,
-            Ports.IdentityCipher cipher,
-            Ports.Tokens tokens,
-            Ports.Work work,
+            AccountRepository accounts,
+            PasswordHasher passwords,
+            IdentityCipher cipher,
+            TokenProvider tokens,
+            Work work,
             Clock clock) {
         this.accounts = accounts;
         this.passwords = passwords;
