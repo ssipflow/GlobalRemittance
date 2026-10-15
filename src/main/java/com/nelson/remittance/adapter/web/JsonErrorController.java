@@ -1,5 +1,6 @@
 package com.nelson.remittance.adapter.web;
 
+import com.nelson.remittance.adapter.web.dto.Result;
 import jakarta.servlet.RequestDispatcher;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.boot.web.servlet.error.ErrorController;
@@ -13,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class JsonErrorController implements ErrorController {
     @RequestMapping("/error")
     // 서블릿 오류 상태만 읽고 원시 메시지나 예외 속성은 응답에 포함하지 않는다.
-    public ResponseEntity<ApiModels.Result> error(HttpServletRequest request) {
+    public ResponseEntity<Result> error(HttpServletRequest request) {
         // 서블릿 sendError도 HTML 기본 오류 화면으로 빠지지 않도록 JSON 경계를 유지한다.
         Object attribute = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         int status = attribute instanceof Integer value ? value : 404;
@@ -33,6 +34,6 @@ public class JsonErrorController implements ErrorController {
         // ERROR_MESSAGE/EXCEPTION 등 원시 오류 속성은 개인 정보가 포함될 수 있어 읽지 않는다.
         return ResponseEntity.status(status)
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new ApiModels.Result(status, code));
+                .body(new Result(status, code));
     }
 }

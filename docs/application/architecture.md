@@ -23,7 +23,7 @@ flowchart LR
 | --- | --- | --- |
 | domain | 수수료·수취액 계산, 견적 발급·접수 상태와 만료(10분), 멱등성 재현 판단(24시간 창), 신원 유형별 일일 한도 검사, KST 기준일 | QuotePolicy, Quote, User, BusinessDay, RateSnapshot, BusinessException |
 | application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트(`application.port` 패키지의 인터페이스) | UserUseCases, TransferUseCases, AccountRepository, QuoteRepository, RateProvider, PasswordHasher, IdentityCipher, TokenProvider |
-| adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, JsonConfiguration, RequestIdFilter, ErrorDescriptions |
+| adapter/web | 입력 검증, 인증 사용자 변환, 이력 페이징(페이지 크기 검증·커서 인코딩/디코딩), JSON 응답과 오류, OpenAPI 명세 선언. 요청/응답 DTO는 `adapter/web/dto` 패키지에 한 파일씩 둔다 | UserController, TransferController, HistoryPaging, dto(Signup, Login, QuoteInput, RequestInput, Result, LoginResult, QuoteView, QuoteResult, HistoryView, HistoryResult, ApiTime), ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, JsonConfiguration, RequestIdFilter, ErrorDescriptions |
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL). 계정(`JpaAccountRepository`)과 견적(`JpaQuoteRepository`) 저장소를 분리하고 DB 예외 판별(`PersistenceErrors`)·ID 범위 변환(`EntityIds`)은 공용으로 둔다 | JpaAccountRepository, JpaQuoteRepository, PersistenceErrors, EntityIds, UserEntity, QuoteEntity, RollbackSafeTransactionManager |
 | adapter/security | BCrypt 비밀번호 해시, AES-GCM, JWT 발급·검증, 인증 필터 | BCryptPasswordHasher, AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
 | adapter/forex | 설정 환율 제공, 지연·장애를 주입하는 모의 공급처 | ConfiguredRates, SimulatedRates |
@@ -90,6 +90,8 @@ sequenceDiagram
 ```
 
 정렬은 `(requestedTime desc, id desc)`다. 다음 페이지는 `requestedTime < t OR (requestedTime = t AND id < lastId)` 조건으로 읽는다. 페이지 크기보다 한 건 더 조회해 다음 페이지의 존재를 판단한다. 커서의 인코딩은 웹 계층이 담당하고 application에는 `(Instant, long)` 위치값을 전달한다.
+
+커서 인코딩/디코딩과 페이지 크기 검증은 컨트롤러가 아니라 웹 어댑터의 `HistoryPaging`이 맡는다. 커서는 `초.나노.ID`를 URL-safe Base64로 감싼 값이며, 재인코딩 결과가 입력과 같아야 하므로 비정규 표기를 거부하고 초·나노·ID 범위를 제한한다. 예전에는 요청/응답 DTO가 하나의 `ApiModels` 이름 공간 클래스에, 이 페이징 코드가 `TransferController`에 함께 있었다. DTO의 클래스 이름은 OpenAPI 스키마 이름이 되므로 분리하면서 이름을 바꾸지 않았다.
 
 모든 조회에는 인증 사용자의 ID 조건을 적용한다. 커서는 조회 위치이고 접근 권한이 아니다. 인덱스 `idx_remittances_user_requested(user_id, requested_time)`는 사용자·시각 범위를 좁힌다. id를 포함한 복합 인덱스는 아니므로 동일 시각의 ID 비교·정렬까지 인덱스로 해결한다고 가정하지 않는다.
 

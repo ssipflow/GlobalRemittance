@@ -1,7 +1,7 @@
 package com.nelson.remittance.adapter.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nelson.remittance.adapter.web.ApiModels.Result;
+import com.nelson.remittance.adapter.web.dto.Result;
 import com.nelson.remittance.application.port.TokenProvider;
 import com.nelson.remittance.domain.BusinessException;
 import jakarta.servlet.FilterChain;

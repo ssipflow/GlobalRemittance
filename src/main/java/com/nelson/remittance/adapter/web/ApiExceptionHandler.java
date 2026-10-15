@@ -1,7 +1,6 @@
 package com.nelson.remittance.adapter.web;
 
-import static com.nelson.remittance.adapter.web.ApiModels.Result;
-
+import com.nelson.remittance.adapter.web.dto.Result;
 import com.nelson.remittance.domain.BusinessException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
