@@ -28,6 +28,9 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 | REMITTANCE_DB_PASSWORD | 파일 H2의 sa 비밀번호 | 빈 값 |
 | REMITTANCE_USD_TO_KRW | USD 1단위당 KRW | 1300, 예시 환율 |
 | REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
+| REMITTANCE_RATES_MAX_AGE_SECONDS | 환율 기준 시각 허용 지연(초, 1~3600). 넘으면 견적 503 `RATE_STALE` | 60 |
+| REMITTANCE_RATES_SOURCE | `configured`(설정 환율) 또는 `simulated`(지연·장애를 주입하는 모의 공급처, 운영 사용 금지) | configured |
+| REMITTANCE_RATES_SIMULATED_AGE_SECONDS / _UNAVAILABLE | 모의 공급처의 지연(초)과 장애 여부 | 0 / false |
 | REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms) | 5000 |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI·OpenAPI 노출 | true |
 | SPRING_PROFILES_ACTIVE | local이면 H2 콘솔·SQL 진단 활성화 | 지정하지 않음 |
@@ -41,6 +44,12 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 ```
 
 동일 속성의 앱 인자는 환경변수보다 우선한다. 인자는 프로세스 목록·셸 기록에 노출될 수 있어 로컬 개발 대안으로만 사용한다. `./gradlew -Dremittance.aes-key=...`는 Gradle JVM 속성이므로 bootRun 앱에 자동 전달되지 않는다.
+
+### 환율 신선도 정책
+
+환율에는 기준 시각이 붙고, 기준 시각이 현재와 허용 지연(기본 60초)을 초과해 벗어나거나(같으면 신선) 조회가 실패하면 견적 발급을 503(`RATE_STALE`/`RATE_UNAVAILABLE`)으로 거부한다. 직전 값을 몰래 쓰지 않는다. 접수는 환율을 조회하지 않으므로 이미 발급된 견적에는 영향이 없다. 기본 공급처(`configured`)는 설정값을 항상 현재 시각으로 돌려줘 동작이 이전과 같다.
+
+실제 시세 공급처는 붙이지 않았다. 정책을 시연·검증하려고 모의 공급처를 두었으며 `REMITTANCE_RATES_SOURCE=simulated`에 `REMITTANCE_RATES_SIMULATED_AGE_SECONDS=120` 또는 `REMITTANCE_RATES_SIMULATED_UNAVAILABLE=true`를 주면 지연·장애를 재현한다(기동 시 WARN 로그가 나온다). 잘못된 값(범위 밖·형식 오류)은 기동 시점에 거부하되(모의 공급처 값은 `source=simulated`일 때만 검사하고, `configured`에서는 무시한다. 선행 0은 허용한다), DB 초기화 뒤에 검사하므로, 잠금 대기 설정과 달리 거부되기 전에 `./data`가 만들어질 수 있다.
 
 ### DB 비밀번호와 시작 실패
 

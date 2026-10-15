@@ -14,6 +14,8 @@ public final class BusinessException extends RuntimeException {
         LIMIT_EXCESS,
         IDEMPOTENCY_KEY_REUSED,
         LOCK_TIMEOUT,
+        RATE_UNAVAILABLE,
+        RATE_STALE,
         UNKNOWN_ERROR
     }
 

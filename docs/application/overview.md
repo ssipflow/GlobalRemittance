@@ -2,7 +2,7 @@
 
 원화 송금 견적을 만들고 USD 또는 JPY 송금을 접수하는 개인 프로젝트다. 회원가입·로그인·견적·접수·이력 조회를 제공하며, 금액 계산과 동시 요청에서의 일일 한도 검증을 주요 설계 대상으로 삼는다.
 
-송금 접수는 DB에 접수 시각을 기록하는 단계까지 구현했다. 금융기관에 지급을 요청하거나 실제 자금을 이동하지는 않는다. 환율도 외부 시세가 아닌 설정값을 사용한다.
+송금 접수는 DB에 접수 시각을 기록하는 단계까지 구현했다. 금융기관에 지급을 요청하거나 실제 자금을 이동하지는 않는다. 환율도 외부 시세가 아닌 설정값을 사용하지만, 환율에 기준 시각을 붙여 오래됐거나 조회에 실패하면 견적을 거부하는 신선도 정책을 갖췄다(지연·장애를 주입하는 모의 공급처로 검증).
 
 ## 서비스 흐름
 
@@ -36,6 +36,9 @@ Java 17, Spring Boot 3, Spring Security, JPA, Flyway, embedded H2를 사용한�
 | REMITTANCE_JWT_SECRET | Base64로 인코딩한 32바이트 이상 JWT 키 | 필수 |
 | REMITTANCE_USD_TO_KRW | USD 1단위당 KRW | 1300, 예시 환율 |
 | REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
+| REMITTANCE_RATES_MAX_AGE_SECONDS | 환율 기준 시각 허용 지연(초, 1~3600). 넘으면 견적 503 | 60 |
+| REMITTANCE_RATES_SOURCE | `configured` 또는 `simulated`(모의 공급처, 지연·장애 주입, 운영 사용 금지) | configured |
+| REMITTANCE_RATES_SIMULATED_AGE_SECONDS / _UNAVAILABLE | 모의 공급처의 지연(초)과 장애 여부 | 0 / false |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI(`/swagger-ui.html`)와 OpenAPI 명세(`/v3/api-docs`) 노출 | true |
 | REMITTANCE_LOCK_TIMEOUT_MS | 사용자 행 잠금 대기 한도(ms). H2는 URL `LOCK_TIMEOUT`, `postgres` 프로파일은 연결별 `SET lock_timeout`으로 적용한다. 1~30000 ASCII 숫자, 부호·공백·선행 0 불가 | 5000 |
 | REMITTANCE_DB_PASSWORD | DB 접속 비밀번호. H2는 `sa` 비밀번호이며 파일 DB를 처음 만들 때 고정되어 다른 값으로 실행하면 기동이 거부된다. `postgres` 프로파일은 PostgreSQL 비밀번호 | 빈 값 |
@@ -44,7 +47,7 @@ Java 17, Spring Boot 3, Spring Security, JPA, Flyway, embedded H2를 사용한�
 
 필수 키를 설정한 뒤 `./gradlew bootRun`으로 실행한다. 파일 DB는 `./data/remittance`에 생성된다. 암호화한 식별번호를 읽으려면 기존 AES 키를 유지해야 한다. 실제 키와 개인정보는 저장소나 문서에 넣지 않는다.
 
-접수 API는 선택적 `Idempotency-Key`로 같은 견적의 성공 응답을 접수 후 24시간 미만 동안 재현한다. 키는 사용자별로 견적에 계속 귀속되며 실패 응답은 저장하지 않는다. 다중 인스턴스 운영 환경의 잠금·장애 복구, 실제 금융기관 송금, 실시간 환율 공급과 다른 시스템에서의 데이터 이전은 구현·검증 범위에 포함하지 않았다.
+접수 API는 선택적 `Idempotency-Key`로 같은 견적의 성공 응답을 접수 후 24시간 미만 동안 재현한다. 키는 사용자별로 견적에 계속 귀속되며 실패 응답은 저장하지 않는다. 다중 인스턴스 운영 환경의 잠금·장애 복구, 실제 금융기관 송금, 실제 시세 공급처 연동과 다른 시스템에서의 데이터 이전은 구현·검증 범위에 포함하지 않았다.
 
 ## 실행 후 확인할 경로와 헤더
 

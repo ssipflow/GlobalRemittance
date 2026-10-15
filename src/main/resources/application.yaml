@@ -39,6 +39,17 @@ remittance:
   # 사용자 행 잠금을 기다리는 최대 시간(ms)이다. H2는 URL의 LOCK_TIMEOUT, postgres 프로파일은 연결별 SET lock_timeout으로 적용한다. 초과하면 503 LOCK_TIMEOUT이다.
   # 허용 범위는 1~30000이며 벗어나면 DB 연결 전에 기동을 거부한다(대기 요청이 스레드·연결을 오래 점유하지 않게 한다).
   lock-timeout-ms: ${REMITTANCE_LOCK_TIMEOUT_MS:5000}
+  # 환율 공급처와 신선도 정책이다. 잘못된 값은 기동 시점에 거부한다.
+  rates:
+    # configured(설정 환율) | simulated(지연·장애를 주입하는 모의 공급처, 운영 사용 금지)
+    source: ${REMITTANCE_RATES_SOURCE:configured}
+    # 환율 기준 시각이 현재와 이 초를 초과해 벗어나면(같으면 신선) 견적 발급을 503 RATE_STALE로 거부한다(1~3600).
+    max-age-seconds: ${REMITTANCE_RATES_MAX_AGE_SECONDS:60}
+    simulated:
+      # 모의 환율의 기준 시각을 이만큼(초, 0 이상 정수) 과거로 돌린다.
+      age-seconds: ${REMITTANCE_RATES_SIMULATED_AGE_SECONDS:0}
+      # true면 환율 조회가 실패해 견적 발급이 503 RATE_UNAVAILABLE이 된다.
+      unavailable: ${REMITTANCE_RATES_SIMULATED_UNAVAILABLE:false}
 
 # API 명세와 Swagger UI는 함께 켜고 끈다. 외부에 노출하지 않을 환경에서는 REMITTANCE_API_DOCS_ENABLED=false로 끈다.
 springdoc:

@@ -3,11 +3,13 @@ package com.nelson.remittance.application;
 import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
 import static com.nelson.remittance.domain.BusinessException.Code.LIMIT_EXCESS;
 import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
+import static com.nelson.remittance.domain.BusinessException.Code.RATE_STALE;
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.QuotePolicy;
+import com.nelson.remittance.domain.RateSnapshot;
 import com.nelson.remittance.domain.User;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -27,30 +29,40 @@ public final class TransferUseCases {
     private final Ports.Rates rates;
     private final Ports.Work work;
     private final Clock clock;
+    private final Duration rateMaxAge;
 
     public TransferUseCases(
             Ports.Accounts accounts,
             Ports.Quotes quotes,
             Ports.Rates rates,
             Ports.Work work,
-            Clock clock) {
+            Clock clock,
+            Duration rateMaxAge) {
         this.accounts = accounts;
         this.quotes = quotes;
         this.rates = rates;
         this.work = work;
         this.clock = clock;
+        this.rateMaxAge = rateMaxAge;
     }
 
-    // 존재하는 사용자에 대해 현재 구성 환율과 수수료를 확정하고 10분짜리 견적을 저장한다.
+    // 존재하는 사용자에 대해 신선한 환율과 수수료를 확정하고 10분짜리 견적을 저장한다.
+    // 환율 조회는 발급 시점에만 한다. 발급된 견적은 10분간 환율이 고정이므로 접수(request)는 환율 상태와 무관하다.
+    // 실제 외부 공급처를 붙이면 이 호출이 트랜잭션 안에서 일어나 DB 연결을 붙잡는다는 점을 재검토해야 한다.
     public Quote quote(long actorId, BigDecimal amount, String currency) {
         return work.required(
                 () -> {
                     accounts.findUser(actorId)
                             .orElseThrow(() -> new BusinessException(UNAUTHORIZED));
-                    var calculation =
-                            QuotePolicy.calculate(
-                                    amount, currency, rates.toKrw(currency), rates.toKrw("USD"));
+                    // 대상이 USD면 한 번만 조회해 두 환율이 같은 스냅샷에서 나오게 한다.
+                    RateSnapshot target = rates.rate(currency);
+                    RateSnapshot usd = "USD".equals(currency) ? target : rates.rate("USD");
                     Instant now = clock.instant();
+                    if (!target.isFresh(now, rateMaxAge) || !usd.isFresh(now, rateMaxAge)) {
+                        throw new BusinessException(RATE_STALE);
+                    }
+                    var calculation =
+                            QuotePolicy.calculate(amount, currency, target.toKrw(), usd.toKrw());
                     return quotes.saveQuote(
                             new Quote(
                                     0,

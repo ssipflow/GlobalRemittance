@@ -29,13 +29,14 @@ public class ApiExceptionHandler {
                     case QUOTE_NOT_FOUND -> HttpStatus.NOT_FOUND;
                     case DUPLICATE_USER, ALREADY_REQUESTED -> HttpStatus.CONFLICT;
                     case IDEMPOTENCY_KEY_REUSED -> HttpStatus.UNPROCESSABLE_ENTITY;
-                    case LOCK_TIMEOUT -> HttpStatus.SERVICE_UNAVAILABLE;
+                    case LOCK_TIMEOUT, RATE_UNAVAILABLE, RATE_STALE ->
+                            HttpStatus.SERVICE_UNAVAILABLE;
                     case UNKNOWN_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
                     default -> HttpStatus.BAD_REQUEST;
                 };
         // 요청 ID는 MDC로 로그 패턴에 붙는다. 업무 오류는 코드만 남기고 예외 메시지·객체는 남기지 않는다.
         switch (error.code()) {
-            case LOCK_TIMEOUT ->
+            case LOCK_TIMEOUT, RATE_UNAVAILABLE, RATE_STALE ->
                     LOG.warn("business error code={} {}", error.code(), where(request));
             case UNKNOWN_ERROR ->
                     LOG.error("business error code={} {}", error.code(), where(request));
