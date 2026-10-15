@@ -26,6 +26,7 @@
 | 요청 멱등성 키 | 접수의 선택 Idempotency-Key, 같은 키·견적 24시간 성공 재현, 다른 견적 422, 실패 비소비, 사용자 잠금 안 동시 재시도 1회 반영 | [멱등성](tasks/request-idempotency.md) |
 | 스키마 마이그레이션(Flyway) | ddl-auto 대신 버전 SQL(V1 기준선·V2 멱등성 키), validate, 이력 없는 기존 파일 DB의 기준선 업그레이드와 실제 구 DB 파일 확인 | [Flyway](tasks/flyway-migrations.md) |
 | 잠금 대기 안내와 설정 검증 | LOCK_TIMEOUT 503의 `Retry-After: 1`, REMITTANCE_LOCK_TIMEOUT_MS 1~30000 검증과 시작 실패 안내 | [잠금 안내](tasks/lock-timeout-guidance.md) |
+| DB 접속 실패 진단 | Flyway 단계 접속 실패를 SQLState로 분류(인증/연결 불가/DB 없음)해 비노출 안내 블록 출력, DB 종류별 조치 | [DB 접속 진단](tasks/db-connection-diagnostics.md) |
 | PostgreSQL 동시성·락·복구 검증(운영 DB 검증 2단계) | 동시 접수·한도·멱등성 경쟁, 락 타임아웃(503·`Retry-After`), 55P03 직접 확인, 연결 끊김 복구를 Testcontainers로 재현 | [PostgreSQL 동시성](tasks/postgres-concurrency.md) |
 | PostgreSQL 프로파일(운영 DB 검증 1단계) | `postgres` 프로파일, PostgreSQL 전용 Flyway V1/V2, `SET lock_timeout`, 태그 분리된 Testcontainers 스키마·기동·API 스모크 테스트 | [PostgreSQL 프로파일](tasks/postgres-profile.md) |
 | 테스트 가드 강화 | ArchitectureTest의 Swagger/springdoc 참조 금지와 양성 대조, OpenApiTest의 swagger-ui.html 302·Location 정밀 검증 | [가드 강화](tasks/test-guard-hardening.md) |

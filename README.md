@@ -46,7 +46,7 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 
 H2 비밀번호는 파일 DB를 처음 만들 때 정해진다. 기본 빈 비밀번호로 만든 DB에 나중에 다른 REMITTANCE_DB_PASSWORD를 지정해도 기존 비밀번호가 변경되지는 않는다. 새 DB를 만들 때만 원하는 값을 지정하고, 기존 DB는 만들 때의 값을 사용한다.
 
-DB 비밀번호가 맞지 않으면 Flyway 초기화 단계(`flywayInitializer`)에서 먼저 실패한다. 직접 확인한 결과 기본 프로파일에서도 예외 연쇄에 실제 원인이 남았다(H2는 `Wrong user name or password`, PostgreSQL은 `password authentication failed`). 이때 비밀번호와 JDBC URL은 로그에 출력되지 않았다. 안내 블록(`APPLICATION FAILED TO START`)은 나오지 않는다. Flyway 도입 전에 만든 `Unable to determine Dialect...` 안내(DatabaseConnectionFailureAnalyzer)는 이 시나리오에서 더 이상 동작하지 않으며, 분석기 개선은 후속 과제다. 기존 키·DB 비밀번호를 확인하고 로컬 프로파일의 연결 풀 로그나 `data/remittance.trace.db`를 살펴본다.
+DB 접속에 실패하면 Flyway 초기화 단계(`flywayInitializer`)에서 먼저 실패하며, 시작 실패 분석기(DatabaseConnectionFailureAnalyzer)가 `APPLICATION FAILED TO START` 블록으로 원인을 SQLState로 분류해 안내한다: 인증 거부(`28xxx`, H2 28000·PostgreSQL 28P01), 서버에 연결 불가(`08xxx`), 데이터베이스 없음(`3D000`), 그 밖의 접속 실패. 안내에는 비밀번호·사용자명·호스트·JDBC URL을 넣지 않고 SQLState 코드만 보여 준다. 조치 문구는 예외 클래스명으로 H2와 PostgreSQL을 구분한다(H2는 파일 DB 비밀번호 고정·`trace.db`, PostgreSQL은 `pg_hba.conf`). 안내 블록 아래에는 스택이 나오지 않고, 라이브러리의 원래 메시지는 블록 바로 위 WARN 로그 한 줄에 있으며 사용자명이나 호스트:포트가 포함될 수 있다(직접 확인: 비밀번호와 JDBC URL은 없었다). H2 기본 프로파일의 틀린 비밀번호와 PostgreSQL의 틀린 비밀번호·닫힌 포트·없는 DB를 실제 jar 기동으로 확인했다. 기존 키·DB 비밀번호를 확인하고 로컬 프로파일의 연결 풀 로그나 `data/remittance.trace.db`를 살펴본다.
 
 데이터를 유지해야 하면 기존 비밀번호로 접속해 H2의 ALTER USER로 변경한다. DB를 재생성하는 방법은 기존 로컬 데이터를 버려도 되는 경우에만 사용한다. DB 접속 비밀번호가 파일 내용을 암호화하는 것은 아니다.
 
