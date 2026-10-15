@@ -1,4 +1,4 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.config;
 
 import java.time.Clock;
 import org.springframework.context.annotation.Bean;

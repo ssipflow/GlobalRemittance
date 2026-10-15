@@ -1,4 +1,4 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.diagnostics;
 
 import java.sql.SQLException;
 import java.util.regex.Pattern;

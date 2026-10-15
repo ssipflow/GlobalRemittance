@@ -1,7 +1,7 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.config;
 
-import static com.nelson.remittance.bootstrap.ConfigValues.bool;
-import static com.nelson.remittance.bootstrap.ConfigValues.integer;
+import static com.nelson.remittance.bootstrap.config.ConfigValues.bool;
+import static com.nelson.remittance.bootstrap.config.ConfigValues.integer;
 
 import com.nelson.remittance.adapter.forex.ConfiguredRates;
 import com.nelson.remittance.adapter.forex.SimulatedRates;

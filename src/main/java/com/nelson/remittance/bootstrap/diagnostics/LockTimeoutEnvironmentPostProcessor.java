@@ -1,4 +1,4 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.diagnostics;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.env.EnvironmentPostProcessor;

@@ -1,4 +1,4 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.config;
 
 // 문자열로 받은 설정값을 기동 시점에 엄격하게 해석한다. 잘못된 값은 설정 키와 함께 거부한다.
 final class ConfigValues {

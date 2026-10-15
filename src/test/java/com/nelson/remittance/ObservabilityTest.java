@@ -203,7 +203,8 @@ class ObservabilityTest {
     // Dialect 결정 실패 연쇄는 안내를 반환하고 무관한 예외는 null이며 안내에 비밀 값이 없다.
     @Test
     void databaseConnectionAnalyzerDetectsDialectFailureOnly() {
-        var analyzer = new com.nelson.remittance.bootstrap.DatabaseConnectionFailureAnalyzer();
+        var analyzer =
+                new com.nelson.remittance.bootstrap.diagnostics.DatabaseConnectionFailureAnalyzer();
         Exception failure =
                 new IllegalStateException(
                         "context failed",

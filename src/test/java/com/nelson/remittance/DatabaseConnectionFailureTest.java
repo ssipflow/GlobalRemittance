@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.nelson.remittance.bootstrap.DatabaseConnectionFailureAnalyzer;
+import com.nelson.remittance.bootstrap.diagnostics.DatabaseConnectionFailureAnalyzer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;

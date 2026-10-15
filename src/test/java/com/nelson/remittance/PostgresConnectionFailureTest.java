@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.nelson.remittance.bootstrap.DatabaseConnectionFailureAnalyzer;
+import com.nelson.remittance.bootstrap.diagnostics.DatabaseConnectionFailureAnalyzer;
 import java.io.IOException;
 import java.net.ServerSocket;
 import org.junit.jupiter.api.Tag;

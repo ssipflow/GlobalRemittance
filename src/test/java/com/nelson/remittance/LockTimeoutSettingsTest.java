@@ -8,9 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.nelson.remittance.bootstrap.InvalidLockTimeoutException;
-import com.nelson.remittance.bootstrap.LockTimeoutEnvironmentPostProcessor;
-import com.nelson.remittance.bootstrap.LockTimeoutFailureAnalyzer;
+import com.nelson.remittance.bootstrap.diagnostics.InvalidLockTimeoutException;
+import com.nelson.remittance.bootstrap.diagnostics.LockTimeoutEnvironmentPostProcessor;
+import com.nelson.remittance.bootstrap.diagnostics.LockTimeoutFailureAnalyzer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;

@@ -1,4 +1,4 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.config;
 
 import com.nelson.remittance.adapter.persistence.tx.RollbackSafeTransactionManager;
 import jakarta.persistence.EntityManagerFactory;
