@@ -18,7 +18,6 @@ import com.nelson.remittance.application.TransferUseCases;
 import com.nelson.remittance.application.port.AccountRepository;
 import com.nelson.remittance.application.port.QuoteRepository;
 import com.nelson.remittance.application.port.RateProvider;
-import com.nelson.remittance.application.port.Work;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.BusinessException.Code;
 import com.nelson.remittance.domain.RateSnapshot;
@@ -29,7 +28,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
-import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -47,16 +45,9 @@ class RatePolicyTest {
 
     @BeforeEach
     void setUp() {
-        Work work =
-                new Work() {
-                    @Override
-                    public <T> T required(Supplier<T> action) {
-                        return action.get();
-                    }
-                };
         when(accounts.findUser(anyLong())).thenReturn(Optional.of(mock(User.class)));
         when(quotes.saveQuote(any())).thenAnswer(call -> call.getArgument(0));
-        transfers = new TransferUseCases(accounts, quotes, rates, work, clock, MAX);
+        transfers = new TransferUseCases(accounts, quotes, rates, clock, MAX);
     }
 
     RateSnapshot at(String rate, Instant asOf) {
@@ -142,12 +133,6 @@ class RatePolicyTest {
                         accounts,
                         quotes,
                         new ConfiguredRates(new BigDecimal("1000"), new BigDecimal("10"), clock),
-                        new Work() {
-                            @Override
-                            public <T> T required(Supplier<T> action) {
-                                return action.get();
-                            }
-                        },
                         clock,
                         MAX);
         assertCode(Code.INVALID_REQUEST, () -> configured.quote(1, AMOUNT, "EUR"));

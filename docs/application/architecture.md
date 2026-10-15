@@ -22,16 +22,18 @@ flowchart LR
 | 계층 | 책임 | 주요 클래스 |
 | --- | --- | --- |
 | domain | 수수료·수취액 계산, 견적 상태와 만료, 신원 유형별 한도 | QuotePolicy, Quote, User, BusinessException |
-| application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트(`application.port` 패키지의 인터페이스) | UserUseCases, TransferUseCases, AccountRepository, QuoteRepository, RateProvider, PasswordHasher, IdentityCipher, TokenProvider, Work |
+| application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트(`application.port` 패키지의 인터페이스) | UserUseCases, TransferUseCases, AccountRepository, QuoteRepository, RateProvider, PasswordHasher, IdentityCipher, TokenProvider |
 | adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, RequestIdFilter, ErrorDescriptions |
-| adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
+| adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, RollbackSafeTransactionManager |
 | adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
 | adapter/forex | 설정 환율 제공, 지연·장애를 주입하는 모의 공급처 | ConfiguredRates, SimulatedRates |
 | bootstrap | DI, Clock와 BCrypt 구성, 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer |
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 OpenApiConfiguration에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
 
-`application.port` 패키지는 계정·견적 저장(`AccountRepository`, `QuoteRepository`), 환율(`RateProvider`), 비밀번호(`PasswordHasher`), 식별번호 암호화(`IdentityCipher`), 토큰(`TokenProvider`), 트랜잭션 실행(`Work`)의 경계를 한 파일에 하나씩 최상위 인터페이스로 정의한다. 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다. TransactionalWork는 Work 포트를 TransactionTemplate으로 구현한다. 사용 사례는 트랜잭션 범위를 정하지만 Spring API에는 의존하지 않는다.
+`application.port` 패키지는 계정·견적 저장(`AccountRepository`, `QuoteRepository`), 환율(`RateProvider`), 비밀번호(`PasswordHasher`), 식별번호 암호화(`IdentityCipher`), 토큰(`TokenProvider`)의 경계를 한 파일에 하나씩 최상위 인터페이스로 정의한다. 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다.
+
+트랜잭션은 사용 사례의 업무 메서드(`quote`, `request`, `history`, `signup`, `login`)에 붙인 `@Transactional`로 건다. application 계층에서 허용하는 Spring 의존은 `org.springframework.transaction.annotation.Transactional` 하나뿐이며 `ArchitectureTest`가 그 밖의 Spring·JPA 참조(같은 패키지의 다른 타입 포함)를 계속 막는다(domain은 Spring 전체 금지). 프록시가 서브클래스를 만들므로 사용 사례 클래스는 final이 아니다. 예전의 `Work` 포트와 TransactionTemplate 구현(`TransactionalWork`)은 제거했다. 어댑터의 `RollbackSafeTransactionManager`는 롤백 자체가 실패해도 호출자가 원래 예외를 받게 한다.
 
 ## 인증과 견적 생성
 
@@ -63,7 +65,7 @@ sequenceDiagram
 
 사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 멱등성 키 조회도 같은 잠금 안에서 하므로 같은 키의 동시 재시도는 한 번만 반영된다. 키는 접수된 견적 행의 `idempotency_key`에 저장하고 (user_id, idempotency_key) 유일 제약이 한 키를 한 견적에만 묶는다. 구체적인 경쟁 상황은 [[주요 설계]]에서 설명한다.
 
-H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 JpaStore가 LOCK_TIMEOUT 업무 오류로 변환하고 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000의 ASCII 숫자 표기인지 검사(부호·공백·선행 0 불가)하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우 TransactionalWork가 해당 업무 오류를 다시 전달한다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
+H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 JpaStore가 LOCK_TIMEOUT 업무 오류로 변환하고 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000의 ASCII 숫자 표기인지 검사(부호·공백·선행 0 불가)하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우에도 RollbackSafeTransactionManager가 롤백 실패를 삼켜 원래 업무 오류가 전달된다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
 
 ## 이력 조회
 
