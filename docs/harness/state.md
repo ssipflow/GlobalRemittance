@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/package-adapter-security-persistence. adapter/security를 crypto·jwt로, adapter/persistence를 entity·repository·tx로 분리(전체 패키지 재구성 5개 PR 중 3번째, 동작 불변). 엔티티 필드는 열지 않고 `QuoteEntity.markRequested`를 추가.
-- 시작 기준: 2026-10-15 dev f0c4395, PR #39까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/package-adapter-security-persistence.md)의 옛 경로 잔존 없음, check·bootJar·postgresTest, OpenAPI 명세 비교, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 4) bootstrap(config·diagnostics, spring.factories FQCN 3개), 5) 테스트 패키지 정리. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
+- 현재 작업: feature/package-bootstrap. bootstrap을 config·diagnostics로 분리하고 spring.factories FQCN을 갱신(전체 패키지 재구성 5개 PR 중 4번째, 동작 불변).
+- 시작 기준: 2026-10-15 dev, PR #40까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/package-bootstrap.md)의 옛 경로 잔존 없음, check·bootJar·postgresTest, OpenAPI 비교, 시작 실패 진단 jar 확인, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 5) 테스트 패키지 정리. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

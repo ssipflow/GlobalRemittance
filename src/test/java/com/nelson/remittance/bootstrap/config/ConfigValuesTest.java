@@ -1,4 +1,4 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;

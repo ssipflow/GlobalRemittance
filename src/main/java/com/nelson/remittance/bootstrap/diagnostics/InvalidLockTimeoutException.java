@@ -1,4 +1,4 @@
-package com.nelson.remittance.bootstrap;
+package com.nelson.remittance.bootstrap.diagnostics;
 
 // 잠금 대기 설정이 허용 범위를 벗어났음을 알린다. 값은 출력 안전하게 정리해 보관하고 메시지에는 넣지 않는다.
 public class InvalidLockTimeoutException extends RuntimeException {
