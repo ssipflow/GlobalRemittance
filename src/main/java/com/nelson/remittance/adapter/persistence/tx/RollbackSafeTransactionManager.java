@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.tx;
 
 import jakarta.persistence.EntityManagerFactory;
 import java.sql.SQLException;

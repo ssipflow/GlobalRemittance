@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.entity;
 
 import com.nelson.remittance.domain.quote.Quote;
 import com.nelson.remittance.domain.quote.QuotePolicy;
@@ -83,7 +83,7 @@ public class QuoteEntity {
 
     protected QuoteEntity() {}
 
-    QuoteEntity(Quote quote, UserEntity user) {
+    public QuoteEntity(Quote quote, UserEntity user) {
         this.user = user;
         var c = quote.calculation();
         sourceAmount = c.sourceAmount();
@@ -103,7 +103,7 @@ public class QuoteEntity {
     }
 
     // 저장 자릿수를 통화 자릿수로 복원하며 LAZY 소유자 식별자는 프록시 getter로 읽는다.
-    Quote toDomain() {
+    public Quote toDomain() {
         // LAZY 소유자 프록시의 필드 직접 접근은 null일 수 있다. 식별자 getter를 통해 읽는다.
         return new Quote(
                 id,
@@ -123,5 +123,12 @@ public class QuoteEntity {
                 idempotencyKey,
                 createdAt,
                 updatedAt);
+    }
+
+    // 접수 상태 전이만 허용한다. 견적 시 확정한 계산 필드는 바뀌지 않는다.
+    public void markRequested(Instant requestedTime, String idempotencyKey, Instant updatedAt) {
+        this.requestedTime = requestedTime;
+        this.idempotencyKey = idempotencyKey;
+        this.updatedAt = updatedAt;
     }
 }

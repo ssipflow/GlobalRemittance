@@ -1,8 +1,10 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.repository;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.IDEMPOTENCY_KEY_REUSED;
 import static com.nelson.remittance.domain.exception.ErrorCode.QUOTE_NOT_FOUND;
 
+import com.nelson.remittance.adapter.persistence.entity.QuoteEntity;
+import com.nelson.remittance.adapter.persistence.entity.UserEntity;
 import com.nelson.remittance.application.port.repository.DailyTotal;
 import com.nelson.remittance.application.port.repository.QuotePosition;
 import com.nelson.remittance.application.port.repository.QuoteRepository;
@@ -64,9 +66,7 @@ public class JpaQuoteRepository implements QuoteRepository {
             throw new BusinessException(QUOTE_NOT_FOUND);
         }
         // 접수는 상태만 갱신한다. 견적 시 확정한 환율·수수료를 현재 시세로 재계산하지 않는다.
-        entity.requestedTime = quote.requestedTime();
-        entity.idempotencyKey = quote.idempotencyKey();
-        entity.updatedAt = quote.updatedAt();
+        entity.markRequested(quote.requestedTime(), quote.idempotencyKey(), quote.updatedAt());
         try {
             em.flush();
         } catch (PersistenceException error) {

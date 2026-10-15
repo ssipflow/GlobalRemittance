@@ -11,7 +11,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.nelson.remittance.adapter.persistence.RollbackSafeTransactionManager;
+import com.nelson.remittance.adapter.persistence.tx.RollbackSafeTransactionManager;
 import com.nelson.remittance.application.transfer.TransferUseCases;
 import com.nelson.remittance.application.user.UserUseCases;
 import com.nelson.remittance.domain.exception.BusinessException;

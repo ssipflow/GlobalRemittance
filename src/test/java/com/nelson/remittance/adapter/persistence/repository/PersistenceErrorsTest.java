@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

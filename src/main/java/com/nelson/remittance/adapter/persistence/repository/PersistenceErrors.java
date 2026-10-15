@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.repository;
 
 import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PessimisticLockException;

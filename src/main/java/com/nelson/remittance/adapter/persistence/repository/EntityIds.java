@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.repository;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 

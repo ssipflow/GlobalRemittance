@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.nelson.remittance.adapter.security.AesIdentityCipher;
-import com.nelson.remittance.adapter.security.BCryptPasswordHasher;
-import com.nelson.remittance.adapter.security.JwtTokens;
+import com.nelson.remittance.adapter.security.crypto.AesIdentityCipher;
+import com.nelson.remittance.adapter.security.crypto.BCryptPasswordHasher;
+import com.nelson.remittance.adapter.security.jwt.JwtTokens;
 import com.nelson.remittance.domain.exception.BusinessException;
 import com.nelson.remittance.domain.user.User;
 import io.jsonwebtoken.Jwts;

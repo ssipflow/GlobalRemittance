@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.security;
+package com.nelson.remittance.adapter.security.crypto;
 
 import com.nelson.remittance.application.port.security.PasswordHasher;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
