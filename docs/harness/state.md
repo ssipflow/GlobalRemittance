@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/split-application-configuration. `ApplicationConfiguration`을 책임별 클래스로 분리하고 어댑터 구현(BCrypt 익명 구현 등)을 어댑터로 이동(책임 분리 리팩터링 3개 PR 중 ②, 동작 불변).
-- 시작 기준: 2026-10-15 dev 77094cb, PR #35까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/split-application-configuration.md)의 잔존 참조 없음·파서 단위 테스트, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 ③ `ApiModels` 분리·커서 클래스 추출. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
+- 현재 작업: feature/split-api-models. `ApiModels`를 dto 패키지의 독립 record로 분리하고 커서·페이지 크기 처리를 `HistoryPaging`으로 추출(책임 분리 리팩터링 3개 PR 중 ③, 동작 불변).
+- 시작 기준: 2026-10-15 dev f01184a, PR #36까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/split-api-models.md)의 `ApiModels` 잔존 참조 없음·페이징 단위 테스트·OpenAPI 명세 비교, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 책임 분리 리팩터링 합의 범위가 끝난다. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

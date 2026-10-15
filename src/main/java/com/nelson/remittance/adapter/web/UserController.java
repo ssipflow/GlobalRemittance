@@ -1,9 +1,9 @@
 package com.nelson.remittance.adapter.web;
 
-import com.nelson.remittance.adapter.web.ApiModels.Login;
-import com.nelson.remittance.adapter.web.ApiModels.LoginResult;
-import com.nelson.remittance.adapter.web.ApiModels.Result;
-import com.nelson.remittance.adapter.web.ApiModels.Signup;
+import com.nelson.remittance.adapter.web.dto.Login;
+import com.nelson.remittance.adapter.web.dto.LoginResult;
+import com.nelson.remittance.adapter.web.dto.Result;
+import com.nelson.remittance.adapter.web.dto.Signup;
 import com.nelson.remittance.application.UserUseCases;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
