@@ -21,7 +21,7 @@ flowchart LR
 
 | 계층 | 책임 | 주요 클래스 |
 | --- | --- | --- |
-| domain | 수수료·수취액 계산, 견적 상태와 만료, 신원 유형별 한도 | QuotePolicy, Quote, User, BusinessException |
+| domain | 수수료·수취액 계산, 견적 발급·접수 상태와 만료(10분), 멱등성 재현 판단(24시간 창), 신원 유형별 일일 한도 검사, KST 기준일 | QuotePolicy, Quote, User, BusinessDay, RateSnapshot, BusinessException |
 | application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트(`application.port` 패키지의 인터페이스) | UserUseCases, TransferUseCases, AccountRepository, QuoteRepository, RateProvider, PasswordHasher, IdentityCipher, TokenProvider |
 | adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, RequestIdFilter, ErrorDescriptions |
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, RollbackSafeTransactionManager |
@@ -58,10 +58,12 @@ sequenceDiagram
     A->>A: 재현이면 여기서 성공 반환
     A->>A: 중복, 만료 검사
     A->>P: KST 당일 USD 합계 조회
-    A->>A: 기존 합계 + 이번 금액 한도 검사
+    A->>A: 기존 합계 + 이번 금액 한도 검사 (도메인 User.checkDailyLimit)
     A->>P: 접수 시각과 키 저장, 커밋
     A-->>W: 완료
 ```
+
+접수 규칙은 도메인에 있고 사용 사례는 조정만 한다. `Quote.replays`가 멱등성 키 재현 여부(다른 견적이면 재사용 오류, 같은 견적이면 24시간 창 안에서만 재현)를, `Quote.request`가 소유권·중복·만료를, `User.checkDailyLimit`가 일일 한도를, `BusinessDay.of`가 KST 기준일 구간을 판단한다. 사용 사례는 사용자 잠금을 먼저 잡고 저장소에서 견적·이전 접수·오늘 합계를 읽어 이 규칙들에 넘기고 결과를 저장한다. 규칙 판단은 순수 객체라 DB 없이 경계 단위 테스트(`DomainRulesTest`)가 가능하다.
 
 사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 멱등성 키 조회도 같은 잠금 안에서 하므로 같은 키의 동시 재시도는 한 번만 반영된다. 키는 접수된 견적 행의 `idempotency_key`에 저장하고 (user_id, idempotency_key) 유일 제약이 한 키를 한 견적에만 묶는다. 구체적인 경쟁 상황은 [[주요 설계]]에서 설명한다.
 

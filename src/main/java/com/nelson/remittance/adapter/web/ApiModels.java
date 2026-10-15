@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.web;
 
-import com.nelson.remittance.application.TransferUseCases;
+import com.nelson.remittance.domain.BusinessDay;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.User;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -20,7 +20,7 @@ public final class ApiModels {
     private ApiModels() {}
 
     private static final DateTimeFormatter KST_TIME =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(TransferUseCases.KST);
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(BusinessDay.KST);
 
     // 저장은 UTC를 유지하고 API 날짜 문자열을 생성하는 경계에서 KST로 표시한다.
     public static String time(Instant instant) {
