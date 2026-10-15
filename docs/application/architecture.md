@@ -132,6 +132,8 @@ users는 계정·비밀번호 해시·암호화 식별번호·신원 유형을 �
 
 ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의존성을 검사한다. H2/API 테스트는 실제 인증·금액·동시 접수·페이지 경계·JSON 오류 디스패치를 검증한다. PostgreSQL 16에서는 `postgres` 태그 테스트가 단일 앱 프로세스의 동시 접수·락 타임아웃·연결 끊김 복구를 검증한다. 다중 프로세스·다른 DB 버전에서의 잠금·복구는 별도 검증이 필요하다.
 
+테스트 패키지는 단위 테스트가 대상 클래스의 main 패키지를 그대로 따른다(`domain`, `application/transfer`, `adapter/security`, `adapter/persistence/*`, `bootstrap/*`). 애플리케이션 전체를 띄우는 H2 기반 테스트와 Flyway 마이그레이션 테스트는 `integration`, Docker가 필요한 `postgres` 태그 테스트는 `postgres`, 의존성 방향 검사는 `architecture`에 둔다. 단위 테스트가 같은 패키지의 package-private 클래스를 검증할 수 있도록(`ConfigValuesTest`, `PersistenceErrorsTest`, `HistoryPagingTest`) 접근 범위를 넓히지 않는다.
+
 ## 기동과 스키마 변경
 
 ```mermaid

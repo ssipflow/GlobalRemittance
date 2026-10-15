@@ -1,10 +1,11 @@
-package com.nelson.remittance;
+package com.nelson.remittance.postgres;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.nelson.remittance.RemittanceApplication;
 import com.nelson.remittance.bootstrap.diagnostics.DatabaseConnectionFailureAnalyzer;
 import java.io.IOException;
 import java.net.ServerSocket;

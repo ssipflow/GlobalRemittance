@@ -1,4 +1,4 @@
-package com.nelson.remittance;
+package com.nelson.remittance.domain.quote;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.ALREADY_REQUESTED;
 import static com.nelson.remittance.domain.exception.ErrorCode.FORBIDDEN;
@@ -10,8 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.nelson.remittance.domain.exception.BusinessException;
 import com.nelson.remittance.domain.exception.ErrorCode;
-import com.nelson.remittance.domain.quote.Quote;
-import com.nelson.remittance.domain.quote.QuotePolicy;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;

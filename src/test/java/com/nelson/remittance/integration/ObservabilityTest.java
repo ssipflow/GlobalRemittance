@@ -1,4 +1,4 @@
-package com.nelson.remittance;
+package com.nelson.remittance.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -183,7 +183,7 @@ class ObservabilityTest {
         assertTrue(text.contains("java.sql.SQLException(sqlState=28000, vendorCode=28000)"));
         assertTrue(
                 text.contains(
-                        "com.nelson.remittance.ObservabilityTest.errorDescriptionsExcludeMessages"));
+                        "com.nelson.remittance.integration.ObservabilityTest.errorDescriptionsExcludeMessages"));
         assertFalse(text.contains("owner@example.com"));
         assertFalse(text.contains("private message"));
     }
