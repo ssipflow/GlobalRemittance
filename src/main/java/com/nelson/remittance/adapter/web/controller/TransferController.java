@@ -1,7 +1,8 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.controller;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 
+import com.nelson.remittance.adapter.web.config.OpenApiConfiguration;
 import com.nelson.remittance.adapter.web.dto.HistoryResult;
 import com.nelson.remittance.adapter.web.dto.HistoryView;
 import com.nelson.remittance.adapter.web.dto.QuoteInput;

@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.error;
 
 import java.sql.SQLException;
 import java.util.ArrayList;

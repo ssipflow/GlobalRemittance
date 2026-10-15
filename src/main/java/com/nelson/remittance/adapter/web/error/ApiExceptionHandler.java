@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.error;
 
 import com.nelson.remittance.adapter.web.dto.Result;
 import com.nelson.remittance.domain.exception.BusinessException;
