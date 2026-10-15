@@ -1,4 +1,4 @@
-package com.nelson.remittance;
+package com.nelson.remittance.adapter.persistence.tx;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -11,7 +11,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.nelson.remittance.adapter.persistence.tx.RollbackSafeTransactionManager;
 import com.nelson.remittance.application.transfer.TransferUseCases;
 import com.nelson.remittance.application.user.UserUseCases;
 import com.nelson.remittance.domain.exception.BusinessException;

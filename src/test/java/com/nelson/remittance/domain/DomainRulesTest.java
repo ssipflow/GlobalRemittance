@@ -1,4 +1,4 @@
-package com.nelson.remittance;
+package com.nelson.remittance.domain;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.ALREADY_REQUESTED;
 import static com.nelson.remittance.domain.exception.ErrorCode.FORBIDDEN;

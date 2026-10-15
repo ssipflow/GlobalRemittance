@@ -1,4 +1,4 @@
-package com.nelson.remittance;
+package com.nelson.remittance.application.transfer;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -17,8 +17,6 @@ import com.nelson.remittance.adapter.forex.ConfiguredRates;
 import com.nelson.remittance.application.port.rate.RateProvider;
 import com.nelson.remittance.application.port.repository.AccountRepository;
 import com.nelson.remittance.application.port.repository.QuoteRepository;
-import com.nelson.remittance.application.transfer.RateFreshnessPolicy;
-import com.nelson.remittance.application.transfer.TransferUseCases;
 import com.nelson.remittance.domain.exception.BusinessException;
 import com.nelson.remittance.domain.exception.ErrorCode;
 import com.nelson.remittance.domain.quote.RateSnapshot;

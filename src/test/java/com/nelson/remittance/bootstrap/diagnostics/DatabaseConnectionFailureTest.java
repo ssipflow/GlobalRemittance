@@ -1,4 +1,4 @@
-package com.nelson.remittance;
+package com.nelson.remittance.bootstrap.diagnostics;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.nelson.remittance.bootstrap.diagnostics.DatabaseConnectionFailureAnalyzer;
+import com.nelson.remittance.RemittanceApplication;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;

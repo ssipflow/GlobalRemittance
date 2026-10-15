@@ -1,4 +1,4 @@
-package com.nelson.remittance;
+package com.nelson.remittance.integration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nelson.remittance.RemittanceApplication;
 import com.nelson.remittance.application.port.rate.RateProvider;
 import com.nelson.remittance.domain.exception.BusinessException;
 import com.nelson.remittance.domain.exception.ErrorCode;
