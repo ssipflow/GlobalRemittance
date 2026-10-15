@@ -2,7 +2,7 @@ package com.nelson.remittance.adapter.forex;
 
 import static com.nelson.remittance.domain.BusinessException.Code.RATE_UNAVAILABLE;
 
-import com.nelson.remittance.application.Ports;
+import com.nelson.remittance.application.port.RateProvider;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.RateSnapshot;
 import java.time.Clock;
@@ -11,14 +11,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** 개발·시연·검증용 모의 공급처: 설정 환율에 지연 또는 장애를 주입해 신선도 정책의 동작을 재현한다. */
-public final class SimulatedRates implements Ports.Rates {
+public final class SimulatedRates implements RateProvider {
     private static final Logger LOG = LoggerFactory.getLogger(SimulatedRates.class);
-    private final Ports.Rates delegate;
+    private final RateProvider delegate;
     private final Clock clock;
     private final Duration age;
     private final boolean unavailable;
 
-    public SimulatedRates(Ports.Rates delegate, Clock clock, Duration age, boolean unavailable) {
+    public SimulatedRates(RateProvider delegate, Clock clock, Duration age, boolean unavailable) {
         this.delegate = delegate;
         this.clock = clock;
         this.age = age;

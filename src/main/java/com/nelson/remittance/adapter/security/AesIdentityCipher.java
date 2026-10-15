@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.security;
 
-import com.nelson.remittance.application.Ports;
+import com.nelson.remittance.application.port.IdentityCipher;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
@@ -11,7 +11,7 @@ import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 // 식별 번호를 무작위 nonce 기반 AES-GCM으로 암호화하는 저장 경계다.
-public final class AesIdentityCipher implements Ports.IdentityCipher {
+public final class AesIdentityCipher implements IdentityCipher {
     private final SecretKeySpec key;
     private final SecureRandom random = new SecureRandom();
 

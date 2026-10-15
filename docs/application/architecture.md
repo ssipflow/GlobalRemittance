@@ -22,7 +22,7 @@ flowchart LR
 | 계층 | 책임 | 주요 클래스 |
 | --- | --- | --- |
 | domain | 수수료·수취액 계산, 견적 상태와 만료, 신원 유형별 한도 | QuotePolicy, Quote, User, BusinessException |
-| application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트 | UserUseCases, TransferUseCases, Ports |
+| application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트(`application.port` 패키지의 인터페이스) | UserUseCases, TransferUseCases, AccountRepository, QuoteRepository, RateProvider, PasswordHasher, IdentityCipher, TokenProvider, Work |
 | adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, RequestIdFilter, ErrorDescriptions |
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, TransactionalWork |
 | adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
@@ -31,7 +31,7 @@ flowchart LR
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 OpenApiConfiguration에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
 
-application의 Ports는 계정·견적 저장, 환율, 비밀번호, 식별번호 암호화, 토큰, 트랜잭션 실행의 경계를 정의한다. TransactionalWork는 Work 포트를 TransactionTemplate으로 구현한다. 사용 사례는 트랜잭션 범위를 정하지만 Spring API에는 의존하지 않는다.
+`application.port` 패키지는 계정·견적 저장(`AccountRepository`, `QuoteRepository`), 환율(`RateProvider`), 비밀번호(`PasswordHasher`), 식별번호 암호화(`IdentityCipher`), 토큰(`TokenProvider`), 트랜잭션 실행(`Work`)의 경계를 한 파일에 하나씩 최상위 인터페이스로 정의한다. 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다. TransactionalWork는 Work 포트를 TransactionTemplate으로 구현한다. 사용 사례는 트랜잭션 범위를 정하지만 Spring API에는 의존하지 않는다.
 
 ## 인증과 견적 생성
 

@@ -6,6 +6,11 @@ import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUN
 import static com.nelson.remittance.domain.BusinessException.Code.RATE_STALE;
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
+import com.nelson.remittance.application.port.AccountRepository;
+import com.nelson.remittance.application.port.QuotePosition;
+import com.nelson.remittance.application.port.QuoteRepository;
+import com.nelson.remittance.application.port.RateProvider;
+import com.nelson.remittance.application.port.Work;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.QuotePolicy;
@@ -24,18 +29,18 @@ public final class TransferUseCases {
     public static final ZoneId KST = ZoneId.of("Asia/Seoul");
     // 접수 성공 응답을 같은 키로 재현해 주는 기간이다. 이후에는 기존 중복 규칙(ALREADY_REQUESTED)을 따른다.
     static final Duration IDEMPOTENT_REPLAY_WINDOW = Duration.ofHours(24);
-    private final Ports.Accounts accounts;
-    private final Ports.Quotes quotes;
-    private final Ports.Rates rates;
-    private final Ports.Work work;
+    private final AccountRepository accounts;
+    private final QuoteRepository quotes;
+    private final RateProvider rates;
+    private final Work work;
     private final Clock clock;
     private final Duration rateMaxAge;
 
     public TransferUseCases(
-            Ports.Accounts accounts,
-            Ports.Quotes quotes,
-            Ports.Rates rates,
-            Ports.Work work,
+            AccountRepository accounts,
+            QuoteRepository quotes,
+            RateProvider rates,
+            Work work,
             Clock clock,
             Duration rateMaxAge) {
         this.accounts = accounts;
@@ -129,12 +134,12 @@ public final class TransferUseCases {
             int todayCount,
             BigDecimal todayUsdAmount,
             List<Quote> quotes,
-            Ports.Quotes.Position nextAfter) {}
+            QuotePosition nextAfter) {}
 
     // 사용자 잠금 없이 읽는다. 조회가 접수 직렬화에 참여해 대기하거나 막지 않는다.
     // 오늘 건수·합계는 목록과 별개의 한 집계 쿼리로 구하므로 어느 페이지에서도 같고 서로 모순되지 않지만,
     // 접수와 겹치면 목록과 집계의 시점이 다를 수 있다. limit+1건을 읽어 다음 페이지 존재를 판단한다.
-    public History history(long actorId, Ports.Quotes.Position after, int limit) {
+    public History history(long actorId, QuotePosition after, int limit) {
         return work.required(
                 () -> {
                     User user =
@@ -149,9 +154,9 @@ public final class TransferUseCases {
                     List<Quote> read = quotes.requestedPage(actorId, after, limit + 1);
                     boolean more = read.size() > limit;
                     List<Quote> page = List.copyOf(more ? read.subList(0, limit) : read);
-                    Ports.Quotes.Position next =
+                    QuotePosition next =
                             more
-                                    ? new Ports.Quotes.Position(
+                                    ? new QuotePosition(
                                             page.get(limit - 1).requestedTime(),
                                             page.get(limit - 1).id())
                                     : null;

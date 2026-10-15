@@ -2,8 +2,8 @@ package com.nelson.remittance.adapter.security;
 
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
-import com.nelson.remittance.application.Ports;
 import com.nelson.remittance.application.TransferUseCases;
+import com.nelson.remittance.application.port.TokenProvider;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.User;
 import io.jsonwebtoken.JwtException;
@@ -17,7 +17,7 @@ import java.util.Base64;
 import java.util.Date;
 
 // 서명된 인증 토큰을 발급하고 서명·사용자 식별자·만료 조건을 확인한다.
-public final class JwtTokens implements Ports.Tokens {
+public final class JwtTokens implements TokenProvider {
     private final Key key;
     private final Clock clock;
 

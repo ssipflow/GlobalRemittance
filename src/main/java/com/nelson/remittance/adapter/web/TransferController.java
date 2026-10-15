@@ -10,8 +10,8 @@ import com.nelson.remittance.adapter.web.ApiModels.QuoteResult;
 import com.nelson.remittance.adapter.web.ApiModels.QuoteView;
 import com.nelson.remittance.adapter.web.ApiModels.RequestInput;
 import com.nelson.remittance.adapter.web.ApiModels.Result;
-import com.nelson.remittance.application.Ports;
 import com.nelson.remittance.application.TransferUseCases;
+import com.nelson.remittance.application.port.QuotePosition;
 import com.nelson.remittance.domain.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -192,7 +192,7 @@ public class TransferController {
     }
 
     // 커서는 "초.나노.ID"를 URL-safe Base64로 감싼 값이다. 클라이언트는 내용을 해석하지 않는다.
-    private static String encodeCursor(Ports.Quotes.Position position) {
+    private static String encodeCursor(QuotePosition position) {
         if (position == null) {
             return null;
         }
@@ -207,7 +207,7 @@ public class TransferController {
 
     // 형식·범위가 어긋난 커서는 모두 거부한다. 재인코딩 결과가 입력과 같아야 하므로 비정규 표기도 막는다.
     // 위치값은 정렬 기준일 뿐이며 조회는 항상 인증 사용자로 제한되어 권한 판단에 쓰이지 않는다.
-    private static Ports.Quotes.Position decodeCursor(String cursor) {
+    private static QuotePosition decodeCursor(String cursor) {
         if (cursor == null) {
             return null;
         }
@@ -229,7 +229,7 @@ public class TransferController {
                     || id > Integer.MAX_VALUE) {
                 throw new BusinessException(INVALID_REQUEST);
             }
-            var position = new Ports.Quotes.Position(Instant.ofEpochSecond(seconds, nano), id);
+            var position = new QuotePosition(Instant.ofEpochSecond(seconds, nano), id);
             if (!cursor.equals(encodeCursor(position))) {
                 throw new BusinessException(INVALID_REQUEST);
             }

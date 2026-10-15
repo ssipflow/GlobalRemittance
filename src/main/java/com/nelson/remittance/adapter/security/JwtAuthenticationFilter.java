@@ -2,7 +2,7 @@ package com.nelson.remittance.adapter.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nelson.remittance.adapter.web.ApiModels.Result;
-import com.nelson.remittance.application.Ports;
+import com.nelson.remittance.application.port.TokenProvider;
 import com.nelson.remittance.domain.BusinessException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -16,10 +16,10 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 // 송금 요청의 Bearer 토큰을 인증 주체로 바꾸며 실패 응답에는 내부 원인을 노출하지 않는다.
 public final class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private final Ports.Tokens tokens;
+    private final TokenProvider tokens;
     private final ObjectMapper json;
 
-    public JwtAuthenticationFilter(Ports.Tokens tokens, ObjectMapper json) {
+    public JwtAuthenticationFilter(TokenProvider tokens, ObjectMapper json) {
         this.tokens = tokens;
         this.json = json;
     }
