@@ -11,7 +11,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
 import java.sql.SQLException;
 import java.util.UUID;
 import org.hibernate.HibernateException;
@@ -64,12 +65,12 @@ class ObservabilityTest {
 
         @GetMapping("/_obs/lock")
         Object lock() {
-            throw new BusinessException(BusinessException.Code.LOCK_TIMEOUT);
+            throw new BusinessException(ErrorCode.LOCK_TIMEOUT);
         }
 
         @GetMapping("/_obs/business")
         Object business() {
-            throw new BusinessException(BusinessException.Code.INVALID_REQUEST);
+            throw new BusinessException(ErrorCode.INVALID_REQUEST);
         }
 
         @GetMapping("/_obs/ok")

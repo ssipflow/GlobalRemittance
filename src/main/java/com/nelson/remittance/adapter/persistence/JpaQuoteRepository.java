@@ -1,14 +1,14 @@
 package com.nelson.remittance.adapter.persistence;
 
-import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
-import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
+import static com.nelson.remittance.domain.exception.ErrorCode.IDEMPOTENCY_KEY_REUSED;
+import static com.nelson.remittance.domain.exception.ErrorCode.QUOTE_NOT_FOUND;
 
-import com.nelson.remittance.application.port.DailyTotal;
-import com.nelson.remittance.application.port.QuotePosition;
-import com.nelson.remittance.application.port.QuoteRepository;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.Quote;
-import com.nelson.remittance.domain.QuotePolicy;
+import com.nelson.remittance.application.port.repository.DailyTotal;
+import com.nelson.remittance.application.port.repository.QuotePosition;
+import com.nelson.remittance.application.port.repository.QuoteRepository;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.quote.Quote;
+import com.nelson.remittance.domain.quote.QuotePolicy;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceException;
 import java.math.BigDecimal;

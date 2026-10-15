@@ -1,8 +1,8 @@
 package com.nelson.remittance.adapter.persistence;
 
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
+import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.domain.exception.BusinessException;
 
 final class EntityIds {
     private EntityIds() {}

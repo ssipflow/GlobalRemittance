@@ -12,8 +12,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nelson.remittance.application.TransferUseCases;
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.application.transfer.TransferUseCases;
+import com.nelson.remittance.domain.exception.BusinessException;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Clock;

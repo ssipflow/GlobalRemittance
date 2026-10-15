@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.web.dto;
 
-import com.nelson.remittance.domain.Quote;
+import com.nelson.remittance.domain.quote.Quote;
 import java.math.BigDecimal;
 
 // 접수 거래의 금액·환율·수수료 감사 값과 KST 접수 날짜를 표시한다.

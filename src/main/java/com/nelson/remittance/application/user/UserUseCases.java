@@ -1,15 +1,15 @@
-package com.nelson.remittance.application;
+package com.nelson.remittance.application.user;
 
-import static com.nelson.remittance.domain.BusinessException.Code.DUPLICATE_USER;
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
-import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
+import static com.nelson.remittance.domain.exception.ErrorCode.DUPLICATE_USER;
+import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
+import static com.nelson.remittance.domain.exception.ErrorCode.UNAUTHORIZED;
 
-import com.nelson.remittance.application.port.AccountRepository;
-import com.nelson.remittance.application.port.IdentityCipher;
-import com.nelson.remittance.application.port.PasswordHasher;
-import com.nelson.remittance.application.port.TokenProvider;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.application.port.repository.AccountRepository;
+import com.nelson.remittance.application.port.security.IdentityCipher;
+import com.nelson.remittance.application.port.security.PasswordHasher;
+import com.nelson.remittance.application.port.security.TokenProvider;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.user.User;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;

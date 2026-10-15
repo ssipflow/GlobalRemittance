@@ -11,9 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nelson.remittance.application.port.RateProvider;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.RateSnapshot;
+import com.nelson.remittance.application.port.rate.RateProvider;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
+import com.nelson.remittance.domain.quote.RateSnapshot;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.Map;
@@ -203,7 +204,7 @@ class RatesApiTest {
         @Override
         public RateSnapshot rate(String currency) {
             if (down.get()) {
-                throw new BusinessException(BusinessException.Code.RATE_UNAVAILABLE);
+                throw new BusinessException(ErrorCode.RATE_UNAVAILABLE);
             }
             return new RateSnapshot(
                     new BigDecimal("USD".equals(currency) ? "1000" : "10"), clock.instant());

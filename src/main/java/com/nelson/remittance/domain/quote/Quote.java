@@ -1,10 +1,11 @@
-package com.nelson.remittance.domain;
+package com.nelson.remittance.domain.quote;
 
-import static com.nelson.remittance.domain.BusinessException.Code.ALREADY_REQUESTED;
-import static com.nelson.remittance.domain.BusinessException.Code.FORBIDDEN;
-import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
-import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_EXPRIED;
+import static com.nelson.remittance.domain.exception.ErrorCode.ALREADY_REQUESTED;
+import static com.nelson.remittance.domain.exception.ErrorCode.FORBIDDEN;
+import static com.nelson.remittance.domain.exception.ErrorCode.IDEMPOTENCY_KEY_REUSED;
+import static com.nelson.remittance.domain.exception.ErrorCode.QUOTE_EXPRIED;
 
+import com.nelson.remittance.domain.exception.BusinessException;
 import java.time.Duration;
 import java.time.Instant;
 

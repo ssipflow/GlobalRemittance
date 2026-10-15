@@ -4,7 +4,7 @@ import com.nelson.remittance.adapter.web.dto.Login;
 import com.nelson.remittance.adapter.web.dto.LoginResult;
 import com.nelson.remittance.adapter.web.dto.Result;
 import com.nelson.remittance.adapter.web.dto.Signup;
-import com.nelson.remittance.application.UserUseCases;
+import com.nelson.remittance.application.user.UserUseCases;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;

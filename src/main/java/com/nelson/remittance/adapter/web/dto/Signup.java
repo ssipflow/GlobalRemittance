@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.web.dto;
 
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.domain.user.User;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

@@ -1,11 +1,11 @@
 package com.nelson.remittance.adapter.forex;
 
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
+import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 
-import com.nelson.remittance.application.port.RateProvider;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.QuotePolicy;
-import com.nelson.remittance.domain.RateSnapshot;
+import com.nelson.remittance.application.port.rate.RateProvider;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.quote.QuotePolicy;
+import com.nelson.remittance.domain.quote.RateSnapshot;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.Map;

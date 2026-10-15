@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/split-api-models. `ApiModels`를 dto 패키지의 독립 record로 분리하고 커서·페이지 크기 처리를 `HistoryPaging`으로 추출(책임 분리 리팩터링 3개 PR 중 ③, 동작 불변).
-- 시작 기준: 2026-10-15 dev f01184a, PR #36까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/split-api-models.md)의 `ApiModels` 잔존 참조 없음·페이징 단위 테스트·OpenAPI 명세 비교, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 책임 분리 리팩터링 합의 범위가 끝난다. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
+- 현재 작업: feature/package-domain-application. domain·application을 책임별 하위 패키지로 나누고 `BusinessException.Code`를 최상위 `ErrorCode`로 분리(전체 패키지 재구성 5개 PR 중 1번째, 동작 불변).
+- 시작 기준: 2026-10-15 dev 62c6df6, PR #37까지 병합된 상태. 저장소 이름이 ssipflow/GlobalRemittance로 바뀌어 있다(publish `--repo` 값 주의).
+- 완료 기준: [작업 기록](tasks/package-domain-application.md)의 옛 경로 잔존 없음·OpenAPI 명세 비교, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 2) adapter/web, 3) adapter/security·persistence(entity/repository 분리 포함), 4) bootstrap(spring.factories), 5) 테스트 패키지 정리. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

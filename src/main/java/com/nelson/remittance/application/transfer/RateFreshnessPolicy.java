@@ -1,4 +1,4 @@
-package com.nelson.remittance.application;
+package com.nelson.remittance.application.transfer;
 
 import java.time.Duration;
 
