@@ -1,7 +1,5 @@
 package com.nelson.remittance.application;
 
-import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
-import static com.nelson.remittance.domain.BusinessException.Code.LIMIT_EXCESS;
 import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_NOT_FOUND;
 import static com.nelson.remittance.domain.BusinessException.Code.RATE_STALE;
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
@@ -10,6 +8,7 @@ import com.nelson.remittance.application.port.AccountRepository;
 import com.nelson.remittance.application.port.QuotePosition;
 import com.nelson.remittance.application.port.QuoteRepository;
 import com.nelson.remittance.application.port.RateProvider;
+import com.nelson.remittance.domain.BusinessDay;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.Quote;
 import com.nelson.remittance.domain.QuotePolicy;
@@ -19,17 +18,12 @@ import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 
 // 견적 생성, 원자적 접수와 KST 이력 집계를 트랜잭션 안에서 조정한다.
 // 프록시가 서브클래스를 만들어 @Transactional을 적용하므로 final로 두지 않는다.
 public class TransferUseCases {
-    public static final ZoneId KST = ZoneId.of("Asia/Seoul");
-    // 접수 성공 응답을 같은 키로 재현해 주는 기간이다. 이후에는 기존 중복 규칙(ALREADY_REQUESTED)을 따른다.
-    static final Duration IDEMPOTENT_REPLAY_WINDOW = Duration.ofHours(24);
     private final AccountRepository accounts;
     private final QuoteRepository quotes;
     private final RateProvider rates;
@@ -63,8 +57,7 @@ public class TransferUseCases {
             throw new BusinessException(RATE_STALE);
         }
         var calculation = QuotePolicy.calculate(amount, currency, target.toKrw(), usd.toKrw());
-        return quotes.saveQuote(
-                new Quote(0, actorId, calculation, now.plusSeconds(600), null, null, now, now));
+        return quotes.saveQuote(Quote.issue(actorId, calculation, now));
     }
 
     // 사용자 잠금 안에서 견적 상태와 오늘 USD 합계를 검사한 뒤 접수 시각을 저장한다.
@@ -78,30 +71,17 @@ public class TransferUseCases {
         Instant now = clock.instant();
         // 키 조회도 사용자 잠금 안이라 같은 키의 동시 재시도가 한 번만 반영된다.
         // 타인 견적은 키 판단 없이 아래 소유권 검증(FORBIDDEN)에 맡긴다.
-        if (idempotencyKey != null && quote.userId() == actorId) {
+        if (idempotencyKey != null && quote.isOwnedBy(actorId)) {
             var previous = quotes.findByIdempotencyKey(actorId, idempotencyKey);
-            if (previous.isPresent()) {
-                if (previous.get().id() != quote.id()) {
-                    throw new BusinessException(IDEMPOTENCY_KEY_REUSED);
-                }
-                // 이미 접수된 건의 재현이므로 만료·한도를 다시 평가하지 않는다.
-                if (now.isBefore(previous.get().requestedTime().plus(IDEMPOTENT_REPLAY_WINDOW))) {
-                    return;
-                }
+            if (previous.isPresent() && quote.replays(previous.get(), now)) {
+                return;
             }
         }
         Quote requested = quote.request(actorId, now, idempotencyKey);
         // 이력 전체를 읽지 않고 KST 당일 [00:00, 익일 00:00) 합계만 DB에서 집계한다.
-        LocalDate date = now.atZone(KST).toLocalDate();
-        BigDecimal total =
-                quotes.requestedUsdTotal(
-                        actorId,
-                        date.atStartOfDay(KST).toInstant(),
-                        date.plusDays(1).atStartOfDay(KST).toInstant());
-        // 한도와 동일한 금액은 허용한다. USD 수수료 차감 후 금액은 견적 시 확정된 값만 사용한다.
-        if (total.add(quote.calculation().usdAmount()).compareTo(user.idType().dailyLimit()) > 0) {
-            throw new BusinessException(LIMIT_EXCESS);
-        }
+        BusinessDay day = BusinessDay.of(now);
+        BigDecimal total = quotes.requestedUsdTotal(actorId, day.start(), day.end());
+        user.checkDailyLimit(total, quote.calculation().usdAmount());
         quotes.saveQuote(requested);
     }
 
@@ -120,12 +100,8 @@ public class TransferUseCases {
     public History history(long actorId, QuotePosition after, int limit) {
         User user =
                 accounts.findUser(actorId).orElseThrow(() -> new BusinessException(UNAUTHORIZED));
-        LocalDate date = clock.instant().atZone(KST).toLocalDate();
-        var total =
-                quotes.requestedDailyTotal(
-                        actorId,
-                        date.atStartOfDay(KST).toInstant(),
-                        date.plusDays(1).atStartOfDay(KST).toInstant());
+        BusinessDay day = BusinessDay.of(clock.instant());
+        var total = quotes.requestedDailyTotal(actorId, day.start(), day.end());
         List<Quote> read = quotes.requestedPage(actorId, after, limit + 1);
         boolean more = read.size() > limit;
         List<Quote> page = List.copyOf(more ? read.subList(0, limit) : read);

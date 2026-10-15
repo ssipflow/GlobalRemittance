@@ -187,6 +187,7 @@ check는 JUnit 테스트, Spotless, main/test Checkstyle을 실행한다. 포맷
 | 금액·반올림·저장 범위 | QuotePolicyTest |
 | 암호화·JWT·BCrypt | SecurityAdaptersTest |
 | API·동시 접수·멱등성·KST·페이지 조회 | RemittanceApiTest |
+| 한도·재현 창·유효시간·KST 기준일 규칙(도메인) | DomainRulesTest |
 | Swagger·인증 및 기본/local 설정 | OpenApiTest, H2ConsoleTest, LocalLoggingTest |
 | 요청 ID·오류 로그·시작 실패 진단 | ObservabilityTest |
 | 잠금 대기 설정과 Retry-After | LockTimeoutSettingsTest, RemittanceApiTest |

@@ -1,5 +1,7 @@
 package com.nelson.remittance.domain;
 
+import static com.nelson.remittance.domain.BusinessException.Code.LIMIT_EXCESS;
+
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -24,6 +26,13 @@ public record User(
 
         public BigDecimal dailyLimit() {
             return dailyLimit;
+        }
+    }
+
+    // 한도와 동일한 금액은 허용하고 초과만 막는다. 오늘 합계와 새 금액은 모두 견적 시 확정된 USD 값이다.
+    public void checkDailyLimit(BigDecimal requestedToday, BigDecimal newAmount) {
+        if (requestedToday.add(newAmount).compareTo(idType.dailyLimit()) > 0) {
+            throw new BusinessException(LIMIT_EXCESS);
         }
     }
 

@@ -2,8 +2,8 @@ package com.nelson.remittance.adapter.security;
 
 import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
 
-import com.nelson.remittance.application.TransferUseCases;
 import com.nelson.remittance.application.port.TokenProvider;
+import com.nelson.remittance.domain.BusinessDay;
 import com.nelson.remittance.domain.BusinessException;
 import com.nelson.remittance.domain.User;
 import io.jsonwebtoken.JwtException;
@@ -53,7 +53,7 @@ public final class JwtTokens implements TokenProvider {
                 .claim(
                         "expireTime",
                         DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(
-                                expiry.atZone(TransferUseCases.KST)))
+                                expiry.atZone(BusinessDay.KST)))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
     }
