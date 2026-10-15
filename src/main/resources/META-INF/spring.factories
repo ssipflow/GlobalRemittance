@@ -1,0 +1,4 @@
+org.springframework.boot.diagnostics.FailureAnalyzer=\
+com.nelson.remittance.bootstrap.diagnostics.DatabaseConnectionFailureAnalyzer,\
+com.nelson.remittance.bootstrap.diagnostics.LockTimeoutFailureAnalyzer
+org.springframework.boot.env.EnvironmentPostProcessor=com.nelson.remittance.bootstrap.diagnostics.LockTimeoutEnvironmentPostProcessor

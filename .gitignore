@@ -39,3 +39,10 @@ out/
 .harness/
 __pycache__/
 *.pyc
+
+# Local embedded application database and logs.
+/data/
+/application.log
+
+# 로컬 테스트용 키 보관 파일. 실제 값이 들어 있으므로 저장소에 올리지 않는다.
+secret.local

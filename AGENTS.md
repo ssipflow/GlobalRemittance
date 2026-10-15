@@ -4,6 +4,16 @@
 Java 17 / Spring Boot / JPA / QueryDSL. 품질 기준과 루프는
 `docs/harness/design.md`, 사용법은 `docs/harness/README.md`를 따른다.
 
+## 지침 로딩
+
+가장 먼저 `.codex/instructions/workflow.md`의 최신 에이전트 실행 범위를 읽는다.
+매 세션 `docs/engineering/principles.md`(안정적인 공통 원칙),
+`docs/engineering/preferences.md`(변경이 잦은 개인 선호),
+`docs/engineering/branches.md`(브랜치 정책)를 읽는다.
+클린 아키텍처의 의존성 방향을 구현과 리뷰의 기준으로 적용한다.
+사용자의 현재 명시적 요청을 우선하며 개인 선호로 공통 품질 기준을 완화하지 않는다.
+이전 문서의 직접 병합/커밋 종료 절차보다 workflow.md의 PR 종료 지시를 우선한다.
+
 ## 세션 시작과 기억
 
 먼저 `docs/harness/state.md`와 현재 작업에 필요한 백로그 항목만 읽는다.
@@ -18,6 +28,7 @@ Java 17 / Spring Boot / JPA / QueryDSL. 품질 기준과 루프는
 변경 완료 후 reviewer와 verifier에 독립 검토/검증을 위임한다.
 작은 문서/하네스 설정 작업은 메인이 구현해도 된다. 파일 수정은 한 명만 담당한다.
 Reviewer는 읽기 전용이며 verifier는 검증만 수행한다. 자식은 커밋하지 않는다.
+로컬 reviewer 결과는 내부 개선에만 사용한다. PR 리뷰/코멘트는 GitHub AI가 담당한다.
 현재 작업, 완료 기준, 소유 파일, 관련 결정, snapshot을 전달하고 결과를 기다린다.
 블로킹 결함을 수정한 뒤 새 snapshot에서 다시 검토/검증한다.
 동일 실패가 반복되거나 3회 수정 후에도 실패하면 blocked로 기록한다.
@@ -25,12 +36,21 @@ Reviewer는 읽기 전용이며 verifier는 검증만 수행한다. 자식은 �
 ## 작업과 커밋
 
 작업 시작 전에 Git 상태를 확인하고 `harness.py begin`으로 작업 범위와 검증 명령을 등록한다.
+dev에서 분기한 `feature/<feature-name>` 또는 `hotfix/<fix-name>`에서 작업한다.
+일반 작업의 종료 지점은 작업 브랜치 push와 dev 대상 PR 생성이다.
+test는 의미상 브랜치다. main/dev/test에 직접 구현 커밋, 병합, push하지 않는다.
+PR 리뷰는 GitHub AI, 최종 승인과 병합은 사람만 담당한다.
 기존 사용자 변경이 있으면 별도 작업 트리에서 진행한다. 임의로 지우거나 포함하지 않는다.
 리뷰 통과는 최신 snapshot에만 기록하며 실제 통과 결과가 있을 때만 attest-review를 사용한다.
 `harness.py verify`로 등록된 명령을 실행한다. 실패/건너뜀은 성공으로 취급하지 않는다.
 작업 기억을 먼저 갱신하고 최종 변경 전체를 리뷰/검증한 뒤 `harness.py finish`로 자동 로컬 커밋한다.
-commit 단계에서 변경이 생겼다면 다시 검증한다. 자동 push나 이력 재작성은 하지 않는다.
+커밋 후 `harness.py publish --repo <owner/repo> --title ... --body-file ...`로
+작업 브랜치만 push하고 dev PR을 생성한다. 실제 PR URL을 확인해야 작업 완료다.
+commit 단계에서 변경이 생겼다면 다시 검증한다. 이력 재작성은 하지 않는다.
+PR 리뷰/코멘트 게시, @codex 요청 코멘트, approve/merge/auto-merge는 실행하지 않는다.
 사용자의 중단 요청을 존중한다. 필요하면 `harness.py block --reason ...`로 루프를 종료한다.
+커밋 후 중단 사유는 block으로 실행 상태에만 기록한다. publish 전에 tracked 파일을
+고쳐야 하면 reopen 후 내부 리뷰/검증과 후속 커밋을 거친다. 커밋 이력은 보존한다.
 
 도메인 변경은 금액/반올림, 한도, 중복/동시성, 만료/날짜 경계,
 인증/소유권에 해당하는 회귀 검증을 포함한다. 테스트 환경 격리가 첫 개선 과제다.

@@ -1,78 +1,70 @@
-server:
-  port: 8080
-
 spring:
-  application:
-    name: GlobalRemittance
-
-  main:
-    allow-bean-definition-overriding: true
-
-  web:
-    resources:
-      add-mappings: false
-
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
-
+  # 프로젝트 하위 파일 DB를 사용하며 사용자 홈 DB와 H2 콘솔 접근을 피한다.
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:~/tmp/data/testdb;TIME ZONE=UTC;AUTOCOMMIT=OFF
+    url: jdbc:h2:file:./data/remittance;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=${remittance.lock-timeout-ms}
     username: sa
-    password:
-
-  sql:
-    init:
-      mode: always
+    password: ${REMITTANCE_DB_PASSWORD:}
+  # 웹 요청까지 영속 세션을 유지하지 않고 저장 시각은 UTC로 통일한다.
   jpa:
-    database-platform: org.hibernate.dialect.H2Dialect
+    open-in-view: false
+    hibernate:
+      # 스키마는 Flyway가 만든다. Hibernate는 엔티티와 어긋나면 기동을 거부하도록 검증만 한다.
+      ddl-auto: validate
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
         jdbc:
           time_zone: UTC
-    hibernate:
-      ddl-auto: create-drop
-    defer-datasource-initialization: true
-
-#logging:
-#  level:
-#    org:
-#      hibernate:
-#        SQL: debug
-#        type:
-#          descriptor:
-#            sql:
-#              BasicBinder: trace
-logging:
-  level:
-    root: INFO
-    org.hibernate.SQL: DEBUG
-    org.hibernate.type: TRACE
-    org.hibernate.engine.transaction.internal: DEBUG
-    org.springframework.transaction: DEBUG
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} %-5level %logger{36} - %msg%n"
-  file:
-    name: application.log
-    path: /path/to/your/application.log # 로그 파일을 저장할 경로
-  output:
+  # 스키마 변경은 db/migration의 V<번호>__*.sql로만 한다. 이력이 없는 기존 DB(ddl-auto로 만든 파일)는
+  # 버전 0으로 기준선을 잡고 V1부터 다시 적용하며, V1·V2는 이미 있는 객체를 건너뛰게 작성돼 있다.
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: "0"
+  h2:
     console:
-      enabled: true # 콘솔에 로그 출력
-    file:
-      enabled: true # 파일에 로그 출력
+      enabled: false
+  jackson:
+    time-zone: Asia/Seoul
+# 오류 세부 내용과 스택에 포함될 수 있는 개인정보를 응답에 노출하지 않는다.
+server:
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+# 암호 키는 환경에서 필수로 공급한다. 환율은 외부 실시간 API가 아닌 구성 기본값이다.
+remittance:
+  aes-key: ${REMITTANCE_AES_KEY}
+  jwt-secret: ${REMITTANCE_JWT_SECRET}
+  usd-to-krw: ${REMITTANCE_USD_TO_KRW:1300}
+  jpy-to-krw: ${REMITTANCE_JPY_TO_KRW:9}
+  # 사용자 행 잠금을 기다리는 최대 시간(ms)이다. H2는 URL의 LOCK_TIMEOUT, postgres 프로파일은 연결별 SET lock_timeout으로 적용한다. 초과하면 503 LOCK_TIMEOUT이다.
+  # 허용 범위는 1~30000이며 벗어나면 DB 연결 전에 기동을 거부한다(대기 요청이 스레드·연결을 오래 점유하지 않게 한다).
+  lock-timeout-ms: ${REMITTANCE_LOCK_TIMEOUT_MS:5000}
+  # 환율 공급처와 신선도 정책이다. 잘못된 값은 기동 시점에 거부한다.
+  rates:
+    # configured(설정 환율) | simulated(지연·장애를 주입하는 모의 공급처, 운영 사용 금지)
+    source: ${REMITTANCE_RATES_SOURCE:configured}
+    # 환율 기준 시각이 현재와 이 초를 초과해 벗어나면(같으면 신선) 견적 발급을 503 RATE_STALE로 거부한다(1~3600).
+    max-age-seconds: ${REMITTANCE_RATES_MAX_AGE_SECONDS:60}
+    simulated:
+      # 모의 환율의 기준 시각을 이만큼(초, 0 이상 정수) 과거로 돌린다.
+      age-seconds: ${REMITTANCE_RATES_SIMULATED_AGE_SECONDS:0}
+      # true면 환율 조회가 실패해 견적 발급이 503 RATE_UNAVAILABLE이 된다.
+      unavailable: ${REMITTANCE_RATES_SIMULATED_UNAVAILABLE:false}
 
+# API 명세와 Swagger UI는 함께 켜고 끈다. 외부에 노출하지 않을 환경에서는 REMITTANCE_API_DOCS_ENABLED=false로 끈다.
+springdoc:
+  # 오류 처리용 /error는 공개 API가 아니므로 명세에서 뺀다.
+  paths-to-exclude: /error
+  api-docs:
+    enabled: ${REMITTANCE_API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${REMITTANCE_API_DOCS_ENABLED:true}
+    path: /swagger-ui.html
 
-
-variables:
-  security:
-    aes:
-      secret-key: dOJk0ix87Ws1DD0UyIXpqKFsVORbDix4
-  jwt:
-    secret: ZE9KazBpeDg3V3MxREQwVXlJWHBxS0ZzVk9SYkRpeDQ=
-    expiration: 1800000
-  api:
-    forex:
-      url: https://quotation-api-cdn.dunamu.com:443/v1/forex/recent
+# DB 제약 오류의 원시 메시지에는 userId가 포함될 수 있어 해당 진단 로그를 차단한다.
+# 요청 ID(MDC requestId)를 로그 수준 옆에 붙여 응답 헤더 X-Request-Id와 로그를 연결한다.
+logging:
+  pattern:
+    level: "%5p [%X{requestId:-}]"
+  level:
+    org.hibernate.engine.jdbc.spi.SqlExceptionHelper: "OFF"

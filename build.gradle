@@ -1,68 +1,112 @@
-buildscript {
-    ext {
-        queryDslVersion = '5.0.0'
-    }
-}
-
+// 검증 도구 버전을 고정해 로컬과 독립 검증에서 같은 규칙을 적용한다.
 plugins {
     id 'java'
+    id 'checkstyle'
+    id 'com.diffplug.spotless' version '6.25.0'
     id 'org.springframework.boot' version '3.3.0'
     id 'io.spring.dependency-management' version '1.1.5'
 }
 
-group = 'com.moin'
-version = '0.0.1-SNAPSHOT'
+group = 'com.nelson'
+version = '1.0.0'
 
+// 실행·컴파일 대상과 표준 API를 Java 17로 일치시킨다.
 java {
-    sourceCompatibility = '17'
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
 }
 
-configurations {
-    compileOnly {
-        extendsFrom annotationProcessor
-    }
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
 }
 
-repositories {
-    mavenCentral()
-}
+repositories { mavenCentral() }
 
+// H2와 JWT 구현은 런타임에만 두고 테스트 지원 도구는 운영 의존성에서 분리한다.
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.jetbrains:annotations:24.0.0'
-    compileOnly 'org.projectlombok:lombok'
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
     runtimeOnly 'com.h2database:h2'
-    annotationProcessor 'org.projectlombok:lombok'
+    // 스키마 변경을 버전 관리되는 SQL로 적용한다. H2 지원은 flyway-core에 포함돼 있다.
+    implementation 'org.flywaydb:flyway-core'
+    // Flyway 10은 DB별 지원이 별도 모듈이다. postgres 프로파일의 마이그레이션에 필요하며 버전은 Boot BOM이 관리한다.
+    runtimeOnly 'org.flywaydb:flyway-database-postgresql'
+    runtimeOnly 'org.postgresql:postgresql'
+    implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
+    // API 명세(/v3/api-docs)와 Swagger UI를 코드에서 생성한다. 버전은 Spring Boot 3.3과 맞춰 고정한다.
+    implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
+    runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.2'
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.2'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-    // QueryDSL dependencies
-    implementation "com.querydsl:querydsl-jpa:${queryDslVersion}:jakarta"
-    annotationProcessor "com.querydsl:querydsl-apt:${queryDslVersion}:jakarta"
-    annotationProcessor "jakarta.annotation:jakarta.annotation-api"
-    annotationProcessor "jakarta.persistence:jakarta.persistence-api"
-
-    // JWT dependencies
-    implementation 'io.jsonwebtoken:jjwt-api:0.11.2'
-    implementation 'io.jsonwebtoken:jjwt-impl:0.11.2'
-    implementation 'io.jsonwebtoken:jjwt-jackson:0.11.2'
-    implementation 'javax.xml.bind:jaxb-api:2.3.1'
 }
 
+// JUnit 5로 실행하고 실패 원인을 생략하지 않아 검증 결과를 재현할 수 있게 한다.
+// Docker가 필요한 postgres 태그 테스트는 제외해 Docker 없는 환경에서도 기본 검증이 통과하게 한다.
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'postgres'
+    }
     testLogging {
-        events "PASSED","SKIPPED","FAILED"
-        showStandardStreams = true
+        events 'passed', 'skipped', 'failed'
         exceptionFormat = 'full'
     }
 }
 
-clean {
-    delete file('src/main/generated')
+// 실제 PostgreSQL(Testcontainers) 검증이다. Docker가 필요하므로 check에는 연결하지 않고 따로 실행한다.
+tasks.register('postgresTest', Test) {
+    group = 'verification'
+    description = 'Docker의 PostgreSQL 컨테이너로 postgres 태그 테스트를 실행한다.'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'postgres'
+    }
+    testLogging {
+        events 'passed', 'skipped', 'failed'
+        exceptionFormat = 'full'
+    }
+}
+
+// 한글 주석은 보존하고 AOSP 4칸 포맷과 미사용 import 제거를 전체 Java에 적용한다.
+spotless {
+    java {
+        target 'src/**/*.java'
+        googleJavaFormat('1.22.0').aosp()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+    format 'configuration', {
+        target '.editorconfig', 'build.gradle', 'config/checkstyle/*.xml', 'src/**/*.yaml'
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+// 경고도 실패로 처리하며 포맷 외의 실수 가능한 코드 구조를 검사한다.
+checkstyle {
+    toolVersion = '10.17.0'
+    configFile = file('config/checkstyle/checkstyle.xml')
+    ignoreFailures = false
+    maxErrors = 0
+    maxWarnings = 0
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// CI와 로컬 모두 check 하나로 테스트·포맷·lint를 통과해야 한다.
+tasks.named('check') {
+    dependsOn tasks.named('spotlessCheck')
 }
