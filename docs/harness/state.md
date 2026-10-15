@@ -22,6 +22,7 @@
 - 현재 작업: feature/package-domain-application. domain·application을 책임별 하위 패키지로 나누고 `BusinessException.Code`를 최상위 `ErrorCode`로 분리(전체 패키지 재구성 5개 PR 중 1번째, 동작 불변).
 - 시작 기준: 2026-10-15 dev 62c6df6, PR #37까지 병합된 상태. 저장소 이름이 ssipflow/GlobalRemittance로 바뀌어 있다(publish `--repo` 값 주의).
 - 완료 기준: [작업 기록](tasks/package-domain-application.md)의 옛 경로 잔존 없음·OpenAPI 명세 비교, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
+- 후속 커밋: 작업 기록의 오타 2건 정정(공백·중복 표기)만 반영했다. 앞 커밋의 독립 리뷰와 전체 검증 결과는 그대로 유효하다.
 - 다음: 사람이 PR을 승인·병합한다. 이후 2) adapter/web, 3) adapter/security·persistence(entity/repository 분리 포함), 4) bootstrap(spring.factories), 5) 테스트 패키지 정리. 기본 프로파일(H2/PostgreSQL) 방향은 계속 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 

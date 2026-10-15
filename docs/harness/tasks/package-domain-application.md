@@ -15,8 +15,8 @@
 
 ## 구현 결과와 직접 확인
 - 구조: domain(`exception`, `quote`, `time`, `user`), application(`user`, `transfer`, `port.repository`, `port.security`, `port.rate`). 옛 경로 파일·빈 디렉터리 없음(제가 `find`로 확인), 옛 FQN 참조 0건(`grep`).
-- `ErrorCode`: 14개 값을 순서·이름 그대로 분리(`QUOTE_EXPRIED` 철자 포함), 이름을 참조하는 파일       25 개(`ErrorCode.java` 자신 포함, `grep -rlw ErrorCode src` 기준). `BusinessException.Code`·`domain.BusinessException` 잔존 0건.
-- 접근 제어를 넓힌 곳 없음(main이 그대로 컴파일, 테스트도 패키지 이동 없이 통과). `RollbackFailureTest``RollbackFailureTest`의 클래스 리터럴 2곳(`...port.repository.QuotePosition.class`, `...domain.user.User.IdentityType.class`)만 새 패키지로 수정.
+- `ErrorCode`: 14개 값을 순서·이름 그대로 분리(`QUOTE_EXPRIED` 철자 포함), 이름을 참조하는 파일 25개(`ErrorCode.java` 자신 포함, `grep -rlw ErrorCode src` 기준). `BusinessException.Code`·`domain.BusinessException` 잔존 0건.
+- 접근 제어를 넓힌 곳 없음(main이 그대로 컴파일, 테스트도 패키지 이동 없이 통과). `RollbackFailureTest`의 클래스 리터럴 2곳(`...port.repository.QuotePosition.class`, `...domain.user.User.IdentityType.class`)만 새 패키지로 수정.
 - 테스트: 기본 check 194개(변동 없음), postgresTest 17개 통과, 실패·건너뜀 0. `ArchitectureTest`는 수정하지 않았다(`Files.walk` 재귀 검사라 새 하위 패키지도 대상).
 - **OpenAPI 명세 비교(제가 직접)**: 변경 전(`dev`, #37) 명세와 변경 후 jar의 `/v3/api-docs` JSON을 비교해 `servers` 포트를 빼고 완전히 같다.
 - 실제 jar 기동(스크래치 디렉터리): 견적 4개 중 3건 접수 200, 4번째 400 `LIMIT_EXCESS`, 같은 견적 재접수 409 `ALREADY_REQUESTED`, 오류 로그 0건.
