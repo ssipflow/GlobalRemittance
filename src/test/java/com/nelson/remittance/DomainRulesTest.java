@@ -1,21 +1,22 @@
 package com.nelson.remittance;
 
-import static com.nelson.remittance.domain.BusinessException.Code.ALREADY_REQUESTED;
-import static com.nelson.remittance.domain.BusinessException.Code.FORBIDDEN;
-import static com.nelson.remittance.domain.BusinessException.Code.IDEMPOTENCY_KEY_REUSED;
-import static com.nelson.remittance.domain.BusinessException.Code.LIMIT_EXCESS;
-import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_EXPRIED;
+import static com.nelson.remittance.domain.exception.ErrorCode.ALREADY_REQUESTED;
+import static com.nelson.remittance.domain.exception.ErrorCode.FORBIDDEN;
+import static com.nelson.remittance.domain.exception.ErrorCode.IDEMPOTENCY_KEY_REUSED;
+import static com.nelson.remittance.domain.exception.ErrorCode.LIMIT_EXCESS;
+import static com.nelson.remittance.domain.exception.ErrorCode.QUOTE_EXPRIED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.nelson.remittance.domain.BusinessDay;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.Quote;
-import com.nelson.remittance.domain.QuotePolicy;
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
+import com.nelson.remittance.domain.quote.Quote;
+import com.nelson.remittance.domain.quote.QuotePolicy;
+import com.nelson.remittance.domain.time.BusinessDay;
+import com.nelson.remittance.domain.user.User;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
@@ -29,7 +30,7 @@ class DomainRulesTest {
         return new BigDecimal(value);
     }
 
-    private static void assertCode(BusinessException.Code code, Runnable action) {
+    private static void assertCode(ErrorCode code, Runnable action) {
         assertEquals(code, assertThrows(BusinessException.class, action::run).code());
     }
 

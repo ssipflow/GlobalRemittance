@@ -1,11 +1,11 @@
 package com.nelson.remittance.adapter.security;
 
-import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
+import static com.nelson.remittance.domain.exception.ErrorCode.UNAUTHORIZED;
 
-import com.nelson.remittance.application.port.TokenProvider;
-import com.nelson.remittance.domain.BusinessDay;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.application.port.security.TokenProvider;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.time.BusinessDay;
+import com.nelson.remittance.domain.user.User;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

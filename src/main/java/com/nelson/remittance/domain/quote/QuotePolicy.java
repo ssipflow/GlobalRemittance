@@ -1,8 +1,9 @@
-package com.nelson.remittance.domain;
+package com.nelson.remittance.domain.quote;
 
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
-import static com.nelson.remittance.domain.BusinessException.Code.NEGATIVE_NUMBER;
+import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
+import static com.nelson.remittance.domain.exception.ErrorCode.NEGATIVE_NUMBER;
 
+import com.nelson.remittance.domain.exception.BusinessException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Currency;

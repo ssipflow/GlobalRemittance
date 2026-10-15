@@ -3,7 +3,8 @@ package com.nelson.remittance.adapter.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
 import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PersistenceException;
 import jakarta.persistence.PessimisticLockException;
@@ -83,9 +84,7 @@ class PersistenceErrorsTest {
             assertThatThrownBy(() -> EntityIds.toInt(id))
                     .isInstanceOfSatisfying(
                             BusinessException.class,
-                            e ->
-                                    assertThat(e.code())
-                                            .isEqualTo(BusinessException.Code.INVALID_REQUEST));
+                            e -> assertThat(e.code()).isEqualTo(ErrorCode.INVALID_REQUEST));
         }
     }
 }

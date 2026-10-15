@@ -5,8 +5,8 @@ import static com.nelson.remittance.bootstrap.ConfigValues.integer;
 
 import com.nelson.remittance.adapter.forex.ConfiguredRates;
 import com.nelson.remittance.adapter.forex.SimulatedRates;
-import com.nelson.remittance.application.RateFreshnessPolicy;
-import com.nelson.remittance.application.port.RateProvider;
+import com.nelson.remittance.application.port.rate.RateProvider;
+import com.nelson.remittance.application.transfer.RateFreshnessPolicy;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;

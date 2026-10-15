@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.web;
 
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
+import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 
 import com.nelson.remittance.adapter.web.dto.HistoryResult;
 import com.nelson.remittance.adapter.web.dto.HistoryView;
@@ -9,8 +9,8 @@ import com.nelson.remittance.adapter.web.dto.QuoteResult;
 import com.nelson.remittance.adapter.web.dto.QuoteView;
 import com.nelson.remittance.adapter.web.dto.RequestInput;
 import com.nelson.remittance.adapter.web.dto.Result;
-import com.nelson.remittance.application.TransferUseCases;
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.application.transfer.TransferUseCases;
+import com.nelson.remittance.domain.exception.BusinessException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;

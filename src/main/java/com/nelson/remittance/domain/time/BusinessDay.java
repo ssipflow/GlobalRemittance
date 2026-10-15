@@ -1,4 +1,4 @@
-package com.nelson.remittance.domain;
+package com.nelson.remittance.domain.time;
 
 import java.time.Instant;
 import java.time.LocalDate;

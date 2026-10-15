@@ -1,4 +1,4 @@
-package com.nelson.remittance.domain;
+package com.nelson.remittance.domain.quote;
 
 import java.math.BigDecimal;
 import java.time.Duration;

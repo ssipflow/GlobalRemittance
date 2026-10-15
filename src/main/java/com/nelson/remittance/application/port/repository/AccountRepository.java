@@ -1,6 +1,6 @@
-package com.nelson.remittance.application.port;
+package com.nelson.remittance.application.port.repository;
 
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.domain.user.User;
 import java.util.Optional;
 
 // 계정 조회·저장과 사용자 행 잠금의 계약이다. 잠금은 호출 트랜잭션까지 유지된다.

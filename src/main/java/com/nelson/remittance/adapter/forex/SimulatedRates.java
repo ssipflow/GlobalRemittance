@@ -1,10 +1,10 @@
 package com.nelson.remittance.adapter.forex;
 
-import static com.nelson.remittance.domain.BusinessException.Code.RATE_UNAVAILABLE;
+import static com.nelson.remittance.domain.exception.ErrorCode.RATE_UNAVAILABLE;
 
-import com.nelson.remittance.application.port.RateProvider;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.RateSnapshot;
+import com.nelson.remittance.application.port.rate.RateProvider;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.quote.RateSnapshot;
 import java.time.Clock;
 import java.time.Duration;
 import org.slf4j.Logger;

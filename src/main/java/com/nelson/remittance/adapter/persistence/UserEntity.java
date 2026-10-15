@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.persistence;
 
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.domain.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;

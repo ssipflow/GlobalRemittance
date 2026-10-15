@@ -1,12 +1,12 @@
 package com.nelson.remittance.adapter.persistence;
 
-import static com.nelson.remittance.domain.BusinessException.Code.DUPLICATE_USER;
-import static com.nelson.remittance.domain.BusinessException.Code.LOCK_TIMEOUT;
-import static com.nelson.remittance.domain.BusinessException.Code.UNAUTHORIZED;
+import static com.nelson.remittance.domain.exception.ErrorCode.DUPLICATE_USER;
+import static com.nelson.remittance.domain.exception.ErrorCode.LOCK_TIMEOUT;
+import static com.nelson.remittance.domain.exception.ErrorCode.UNAUTHORIZED;
 
-import com.nelson.remittance.application.port.AccountRepository;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.application.port.repository.AccountRepository;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.user.User;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceException;

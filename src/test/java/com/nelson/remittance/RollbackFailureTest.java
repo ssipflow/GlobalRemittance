@@ -12,10 +12,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nelson.remittance.adapter.persistence.RollbackSafeTransactionManager;
-import com.nelson.remittance.application.TransferUseCases;
-import com.nelson.remittance.application.UserUseCases;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.BusinessException.Code;
+import com.nelson.remittance.application.transfer.TransferUseCases;
+import com.nelson.remittance.application.user.UserUseCases;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManagerFactory;
 import jakarta.persistence.EntityTransaction;
@@ -51,7 +51,7 @@ class RollbackFailureTest {
         @Transactional
         public void failWithBusiness() {
             assertTrue(TransactionSynchronizationManager.isActualTransactionActive());
-            throw new BusinessException(Code.LOCK_TIMEOUT);
+            throw new BusinessException(ErrorCode.LOCK_TIMEOUT);
         }
 
         @Transactional
@@ -116,7 +116,7 @@ class RollbackFailureTest {
         try (var ctx = context(safe)) {
             var service = ctx.getBean(Service.class);
             var business = assertThrows(BusinessException.class, service::failWithBusiness);
-            assertEquals(Code.LOCK_TIMEOUT, business.code());
+            assertEquals(ErrorCode.LOCK_TIMEOUT, business.code());
             // 업무 예외 외의 원래 예외도 보존한다. 이전 TransactionalWork는 BusinessException만 보존했다.
             assertThrows(IllegalStateException.class, service::failWithOther);
             verify(em[0], org.mockito.Mockito.times(2)).close();
@@ -143,14 +143,14 @@ class RollbackFailureTest {
             TransferUseCases.class.getMethod(
                     "history",
                     long.class,
-                    com.nelson.remittance.application.port.QuotePosition.class,
+                    com.nelson.remittance.application.port.repository.QuotePosition.class,
                     int.class),
             UserUseCases.class.getMethod(
                     "signup",
                     String.class,
                     String.class,
                     String.class,
-                    com.nelson.remittance.domain.User.IdentityType.class,
+                    com.nelson.remittance.domain.user.User.IdentityType.class,
                     String.class),
             UserUseCases.class.getMethod("login", String.class, String.class)
         };

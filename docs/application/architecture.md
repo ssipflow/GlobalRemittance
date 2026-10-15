@@ -21,8 +21,8 @@ flowchart LR
 
 | 계층 | 책임 | 주요 클래스 |
 | --- | --- | --- |
-| domain | 수수료·수취액 계산, 견적 발급·접수 상태와 만료(10분), 멱등성 재현 판단(24시간 창), 신원 유형별 일일 한도 검사, KST 기준일 | QuotePolicy, Quote, User, BusinessDay, RateSnapshot, BusinessException |
-| application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트(`application.port` 패키지의 인터페이스) | UserUseCases, TransferUseCases, AccountRepository, QuoteRepository, RateProvider, PasswordHasher, IdentityCipher, TokenProvider |
+| domain | 수수료·수취액 계산, 견적 발급·접수 상태와 만료(10분), 멱등성 재현 판단(24시간 창), 신원 유형별 일일 한도 검사, KST 기준일. 책임별 하위 패키지로 나눈다: `exception`(BusinessException, ErrorCode), `quote`(Quote, QuotePolicy, RateSnapshot), `user`(User), `time`(BusinessDay) | 위 하위 패키지의 클래스 |
+| application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트. 유스케이스는 `user`(UserUseCases), `transfer`(TransferUseCases, RateFreshnessPolicy), 포트는 `port.repository`(AccountRepository, QuoteRepository, QuotePosition, DailyTotal), `port.security`(PasswordHasher, IdentityCipher, TokenProvider), `port.rate`(RateProvider)로 나눈다 | 위 하위 패키지의 클래스 |
 | adapter/web | 입력 검증, 인증 사용자 변환, 이력 페이징(페이지 크기 검증·커서 인코딩/디코딩), JSON 응답과 오류, OpenAPI 명세 선언. 요청/응답 DTO는 `adapter/web/dto` 패키지에 한 파일씩 둔다 | UserController, TransferController, HistoryPaging, dto(Signup, Login, QuoteInput, RequestInput, Result, LoginResult, QuoteView, QuoteResult, HistoryView, HistoryResult, ApiTime), ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, JsonConfiguration, RequestIdFilter, ErrorDescriptions |
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL). 계정(`JpaAccountRepository`)과 견적(`JpaQuoteRepository`) 저장소를 분리하고 DB 예외 판별(`PersistenceErrors`)·ID 범위 변환(`EntityIds`)은 공용으로 둔다 | JpaAccountRepository, JpaQuoteRepository, PersistenceErrors, EntityIds, UserEntity, QuoteEntity, RollbackSafeTransactionManager |
 | adapter/security | BCrypt 비밀번호 해시, AES-GCM, JWT 발급·검증, 인증 필터 | BCryptPasswordHasher, AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
@@ -33,7 +33,9 @@ API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 OpenApiConfig
 
 구성 클래스는 책임별로 나뉜다. 어댑터 구현은 어댑터 패키지에서 스스로 등록한다(`BCryptPasswordHasher`, `AesIdentityCipher`, `JwtTokens`는 `@Component`이고 키는 생성자의 `@Value`로 받아 기동 시 검증한다). 웹 직렬화 규칙(문자열·숫자 자동 변환 차단)은 `adapter/web/JsonConfiguration`이, `Clock`은 `ClockConfiguration`이, 환율 공급처 선택과 허용 지연은 `RatesConfiguration`이, 트랜잭션 매니저는 `PersistenceConfiguration`이 맡는다. 설정값 파서(`ConfigValues`)는 부호·공백·소수를 허용하지 않는 ASCII 정수와 `true`/`false`만 받고 오류 메시지에는 설정 키와 허용 범위만 담는다. 예전에는 이 모두가 하나의 `ApplicationConfiguration`(약 160줄)에 있었고 BCrypt 구현이 익명 클래스로 bootstrap에 들어 있었다.
 
-`application.port` 패키지는 계정·견적 저장(`AccountRepository`, `QuoteRepository`), 환율(`RateProvider`), 비밀번호(`PasswordHasher`), 식별번호 암호화(`IdentityCipher`), 토큰(`TokenProvider`)의 경계를 한 파일에 하나씩 최상위 인터페이스로 정의한다. 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다.
+`application.port` 패키지는 외부 기술의 경계를 책임별 하위 패키지에 한 파일씩 최상위 인터페이스로 정의한다: 저장소(`port.repository`: `AccountRepository`, `QuoteRepository`와 그 조회용 값 `QuotePosition`, `DailyTotal`), 보안(`port.security`: `PasswordHasher`, `IdentityCipher`, `TokenProvider`), 환율(`port.rate`: `RateProvider`). 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다.
+
+업무 오류는 `domain.exception`의 `BusinessException`(오류 코드는 최상위 enum `ErrorCode`)으로 전달한다. 오류 코드는 운영하면서 늘어날 수 있어 예외 타입과 코드를 별도 패키지·파일로 두었다. 예전에는 `BusinessException` 안에 중첩 enum `Code`가 있었다. HTTP 상태 매핑은 도메인이 아니라 웹 어댑터의 `ApiExceptionHandler`가 맡는다.
 
 사용 사례(`UserUseCases`, `TransferUseCases`)는 `@Service`로 선언해 컴포넌트 스캔과 생성자 주입으로 등록한다. 예전에는 application 계층을 Spring에서 분리하려고 설정 클래스의 `@Bean` 메서드로 직접 조립했지만, `@Transactional`을 허용한 뒤로는 그 근거가 약해져 관례에 맞췄다. 환율 허용 지연처럼 타입으로 주입하기 모호한 설정값은 `RateFreshnessPolicy` 레코드로 감싸 설정 쪽에서 검증해 빈으로 만든다. Spring 없이 생성자로 직접 만들어 단위 테스트하는 것(`RatePolicyTest`)은 여전히 가능하다.
 

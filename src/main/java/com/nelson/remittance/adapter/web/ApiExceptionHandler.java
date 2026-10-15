@@ -1,7 +1,8 @@
 package com.nelson.remittance.adapter.web;
 
 import com.nelson.remittance.adapter.web.dto.Result;
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +43,7 @@ public class ApiExceptionHandler {
             default -> LOG.debug("business error code={} {}", error.code(), where(request));
         }
         ResponseEntity<Result> body = response(status.value(), error.code().name());
-        if (error.code() == BusinessException.Code.LOCK_TIMEOUT) {
+        if (error.code() == ErrorCode.LOCK_TIMEOUT) {
             // 잠금은 보유 트랜잭션이 끝나면 풀리므로 짧은 재시도가 의미 있다. 초 단위 정수 고정값이다.
             return ResponseEntity.status(body.getStatusCode())
                     .header(HttpHeaders.RETRY_AFTER, "1")

@@ -1,7 +1,7 @@
 package com.nelson.remittance.adapter.persistence;
 
-import com.nelson.remittance.domain.Quote;
-import com.nelson.remittance.domain.QuotePolicy;
+import com.nelson.remittance.domain.quote.Quote;
+import com.nelson.remittance.domain.quote.QuotePolicy;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

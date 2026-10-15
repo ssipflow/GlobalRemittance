@@ -2,7 +2,7 @@ package com.nelson.remittance.adapter.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nelson.remittance.adapter.web.dto.Result;
-import com.nelson.remittance.application.port.TokenProvider;
+import com.nelson.remittance.application.port.security.TokenProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -14,15 +14,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nelson.remittance.adapter.forex.ConfiguredRates;
-import com.nelson.remittance.application.RateFreshnessPolicy;
-import com.nelson.remittance.application.TransferUseCases;
-import com.nelson.remittance.application.port.AccountRepository;
-import com.nelson.remittance.application.port.QuoteRepository;
-import com.nelson.remittance.application.port.RateProvider;
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.BusinessException.Code;
-import com.nelson.remittance.domain.RateSnapshot;
-import com.nelson.remittance.domain.User;
+import com.nelson.remittance.application.port.rate.RateProvider;
+import com.nelson.remittance.application.port.repository.AccountRepository;
+import com.nelson.remittance.application.port.repository.QuoteRepository;
+import com.nelson.remittance.application.transfer.RateFreshnessPolicy;
+import com.nelson.remittance.application.transfer.TransferUseCases;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
+import com.nelson.remittance.domain.quote.RateSnapshot;
+import com.nelson.remittance.domain.user.User;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -56,7 +56,7 @@ class RatePolicyTest {
         return new RateSnapshot(new BigDecimal(rate), asOf);
     }
 
-    void assertCode(Code code, Runnable action) {
+    void assertCode(ErrorCode code, Runnable action) {
         assertEquals(code, assertThrows(BusinessException.class, action::run).code());
     }
 
@@ -67,7 +67,7 @@ class RatePolicyTest {
         assertDoesNotThrow(() -> transfers.quote(1, AMOUNT, "USD"));
 
         when(rates.rate("USD")).thenReturn(at("1000", NOW.minus(MAX).minusMillis(1)));
-        assertCode(Code.RATE_STALE, () -> transfers.quote(1, AMOUNT, "USD"));
+        assertCode(ErrorCode.RATE_STALE, () -> transfers.quote(1, AMOUNT, "USD"));
     }
 
     @Test
@@ -77,7 +77,7 @@ class RatePolicyTest {
         assertDoesNotThrow(() -> transfers.quote(1, AMOUNT, "USD"));
 
         when(rates.rate("USD")).thenReturn(at("1000", NOW.plus(MAX).plusMillis(1)));
-        assertCode(Code.RATE_STALE, () -> transfers.quote(1, AMOUNT, "USD"));
+        assertCode(ErrorCode.RATE_STALE, () -> transfers.quote(1, AMOUNT, "USD"));
     }
 
     @Test
@@ -95,11 +95,11 @@ class RatePolicyTest {
         Instant old = NOW.minus(MAX).minusSeconds(1);
         when(rates.rate("JPY")).thenReturn(at("10", old));
         when(rates.rate("USD")).thenReturn(at("1000", NOW));
-        assertCode(Code.RATE_STALE, () -> transfers.quote(1, AMOUNT, "JPY"));
+        assertCode(ErrorCode.RATE_STALE, () -> transfers.quote(1, AMOUNT, "JPY"));
 
         when(rates.rate("JPY")).thenReturn(at("10", NOW));
         when(rates.rate("USD")).thenReturn(at("1000", old));
-        assertCode(Code.RATE_STALE, () -> transfers.quote(1, AMOUNT, "JPY"));
+        assertCode(ErrorCode.RATE_STALE, () -> transfers.quote(1, AMOUNT, "JPY"));
 
         verify(quotes, never()).saveQuote(any());
     }
@@ -115,8 +115,8 @@ class RatePolicyTest {
     @Test
     // 공급 실패 코드는 그대로 전달되고 견적은 저장되지 않는다.
     void unavailablePropagates() {
-        when(rates.rate("JPY")).thenThrow(new BusinessException(Code.RATE_UNAVAILABLE));
-        assertCode(Code.RATE_UNAVAILABLE, () -> transfers.quote(1, AMOUNT, "JPY"));
+        when(rates.rate("JPY")).thenThrow(new BusinessException(ErrorCode.RATE_UNAVAILABLE));
+        assertCode(ErrorCode.RATE_UNAVAILABLE, () -> transfers.quote(1, AMOUNT, "JPY"));
         verify(quotes, never()).saveQuote(any());
     }
 
@@ -137,14 +137,14 @@ class RatePolicyTest {
                         new ConfiguredRates(new BigDecimal("1000"), new BigDecimal("10"), clock),
                         clock,
                         new RateFreshnessPolicy(MAX));
-        assertCode(Code.INVALID_REQUEST, () -> configured.quote(1, AMOUNT, "EUR"));
+        assertCode(ErrorCode.INVALID_REQUEST, () -> configured.quote(1, AMOUNT, "EUR"));
     }
 
     @Test
     // 사용자가 없으면 환율을 조회하기 전에 UNAUTHORIZED다.
     void unknownUserFailsBeforeRateLookup() {
         when(accounts.findUser(anyLong())).thenReturn(Optional.empty());
-        assertCode(Code.UNAUTHORIZED, () -> transfers.quote(9, AMOUNT, "USD"));
+        assertCode(ErrorCode.UNAUTHORIZED, () -> transfers.quote(9, AMOUNT, "USD"));
         verify(rates, never()).rate(any());
     }
 }

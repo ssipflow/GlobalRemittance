@@ -1,12 +1,12 @@
 package com.nelson.remittance.adapter.web;
 
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
+import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.nelson.remittance.application.port.QuotePosition;
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.application.port.repository.QuotePosition;
+import com.nelson.remittance.domain.exception.BusinessException;
 import java.time.Instant;
 import java.util.Base64;
 import org.junit.jupiter.api.Test;

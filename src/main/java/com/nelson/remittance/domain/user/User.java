@@ -1,7 +1,8 @@
-package com.nelson.remittance.domain;
+package com.nelson.remittance.domain.user;
 
-import static com.nelson.remittance.domain.BusinessException.Code.LIMIT_EXCESS;
+import static com.nelson.remittance.domain.exception.ErrorCode.LIMIT_EXCESS;
 
+import com.nelson.remittance.domain.exception.BusinessException;
 import java.math.BigDecimal;
 import java.time.Instant;
 

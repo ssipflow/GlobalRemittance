@@ -1,6 +1,6 @@
-package com.nelson.remittance.application.port;
+package com.nelson.remittance.application.port.rate;
 
-import com.nelson.remittance.domain.RateSnapshot;
+import com.nelson.remittance.domain.quote.RateSnapshot;
 
 // 대상 통화 한 단위당 KRW 환율을 기준 시각과 함께 제공하며 내부 계층은 제공처 구현을 알지 못한다.
 // 공급 실패는 어댑터가 BusinessException(RATE_UNAVAILABLE)로 알리고, 미지원 통화는 INVALID_REQUEST다.

@@ -1,16 +1,17 @@
 package com.nelson.remittance;
 
-import static com.nelson.remittance.domain.BusinessException.Code.ALREADY_REQUESTED;
-import static com.nelson.remittance.domain.BusinessException.Code.FORBIDDEN;
-import static com.nelson.remittance.domain.BusinessException.Code.INVALID_REQUEST;
-import static com.nelson.remittance.domain.BusinessException.Code.NEGATIVE_NUMBER;
-import static com.nelson.remittance.domain.BusinessException.Code.QUOTE_EXPRIED;
+import static com.nelson.remittance.domain.exception.ErrorCode.ALREADY_REQUESTED;
+import static com.nelson.remittance.domain.exception.ErrorCode.FORBIDDEN;
+import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
+import static com.nelson.remittance.domain.exception.ErrorCode.NEGATIVE_NUMBER;
+import static com.nelson.remittance.domain.exception.ErrorCode.QUOTE_EXPRIED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import com.nelson.remittance.domain.BusinessException;
-import com.nelson.remittance.domain.Quote;
-import com.nelson.remittance.domain.QuotePolicy;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
+import com.nelson.remittance.domain.quote.Quote;
+import com.nelson.remittance.domain.quote.QuotePolicy;
 import java.math.BigDecimal;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class QuotePolicyTest {
         assertEquals(0, n(expected).compareTo(actual));
     }
 
-    private static void failure(BusinessException.Code code, Runnable action) {
+    private static void failure(ErrorCode code, Runnable action) {
         assertEquals(code, assertThrows(BusinessException.class, action::run).code());
     }
 

@@ -1,4 +1,4 @@
-package com.nelson.remittance.application.port;
+package com.nelson.remittance.application.port.repository;
 
 import java.math.BigDecimal;
 

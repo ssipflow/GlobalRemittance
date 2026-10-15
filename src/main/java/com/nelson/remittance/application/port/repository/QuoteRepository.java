@@ -1,6 +1,6 @@
-package com.nelson.remittance.application.port;
+package com.nelson.remittance.application.port.repository;
 
-import com.nelson.remittance.domain.Quote;
+import com.nelson.remittance.domain.quote.Quote;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;

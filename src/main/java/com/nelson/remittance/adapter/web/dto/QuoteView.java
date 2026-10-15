@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.web.dto;
 
-import com.nelson.remittance.domain.Quote;
+import com.nelson.remittance.domain.quote.Quote;
 import java.math.BigDecimal;
 
 // 영속 모델 없이 공개 견적 필드와 KST 만료 시각을 전달한다.

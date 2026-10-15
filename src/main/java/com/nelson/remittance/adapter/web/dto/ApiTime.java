@@ -1,6 +1,6 @@
 package com.nelson.remittance.adapter.web.dto;
 
-import com.nelson.remittance.domain.BusinessDay;
+import com.nelson.remittance.domain.time.BusinessDay;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 

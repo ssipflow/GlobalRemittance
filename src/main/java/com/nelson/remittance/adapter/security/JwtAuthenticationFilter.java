@@ -2,8 +2,9 @@ package com.nelson.remittance.adapter.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nelson.remittance.adapter.web.dto.Result;
-import com.nelson.remittance.application.port.TokenProvider;
-import com.nelson.remittance.domain.BusinessException;
+import com.nelson.remittance.application.port.security.TokenProvider;
+import com.nelson.remittance.domain.exception.BusinessException;
+import com.nelson.remittance.domain.exception.ErrorCode;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,7 +44,7 @@ public final class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (header != null) {
             try {
                 if (!header.startsWith("Bearer ") || header.length() <= 7) {
-                    throw new BusinessException(BusinessException.Code.UNAUTHORIZED);
+                    throw new BusinessException(ErrorCode.UNAUTHORIZED);
                 }
                 long id = tokens.verify(header.substring(7));
                 SecurityContextHolder.getContext()
