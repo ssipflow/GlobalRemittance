@@ -5,12 +5,9 @@ import com.nelson.remittance.adapter.forex.SimulatedRates;
 import com.nelson.remittance.adapter.persistence.RollbackSafeTransactionManager;
 import com.nelson.remittance.adapter.security.AesIdentityCipher;
 import com.nelson.remittance.adapter.security.JwtTokens;
-import com.nelson.remittance.application.TransferUseCases;
-import com.nelson.remittance.application.UserUseCases;
-import com.nelson.remittance.application.port.AccountRepository;
+import com.nelson.remittance.application.RateFreshnessPolicy;
 import com.nelson.remittance.application.port.IdentityCipher;
 import com.nelson.remittance.application.port.PasswordHasher;
-import com.nelson.remittance.application.port.QuoteRepository;
 import com.nelson.remittance.application.port.RateProvider;
 import com.nelson.remittance.application.port.TokenProvider;
 import jakarta.persistence.EntityManagerFactory;
@@ -138,28 +135,12 @@ public class ApplicationConfiguration {
     }
 
     @Bean
-    // 계정·보안 포트를 조합해 내부 가입·로그인 사용 사례를 만든다.
-    UserUseCases users(
-            AccountRepository accounts,
-            PasswordHasher passwords,
-            IdentityCipher cipher,
-            TokenProvider tokens,
-            Clock clock) {
-        return new UserUseCases(accounts, passwords, cipher, tokens, clock);
-    }
-
-    @Bean
-    // 저장·환율·시간 포트를 조합해 내부 송금 사용 사례를 만든다. 환율 허용 지연은 1~3600초다.
-    TransferUseCases transfers(
-            AccountRepository accounts,
-            QuoteRepository quotes,
-            RateProvider rates,
-            Clock clock,
+    // 환율 허용 지연은 1~3600초다. 잘못된 값은 요청 시점이 아니라 기동 시점에 설정 키와 함께 거부한다.
+    RateFreshnessPolicy rateFreshnessPolicy(
             @Value("${remittance.rates.max-age-seconds:60}") String maxAgeSeconds) {
-        Duration maxAge =
+        return new RateFreshnessPolicy(
                 Duration.ofSeconds(
-                        integer("remittance.rates.max-age-seconds", maxAgeSeconds, 1, 3600));
-        return new TransferUseCases(accounts, quotes, rates, clock, maxAge);
+                        integer("remittance.rates.max-age-seconds", maxAgeSeconds, 1, 3600)));
     }
 
     // 부호·공백·소수를 허용하지 않는 ASCII 정수만 받는다. 오류 메시지에는 설정 키와 허용 범위만 담는다.

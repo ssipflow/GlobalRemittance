@@ -1,6 +1,6 @@
 # 아키텍처
 
-`com.nelson.remittance` 아래에서 업무 규칙과 기술 구현을 분리한다. domain은 금액·견적 규칙을 정의하고 application은 규칙을 적용하는 순서를 조정한다. 웹·DB·인증·환율 구현은 adapter에, 객체 조립은 bootstrap에 둔다.
+`com.nelson.remittance` 아래에서 업무 규칙과 기술 구현을 분리한다. domain은 금액·견적 규칙을 정의하고 application은 규칙을 적용하는 순서를 조정한다. 웹·DB·인증·환율 구현은 adapter에, 어댑터·설정 빈의 조립은 bootstrap에 둔다(유스케이스는 `@Service`로 스캔 등록).
 
 ## 계층과 의존성
 
@@ -27,13 +27,15 @@ flowchart LR
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL) | JpaStore, UserEntity, QuoteEntity, RollbackSafeTransactionManager |
 | adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
 | adapter/forex | 설정 환율 제공, 지연·장애를 주입하는 모의 공급처 | ConfiguredRates, SimulatedRates |
-| bootstrap | DI, Clock와 BCrypt 구성, 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer |
+| bootstrap | 어댑터·설정 빈 조립(Clock, BCrypt, 환율 공급처와 허용 지연, 트랜잭션 매니저), 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer |
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 OpenApiConfiguration에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
 
 `application.port` 패키지는 계정·견적 저장(`AccountRepository`, `QuoteRepository`), 환율(`RateProvider`), 비밀번호(`PasswordHasher`), 식별번호 암호화(`IdentityCipher`), 토큰(`TokenProvider`)의 경계를 한 파일에 하나씩 최상위 인터페이스로 정의한다. 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다.
 
-트랜잭션은 사용 사례의 업무 메서드(`quote`, `request`, `history`, `signup`, `login`)에 붙인 `@Transactional`로 건다. application 계층에서 허용하는 Spring 의존은 `org.springframework.transaction.annotation.Transactional` 하나뿐이며 `ArchitectureTest`가 그 밖의 Spring·JPA 참조(같은 패키지의 다른 타입 포함)를 계속 막는다(domain은 Spring 전체 금지). 프록시가 서브클래스를 만들므로 사용 사례 클래스는 final이 아니다. 예전의 `Work` 포트와 TransactionTemplate 구현(`TransactionalWork`)은 제거했다. 어댑터의 `RollbackSafeTransactionManager`는 롤백 자체가 실패해도 호출자가 원래 예외를 받게 한다.
+사용 사례(`UserUseCases`, `TransferUseCases`)는 `@Service`로 선언해 컴포넌트 스캔과 생성자 주입으로 등록한다. 예전에는 application 계층을 Spring에서 분리하려고 `ApplicationConfiguration`의 `@Bean` 메서드로 직접 조립했지만, `@Transactional`을 허용한 뒤로는 그 근거가 약해져 관례에 맞췄다. 환율 허용 지연처럼 타입으로 주입하기 모호한 설정값은 `RateFreshnessPolicy` 레코드로 감싸 설정 쪽에서 검증해 빈으로 만든다. Spring 없이 생성자로 직접 만들어 단위 테스트하는 것(`RatePolicyTest`)은 여전히 가능하다.
+
+트랜잭션은 사용 사례의 업무 메서드(`quote`, `request`, `history`, `signup`, `login`)에 붙인 `@Transactional`로 건다. application 계층에서 허용하는 Spring 의존은 `org.springframework.stereotype.Service`와 `org.springframework.transaction.annotation.Transactional` 두 타입뿐이며 `ArchitectureTest`가 그 밖의 Spring·JPA 참조(같은 패키지의 다른 타입 포함)를 계속 막는다(domain은 Spring 전체 금지). 프록시가 서브클래스를 만들므로 사용 사례 클래스는 final이 아니다. 예전의 `Work` 포트와 TransactionTemplate 구현(`TransactionalWork`)은 제거했다. 어댑터의 `RollbackSafeTransactionManager`는 롤백 자체가 실패해도 호출자가 원래 예외를 받게 한다.
 
 ## 인증과 견적 생성
 

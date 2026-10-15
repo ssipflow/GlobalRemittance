@@ -13,10 +13,13 @@ import com.nelson.remittance.domain.User;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 // 가입과 로그인을 조정하며 암호화·해시·토큰·저장 구현을 포트로 호출한다.
+// 컴포넌트 스캔으로 등록되는 빈이며 생성자 주입 대상은 모두 포트다.
 // 프록시가 서브클래스를 만들어 @Transactional을 적용하므로 final로 두지 않는다.
+@Service
 public class UserUseCases {
     private final AccountRepository accounts;
     private final PasswordHasher passwords;

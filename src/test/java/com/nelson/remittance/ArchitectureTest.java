@@ -1,5 +1,6 @@
 package com.nelson.remittance;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -23,13 +24,22 @@ class ArchitectureTest {
                     "org/springdoc/",
                     "com/nelson/remittance/adapter/");
 
-    // application만 선언적 트랜잭션 경계 어노테이션을 쓸 수 있다. domain은 예외 없이 Spring 전체를 금지한다.
+    // application은 선언적 트랜잭션 경계(@Transactional)와 빈 등록(@Service) 어노테이션 두 타입만 쓸 수 있다.
+    // domain은 예외 없이 Spring 전체를 금지한다.
+    // 상수 풀에는 어노테이션이 타입 표기 "L...;" 전체로 나타난다. 접두사만 지우면 같은 이름으로 시작하는
+    // 다른 타입의 앞부분이 가려지므로 종결 ';'까지 포함해 정확히 일치할 때만 지운다.
     private static final String TRANSACTION_ANNOTATION =
-            "org/springframework/transaction/annotation/Transactional";
+            "Lorg/springframework/transaction/annotation/Transactional;";
+    private static final String SERVICE_ANNOTATION = "Lorg/springframework/stereotype/Service;";
+    private static final List<String> APPLICATION_ALLOWED =
+            List.of(TRANSACTION_ANNOTATION, SERVICE_ANNOTATION);
 
-    // 허용 접두사만 지운 뒤 금지 목록을 검사하므로 같은 spring 하위의 다른 패키지와 같은 패키지의 다른 타입은 여전히 걸린다.
-    private static String withoutAllowed(String constants, String allowed) {
-        return constants.replace(allowed, "");
+    // 허용 타입 표기만 지운 뒤 금지 목록을 검사하므로 같은 spring 하위의 다른 패키지와 같은 패키지의 다른 타입은 여전히 걸린다.
+    private static String withoutAllowed(String constants, List<String> allowed) {
+        for (String prefix : allowed) {
+            constants = constants.replace(prefix, "");
+        }
+        return constants;
     }
 
     private static List<Path> classFiles(String layer) throws IOException {
@@ -51,7 +61,7 @@ class ArchitectureTest {
             for (Path file : classFiles(layer)) {
                 String constants = constants(file);
                 if (layer.equals("application")) {
-                    constants = withoutAllowed(constants, TRANSACTION_ANNOTATION);
+                    constants = withoutAllowed(constants, APPLICATION_ALLOWED);
                 }
                 for (String forbidden : FORBIDDEN) {
                     assertFalse(
@@ -83,20 +93,49 @@ class ArchitectureTest {
     }
 
     @Test
-    // 허용 접두사 제거가 다른 spring 패키지까지 가리지 않는다.
-    void transactionAnnotationExceptionDoesNotHideOtherSpringPackages() {
+    // 예외가 실제 바이트코드와 맞는다는 양성 대조: application은 @Service 접두사도 실제로 참조한다.
+    void serviceAnnotationIsVisibleInApplicationBytecode() throws Exception {
+        boolean found = false;
+        for (Path file : classFiles("application")) {
+            found |= constants(file).contains(SERVICE_ANNOTATION);
+        }
+        assertTrue(found, "application 바이트코드에서 " + SERVICE_ANNOTATION + " 를 찾지 못했다");
+    }
+
+    @Test
+    // 허용 접두사 제거가 다른 spring 타입·패키지까지 가리지 않는다.
+    void allowedAnnotationExceptionsDoNotHideOtherSpringTypes() {
         String constants =
                 "Lorg/springframework/transaction/annotation/Transactional;"
+                        + "Lorg/springframework/stereotype/Service;"
                         + "Lorg/springframework/stereotype/Component;"
+                        + "Lorg/springframework/stereotype/Repository;"
                         + "Lorg/springframework/transaction/annotation/EnableTransactionManagement;"
                         + "Lorg/springframework/transaction/support/TransactionTemplate;";
-        String remaining = withoutAllowed(constants, TRANSACTION_ANNOTATION);
+        String remaining = withoutAllowed(constants, APPLICATION_ALLOWED);
         assertFalse(remaining.contains(TRANSACTION_ANNOTATION));
-        assertTrue(remaining.contains("org/springframework/stereotype/"));
+        assertFalse(remaining.contains(SERVICE_ANNOTATION));
+        assertFalse(remaining.contains("stereotype/Service;"));
+        assertTrue(remaining.contains("org/springframework/stereotype/Component"));
+        assertTrue(remaining.contains("org/springframework/stereotype/Repository"));
         assertTrue(
                 remaining.contains(
                         "org/springframework/transaction/annotation/EnableTransactionManagement"));
         assertTrue(remaining.contains("org/springframework/transaction/support/"));
         assertTrue(remaining.contains("org/springframework/"));
+    }
+
+    @Test
+    // 허용 타입 이름으로 시작하는 다른 타입은 제거되지 않아 금지 접두사에 걸린다.
+    void allowedTypeNamePrefixesDoNotHideOtherTypes() {
+        for (String other :
+                List.of(
+                        "Lorg/springframework/stereotype/ServiceLocator;",
+                        "Lorg/springframework/transaction/annotation/TransactionalXxx;")) {
+            assertTrue(withoutAllowed(other, APPLICATION_ALLOWED).contains("org/springframework/"));
+        }
+        assertEquals(
+                "",
+                withoutAllowed(SERVICE_ANNOTATION + TRANSACTION_ANNOTATION, APPLICATION_ALLOWED));
     }
 }
