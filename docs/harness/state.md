@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/entity-access-rule. JPA 엔티티 패키지를 adapter/persistence 밖에서 참조하지 못하게 ArchitectureTest에 규칙 추가(운영 코드 불변).
-- 시작 기준: 2026-10-15 dev a82b4e4, 패키지 재구성 5개 PR(#38~#42) 모두 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/entity-access-rule.md)의 규칙·양성 대조·위반 감지 확인, check·bootJar·postgresTest 통과, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 기본 프로파일(H2/PostgreSQL) 방향 등은 사용자 결정 대기.
+- 현재 작업: hotfix/remove-backup-sql. 참조되지 않는 H2 덤프 `backup.sql` 삭제(파일 삭제만, 코드 불변).
+- 시작 기준: 2026-10-15 dev, PR #43까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/remove-backup-sql.md)의 참조 없음 확인, check·bootJar 통과, dev PR.
+- 다음: 사람이 PR을 승인·병합한다. 이후 기본 프로파일(H2/PostgreSQL) 방향, `./data` 처분 등은 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
