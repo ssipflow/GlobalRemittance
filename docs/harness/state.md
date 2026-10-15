@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/application-ports. `application/Ports`의 중첩 인터페이스를 `application/port` 패키지의 독립 인터페이스로 분리(동작 불변 리팩터링, 3단계 중 ①).
-- 시작 기준: 2026-10-15 dev 782b57e, PR #30까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/application-ports.md)의 `Ports` 잔존 0건, check·bootJar·postgresTest 통과, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 ② `@Transactional` 전환, ③ 한도·멱등성 재현창의 도메인 이동. 테스트 H2/운영 PostgreSQL 기본 프로파일 방향은 사용자 결정 대기.
+- 현재 작업: feature/transactional-usecases. `Work` 포트/`TransactionalWork`를 제거하고 유스케이스를 `@Transactional`로 전환(3단계 중 ②, 동작 불변). 롤백 실패 시 원래 업무 오류 전달은 실험으로 필요 여부 확인.
+- 시작 기준: 2026-10-15 dev beb4eb0, PR #31까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/transactional-usecases.md)의 프록시 고정·롤백 실패 회귀 테스트, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 ③ 한도·멱등성 재현창의 도메인 이동. 테스트 H2/운영 PostgreSQL 기본 프로파일 방향은 사용자 결정 대기.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

@@ -54,7 +54,7 @@ sequenceDiagram
 
 ### 실제 잠금 경계
 
-TransferUseCases.request는 `Work.required` 안에서 아래 순서로 실행한다. Work의 구현인 TransactionalWork는 TransactionTemplate을 사용한다.
+TransferUseCases.request는 `@Transactional` 메서드 하나의 트랜잭션 안에서 아래 순서로 실행한다. 사용 사례는 CGLIB 프록시로 감싸져 메서드 진입 시 트랜잭션이 시작되고 예외로 끝나면 롤백된다.
 
 1. `Accounts.lockUser(actorId)`로 사용자 행을 조회하며 `PESSIMISTIC_WRITE` 잠금을 요청한다.
 2. 잠금을 얻은 후 견적을 조회한다. 먼저 조회해 둔 requestedTime으로 중복 여부를 판단하지 않는다.
@@ -188,10 +188,12 @@ sequenceDiagram
 | --- | --- | --- |
 | 잠금 획득 실패 | 503 LOCK_TIMEOUT(`Retry-After: 1`), 해당 실행의 접수 저장에 도달하지 않음 | 대기를 두고 재시도할 수 있지만 다시 만료·한도 검사 대상 |
 | 잠금 후 업무 검사 실패 | ALREADY_REQUESTED·QUOTE_EXPRIED·LIMIT_EXCESS 등 | 무조건 재시도해 해결되는 오류가 아님 |
-| 업무 예외 후 롤백도 실패 | TransactionalWork가 기록해 둔 BusinessException을 다시 전달 | 오류 원인 유지와 DB 복구 확인은 별개 |
+| 업무 예외 후 롤백도 실패 | RollbackSafeTransactionManager가 롤백 실패를 로그만 남기고 삼켜 원래 예외(BusinessException 포함)를 전달 | 오류 원인 유지와 DB 복구 확인은 별개 |
 | 커밋 후 응답 유실 | 클라이언트는 성공 여부를 알 수 없음 | 같은 Idempotency-Key로 재요청하면 24시간 미만이면 200이 재현된다. 키가 없었다면 이력으로 확인 |
 
-TransactionalWork는 사용 사례 실행 중 RuntimeException을 기억한다. 트랜잭션 종료가 예외로 끝났을 때, 기억한 예외가 BusinessException이면 그 업무 오류를 전달한다. 기억한 업무 오류가 없으면 트랜잭션 예외를 그대로 전달한다. 이 처리가 롤백 재시도나 커밋 결과 조회까지 수행하지는 않는다.
+`@Transactional`을 쓰고 기본 `JpaTransactionManager` 기준으로 롤백 자체가 예외를 던지면 그 예외가 원래 업무 예외를 덮는다. 전환 중에 H2 락 타임아웃 테스트가 503이 아니라 500으로 깨지는 것이 관찰됐고(개발 중 관찰, 현재 코드로는 재현되지 않는다), 롤백이 실패하게 만든 결정적 재현 테스트(Mockito 대역 EntityManagerFactory)에서는 호출자가 원래 `BusinessException`이 아니라 `JpaSystemException`을 받는다. 실제 H2·PostgreSQL에서 이 현상이 일반적으로 나타나는지까지는 단정하지 않는다. 그래서 JpaTransactionManager를 상속한 `RollbackSafeTransactionManager`가 `doRollback`의 RuntimeException을 삼키고 예외 클래스명·SQLState만 WARN으로 남긴다. 이전 `TransactionalWork`는 `BusinessException`만 보존하고 그 외 예외에서는 롤백 예외를 던졌지만, 새 방식은 모든 원래 예외를 보존한다. 롤백 실패를 삼키는 것이므로 커넥션 상태가 불확실한 채 풀에 반환될 수 있다(풀이 반환 시 정리하는지는 이 프로젝트에서 확인하지 않았다). 이 처리가 롤백 재시도나 커밋 결과 조회까지 수행하지는 않는다.
+
+트랜잭션 전환에서 달라진 점: 이전에는 `signup`·`login`의 입력 형식 검증(비밀번호·식별번호 길이, UTF-8 바이트 제한)이 트랜잭션 바깥이었지만 지금은 메서드 전체가 `@Transactional`이라 잘못된 입력도 빈 트랜잭션을 열었다 닫는다. 오류 코드와 응답은 같고, Hibernate가 트랜잭션 시작 시 풀 연결을 잡을 수 있어 형식 오류 요청도 연결을 잠깐 점유한다. 한도가 정해진 풀(기본 10개)에서 잘못된 요청이 몰릴 때의 영향은 측정하지 않았다. 또 직접 등록한 트랜잭션 매니저는 Boot 기본 구성을 대체하므로 `spring.transaction.*` 속성이 적용되도록 `TransactionManagerCustomizers`를 연결했다.
 
 ### 멱등성 키
 
@@ -324,7 +326,7 @@ MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이�
 
 연결 끊김 뒤의 첫 500은 풀이 끊긴 연결을 처음 사용할 때 알게 되는 현재의 실제 동작이다. 클라이언트는 같은 `Idempotency-Key`로 재시도하면 안전하다. 이 500을 숨기려면 풀의 검증·수명 설정이나 재시도를 별도로 설계해야 하며 이번 범위가 아니다.
 
-보장하지 않는 것: 다중 앱 인스턴스, 고부하·장시간 경쟁·교착, DB 재시작·네트워크 분리, 롤백 자체가 실패하는 상황(`TransactionalWork`의 업무 오류 보존 경로)은 PostgreSQL에서 검증하지 않았다. 연결 끊김 시나리오는 모든 연결을 한 번에 끊은 한 경우뿐이다. PostgreSQL 16 한 버전만 사용했고 다른 버전·관리형 서비스·커넥션 풀 크기 변화는 확인하지 않았다.
+보장하지 않는 것: 다중 앱 인스턴스, 고부하·장시간 경쟁·교착, DB 재시작·네트워크 분리, 롤백 자체가 실패하는 상황(`RollbackSafeTransactionManager`의 원래 예외 보존)은 H2 락 타임아웃 테스트와 Mockito 기반 결정적 재현으로만 확인했고 PostgreSQL에서는 검증하지 않았다. 연결 끊김 시나리오는 모든 연결을 한 번에 끊은 한 경우뿐이다. PostgreSQL 16 한 버전만 사용했고 다른 버전·관리형 서비스·커넥션 풀 크기 변화는 확인하지 않았다.
 
 ## 환율 신선도 정책
 

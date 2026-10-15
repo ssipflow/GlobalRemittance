@@ -2,6 +2,7 @@ package com.nelson.remittance.bootstrap;
 
 import com.nelson.remittance.adapter.forex.ConfiguredRates;
 import com.nelson.remittance.adapter.forex.SimulatedRates;
+import com.nelson.remittance.adapter.persistence.RollbackSafeTransactionManager;
 import com.nelson.remittance.adapter.security.AesIdentityCipher;
 import com.nelson.remittance.adapter.security.JwtTokens;
 import com.nelson.remittance.application.TransferUseCases;
@@ -12,14 +13,17 @@ import com.nelson.remittance.application.port.PasswordHasher;
 import com.nelson.remittance.application.port.QuoteRepository;
 import com.nelson.remittance.application.port.RateProvider;
 import com.nelson.remittance.application.port.TokenProvider;
-import com.nelson.remittance.application.port.Work;
+import jakarta.persistence.EntityManagerFactory;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.transaction.PlatformTransactionManager;
 
 @Configuration
 // 외부 구현을 포트에 연결하고 시간·환율·키 설정을 시작 시점에 구성한다.
@@ -122,30 +126,40 @@ public class ApplicationConfiguration {
     }
 
     @Bean
-    // 계정·보안·트랜잭션 포트를 조합해 내부 가입·로그인 사용 사례를 만든다.
+    // 롤백 실패가 원래 예외를 덮지 않는 매니저를 두면 Boot 기본 JpaTransactionManager 자동 구성이 물러난다.
+    // Boot의 JpaBaseConfiguration이 물러나므로 spring.transaction.* 설정(기본 타임아웃 등)을 담은
+    // TransactionManagerCustomizers를 Boot와 같은 방식으로 직접 적용해 설정이 조용히 무시되지 않게 한다.
+    PlatformTransactionManager transactionManager(
+            EntityManagerFactory factory,
+            ObjectProvider<TransactionManagerCustomizers> customizers) {
+        var manager = new RollbackSafeTransactionManager(factory);
+        customizers.ifAvailable(c -> c.customize(manager));
+        return manager;
+    }
+
+    @Bean
+    // 계정·보안 포트를 조합해 내부 가입·로그인 사용 사례를 만든다.
     UserUseCases users(
             AccountRepository accounts,
             PasswordHasher passwords,
             IdentityCipher cipher,
             TokenProvider tokens,
-            Work work,
             Clock clock) {
-        return new UserUseCases(accounts, passwords, cipher, tokens, work, clock);
+        return new UserUseCases(accounts, passwords, cipher, tokens, clock);
     }
 
     @Bean
-    // 저장·환율·시간·트랜잭션 포트를 조합해 내부 송금 사용 사례를 만든다. 환율 허용 지연은 1~3600초다.
+    // 저장·환율·시간 포트를 조합해 내부 송금 사용 사례를 만든다. 환율 허용 지연은 1~3600초다.
     TransferUseCases transfers(
             AccountRepository accounts,
             QuoteRepository quotes,
             RateProvider rates,
-            Work work,
             Clock clock,
             @Value("${remittance.rates.max-age-seconds:60}") String maxAgeSeconds) {
         Duration maxAge =
                 Duration.ofSeconds(
                         integer("remittance.rates.max-age-seconds", maxAgeSeconds, 1, 3600));
-        return new TransferUseCases(accounts, quotes, rates, work, clock, maxAge);
+        return new TransferUseCases(accounts, quotes, rates, clock, maxAge);
     }
 
     // 부호·공백·소수를 허용하지 않는 ASCII 정수만 받는다. 오류 메시지에는 설정 키와 허용 범위만 담는다.
