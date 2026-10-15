@@ -191,7 +191,7 @@ class ObservabilityTest {
     // ErrorDescriptions는 웹 어댑터 패키지 전용이라 리플렉션으로 호출한다.
     static String describe(Throwable error) {
         try {
-            var type = Class.forName("com.nelson.remittance.adapter.web.ErrorDescriptions");
+            var type = Class.forName("com.nelson.remittance.adapter.web.error.ErrorDescriptions");
             var method = type.getDeclaredMethod("describe", Throwable.class);
             method.setAccessible(true);
             return (String) method.invoke(null, error);
@@ -225,7 +225,7 @@ class ObservabilityTest {
     // 체인에서 예외가 나도 예외는 전파되고, 체인 안에서는 MDC에 요청 ID가 있으며, 끝나면 MDC가 비고 응답 헤더는 남는다.
     @Test
     void filterClearsMdcAndPropagatesWhenChainThrows() {
-        var filter = new com.nelson.remittance.adapter.web.RequestIdFilter();
+        var filter = new com.nelson.remittance.adapter.web.filter.RequestIdFilter();
         var request = new org.springframework.mock.web.MockHttpServletRequest();
         var response = new org.springframework.mock.web.MockHttpServletResponse();
         String[] inChain = new String[1];

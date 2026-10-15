@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.config;
 
 import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;

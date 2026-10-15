@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;

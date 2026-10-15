@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.filter;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.controller;
 
 import com.nelson.remittance.adapter.web.dto.Login;
 import com.nelson.remittance.adapter.web.dto.LoginResult;

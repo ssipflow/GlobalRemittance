@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.web;
+package com.nelson.remittance.adapter.web.controller;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 import static java.nio.charset.StandardCharsets.UTF_8;
