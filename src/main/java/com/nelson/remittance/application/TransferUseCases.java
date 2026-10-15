@@ -19,10 +19,13 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 // 견적 생성, 원자적 접수와 KST 이력 집계를 트랜잭션 안에서 조정한다.
+// 컴포넌트 스캔으로 등록되는 빈이며 환율 허용 지연은 RateFreshnessPolicy로 주입받는다.
 // 프록시가 서브클래스를 만들어 @Transactional을 적용하므로 final로 두지 않는다.
+@Service
 public class TransferUseCases {
     private final AccountRepository accounts;
     private final QuoteRepository quotes;
@@ -35,12 +38,12 @@ public class TransferUseCases {
             QuoteRepository quotes,
             RateProvider rates,
             Clock clock,
-            Duration rateMaxAge) {
+            RateFreshnessPolicy rateFreshness) {
         this.accounts = accounts;
         this.quotes = quotes;
         this.rates = rates;
         this.clock = clock;
-        this.rateMaxAge = rateMaxAge;
+        this.rateMaxAge = rateFreshness.maxAge();
     }
 
     // 존재하는 사용자에 대해 신선한 환율과 수수료를 확정하고 10분짜리 견적을 저장한다.

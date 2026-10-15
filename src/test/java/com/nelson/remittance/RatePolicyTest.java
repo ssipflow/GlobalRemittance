@@ -14,6 +14,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.nelson.remittance.adapter.forex.ConfiguredRates;
+import com.nelson.remittance.application.RateFreshnessPolicy;
 import com.nelson.remittance.application.TransferUseCases;
 import com.nelson.remittance.application.port.AccountRepository;
 import com.nelson.remittance.application.port.QuoteRepository;
@@ -47,7 +48,8 @@ class RatePolicyTest {
     void setUp() {
         when(accounts.findUser(anyLong())).thenReturn(Optional.of(mock(User.class)));
         when(quotes.saveQuote(any())).thenAnswer(call -> call.getArgument(0));
-        transfers = new TransferUseCases(accounts, quotes, rates, clock, MAX);
+        transfers =
+                new TransferUseCases(accounts, quotes, rates, clock, new RateFreshnessPolicy(MAX));
     }
 
     RateSnapshot at(String rate, Instant asOf) {
@@ -134,7 +136,7 @@ class RatePolicyTest {
                         quotes,
                         new ConfiguredRates(new BigDecimal("1000"), new BigDecimal("10"), clock),
                         clock,
-                        MAX);
+                        new RateFreshnessPolicy(MAX));
         assertCode(Code.INVALID_REQUEST, () -> configured.quote(1, AMOUNT, "EUR"));
     }
 

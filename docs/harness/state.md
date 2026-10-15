@@ -19,10 +19,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/domain-transfer-rules. 일일 한도·멱등성 재현창·견적 유효시간·KST 기준일을 도메인으로 이동(3단계 중 ③, 동작 불변).
-- 시작 기준: 2026-10-15 dev 2a95647, PR #32까지 병합된 상태.
-- 완료 기준: [작업 기록](tasks/domain-transfer-rules.md)의 도메인 경계 테스트, 기존 테스트 무수정 통과, check·bootJar·postgresTest, jar 스모크, 문서 갱신, dev PR 후 Vault 동기화.
-- 다음: 사람이 PR을 승인·병합한다. 이후 테스트 H2/운영 PostgreSQL 기본 프로파일 방향(사용자 결정 대기: 기본 프로파일을 PostgreSQL로 바꿀지, 기존 ./data H2 파일을 버려도 되는지).
+- 현재 작업: feature/service-usecases. 유스케이스를 `@Service` 빈으로 등록하고 `ApplicationConfiguration`의 수동 조립을 제거(동작 불변, 사용자 결정).
+- 시작 기준: 2026-10-15 dev 46d18cf, PR #33까지 병합된 상태.
+- 완료 기준: [작업 기록](tasks/service-usecases.md)의 중복 빈 없음·프록시 유지·기동 거부 유지, check·bootJar·postgresTest, jar 스모크, 문서 정정, dev PR 후 Vault 동기화.
+- 다음: 사람이 PR을 승인·병합한다. 이후 기본 프로파일(H2/PostgreSQL) 방향 결정(사용자 대기)과 남은 후보(연결 끊김 직후 500 완화, 로그인 시도 제한 등).
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
