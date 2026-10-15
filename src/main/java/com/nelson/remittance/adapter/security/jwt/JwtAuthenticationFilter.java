@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.security;
+package com.nelson.remittance.adapter.security.jwt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nelson.remittance.adapter.web.dto.Result;

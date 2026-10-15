@@ -1,6 +1,6 @@
 package com.nelson.remittance.bootstrap;
 
-import com.nelson.remittance.adapter.persistence.RollbackSafeTransactionManager;
+import com.nelson.remittance.adapter.persistence.tx.RollbackSafeTransactionManager;
 import jakarta.persistence.EntityManagerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.transaction.TransactionManagerCustomizers;

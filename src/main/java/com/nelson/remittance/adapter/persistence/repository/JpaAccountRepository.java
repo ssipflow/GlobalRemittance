@@ -1,9 +1,10 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.repository;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.DUPLICATE_USER;
 import static com.nelson.remittance.domain.exception.ErrorCode.LOCK_TIMEOUT;
 import static com.nelson.remittance.domain.exception.ErrorCode.UNAUTHORIZED;
 
+import com.nelson.remittance.adapter.persistence.entity.UserEntity;
 import com.nelson.remittance.application.port.repository.AccountRepository;
 import com.nelson.remittance.domain.exception.BusinessException;
 import com.nelson.remittance.domain.user.User;

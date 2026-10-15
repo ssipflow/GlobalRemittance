@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.security;
+package com.nelson.remittance.adapter.security.crypto;
 
 import com.nelson.remittance.application.port.security.IdentityCipher;
 import java.nio.ByteBuffer;

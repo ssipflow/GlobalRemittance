@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.persistence;
+package com.nelson.remittance.adapter.persistence.entity;
 
 import com.nelson.remittance.domain.user.User;
 import jakarta.persistence.Column;
@@ -46,7 +46,7 @@ public class UserEntity {
 
     protected UserEntity() {}
 
-    UserEntity(User user) {
+    public UserEntity(User user) {
         userId = user.userId();
         password = user.passwordHash();
         name = user.name();
@@ -61,7 +61,7 @@ public class UserEntity {
     }
 
     // DB의 해시·암호문과 시각을 그대로 내부 사용자 모델로 전달한다.
-    User toDomain() {
+    public User toDomain() {
         return new User(id, userId, password, name, idType, idValue, createdAt, updatedAt);
     }
 }

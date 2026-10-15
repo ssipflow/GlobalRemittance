@@ -1,4 +1,4 @@
-package com.nelson.remittance.adapter.security;
+package com.nelson.remittance.adapter.security.jwt;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.UNAUTHORIZED;
 
