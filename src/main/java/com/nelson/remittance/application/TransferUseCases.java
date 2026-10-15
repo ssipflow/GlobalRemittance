@@ -27,21 +27,21 @@ import org.springframework.transaction.annotation.Transactional;
 // 프록시가 서브클래스를 만들어 @Transactional을 적용하므로 final로 두지 않는다.
 @Service
 public class TransferUseCases {
-    private final AccountRepository accounts;
-    private final QuoteRepository quotes;
-    private final RateProvider rates;
+    private final AccountRepository accountRepository;
+    private final QuoteRepository quoteRepository;
+    private final RateProvider rateProvider;
     private final Clock clock;
     private final Duration rateMaxAge;
 
     public TransferUseCases(
-            AccountRepository accounts,
-            QuoteRepository quotes,
-            RateProvider rates,
+            AccountRepository accountRepository,
+            QuoteRepository quoteRepository,
+            RateProvider rateProvider,
             Clock clock,
             RateFreshnessPolicy rateFreshness) {
-        this.accounts = accounts;
-        this.quotes = quotes;
-        this.rates = rates;
+        this.accountRepository = accountRepository;
+        this.quoteRepository = quoteRepository;
+        this.rateProvider = rateProvider;
         this.clock = clock;
         this.rateMaxAge = rateFreshness.maxAge();
     }
@@ -51,16 +51,16 @@ public class TransferUseCases {
     // 실제 외부 공급처를 붙이면 이 호출이 트랜잭션 안에서 일어나 DB 연결을 붙잡는다는 점을 재검토해야 한다.
     @Transactional
     public Quote quote(long actorId, BigDecimal amount, String currency) {
-        accounts.findUser(actorId).orElseThrow(() -> new BusinessException(UNAUTHORIZED));
+        accountRepository.findUser(actorId).orElseThrow(() -> new BusinessException(UNAUTHORIZED));
         // 대상이 USD면 한 번만 조회해 두 환율이 같은 스냅샷에서 나오게 한다.
-        RateSnapshot target = rates.rate(currency);
-        RateSnapshot usd = "USD".equals(currency) ? target : rates.rate("USD");
+        RateSnapshot target = rateProvider.rate(currency);
+        RateSnapshot usd = "USD".equals(currency) ? target : rateProvider.rate("USD");
         Instant now = clock.instant();
         if (!target.isFresh(now, rateMaxAge) || !usd.isFresh(now, rateMaxAge)) {
             throw new BusinessException(RATE_STALE);
         }
         var calculation = QuotePolicy.calculate(amount, currency, target.toKrw(), usd.toKrw());
-        return quotes.saveQuote(Quote.issue(actorId, calculation, now));
+        return quoteRepository.saveQuote(Quote.issue(actorId, calculation, now));
     }
 
     // 사용자 잠금 안에서 견적 상태와 오늘 USD 합계를 검사한 뒤 접수 시각을 저장한다.
@@ -68,14 +68,16 @@ public class TransferUseCases {
     @Transactional
     public void request(long actorId, long quoteId, String idempotencyKey) {
         // 사용자 행을 먼저 잠가 일일 합계 조회와 접수를 직렬화한다. 다른 견적 두 개도 한도를 넘을 수 없다.
-        User user = accounts.lockUser(actorId);
+        User user = accountRepository.lockUser(actorId);
         Quote quote =
-                quotes.findQuote(quoteId).orElseThrow(() -> new BusinessException(QUOTE_NOT_FOUND));
+                quoteRepository
+                        .findQuote(quoteId)
+                        .orElseThrow(() -> new BusinessException(QUOTE_NOT_FOUND));
         Instant now = clock.instant();
         // 키 조회도 사용자 잠금 안이라 같은 키의 동시 재시도가 한 번만 반영된다.
         // 타인 견적은 키 판단 없이 아래 소유권 검증(FORBIDDEN)에 맡긴다.
         if (idempotencyKey != null && quote.isOwnedBy(actorId)) {
-            var previous = quotes.findByIdempotencyKey(actorId, idempotencyKey);
+            var previous = quoteRepository.findByIdempotencyKey(actorId, idempotencyKey);
             if (previous.isPresent() && quote.replays(previous.get(), now)) {
                 return;
             }
@@ -83,9 +85,9 @@ public class TransferUseCases {
         Quote requested = quote.request(actorId, now, idempotencyKey);
         // 이력 전체를 읽지 않고 KST 당일 [00:00, 익일 00:00) 합계만 DB에서 집계한다.
         BusinessDay day = BusinessDay.of(now);
-        BigDecimal total = quotes.requestedUsdTotal(actorId, day.start(), day.end());
+        BigDecimal total = quoteRepository.requestedUsdTotal(actorId, day.start(), day.end());
         user.checkDailyLimit(total, quote.calculation().usdAmount());
-        quotes.saveQuote(requested);
+        quoteRepository.saveQuote(requested);
     }
 
     // nextAfter는 다음 페이지가 있을 때만 값이 있으며 이 페이지 마지막 항목의 위치다.
@@ -102,10 +104,12 @@ public class TransferUseCases {
     @Transactional
     public History history(long actorId, QuotePosition after, int limit) {
         User user =
-                accounts.findUser(actorId).orElseThrow(() -> new BusinessException(UNAUTHORIZED));
+                accountRepository
+                        .findUser(actorId)
+                        .orElseThrow(() -> new BusinessException(UNAUTHORIZED));
         BusinessDay day = BusinessDay.of(clock.instant());
-        var total = quotes.requestedDailyTotal(actorId, day.start(), day.end());
-        List<Quote> read = quotes.requestedPage(actorId, after, limit + 1);
+        var total = quoteRepository.requestedDailyTotal(actorId, day.start(), day.end());
+        List<Quote> read = quoteRepository.requestedPage(actorId, after, limit + 1);
         boolean more = read.size() > limit;
         List<Quote> page = List.copyOf(more ? read.subList(0, limit) : read);
         QuotePosition next =

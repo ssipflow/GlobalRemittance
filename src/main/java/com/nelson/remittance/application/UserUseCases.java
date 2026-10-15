@@ -21,22 +21,22 @@ import org.springframework.transaction.annotation.Transactional;
 // 프록시가 서브클래스를 만들어 @Transactional을 적용하므로 final로 두지 않는다.
 @Service
 public class UserUseCases {
-    private final AccountRepository accounts;
-    private final PasswordHasher passwords;
-    private final IdentityCipher cipher;
-    private final TokenProvider tokens;
+    private final AccountRepository accountRepository;
+    private final PasswordHasher passwordHasher;
+    private final IdentityCipher identityCipher;
+    private final TokenProvider tokenProvider;
     private final Clock clock;
 
     public UserUseCases(
-            AccountRepository accounts,
-            PasswordHasher passwords,
-            IdentityCipher cipher,
-            TokenProvider tokens,
+            AccountRepository accountRepository,
+            PasswordHasher passwordHasher,
+            IdentityCipher identityCipher,
+            TokenProvider tokenProvider,
             Clock clock) {
-        this.accounts = accounts;
-        this.passwords = passwords;
-        this.cipher = cipher;
-        this.tokens = tokens;
+        this.accountRepository = accountRepository;
+        this.passwordHasher = passwordHasher;
+        this.identityCipher = identityCipher;
+        this.tokenProvider = tokenProvider;
         this.clock = clock;
     }
 
@@ -56,18 +56,18 @@ public class UserUseCases {
                 || idValue.getBytes(StandardCharsets.UTF_8).length > 64) {
             throw new BusinessException(INVALID_REQUEST);
         }
-        if (accounts.findUser(userId).isPresent()) {
+        if (accountRepository.findUser(userId).isPresent()) {
             throw new BusinessException(DUPLICATE_USER);
         }
         Instant now = clock.instant();
-        accounts.saveUser(
+        accountRepository.saveUser(
                 new User(
                         0,
                         userId,
-                        passwords.hash(password),
+                        passwordHasher.hash(password),
                         name,
                         idType,
-                        cipher.encrypt(idValue),
+                        identityCipher.encrypt(idValue),
                         now,
                         now));
     }
@@ -79,10 +79,12 @@ public class UserUseCases {
             throw new BusinessException(UNAUTHORIZED);
         }
         User user =
-                accounts.findUser(userId).orElseThrow(() -> new BusinessException(UNAUTHORIZED));
-        if (!passwords.matches(password, user.passwordHash())) {
+                accountRepository
+                        .findUser(userId)
+                        .orElseThrow(() -> new BusinessException(UNAUTHORIZED));
+        if (!passwordHasher.matches(password, user.passwordHash())) {
             throw new BusinessException(UNAUTHORIZED);
         }
-        return tokens.issue(user);
+        return tokenProvider.issue(user);
     }
 }

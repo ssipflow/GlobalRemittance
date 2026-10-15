@@ -1,6 +1,6 @@
 # 아키텍처
 
-`com.nelson.remittance` 아래에서 업무 규칙과 기술 구현을 분리한다. domain은 금액·견적 규칙을 정의하고 application은 규칙을 적용하는 순서를 조정한다. 웹·DB·인증·환율 구현은 adapter에, 어댑터·설정 빈의 조립은 bootstrap에 둔다(유스케이스는 `@Service`로 스캔 등록).
+`com.nelson.remittance` 아래에서 업무 규칙과 기술 구현을 분리한다. domain은 금액·견적 규칙을 정의하고 application은 규칙을 적용하는 순서를 조정한다. 웹·DB·인증·환율 구현은 adapter에, 설정 기반 조립은 bootstrap에 둔다(유스케이스는 `@Service`, 어댑터 구현은 `@Component`로 스캔 등록).
 
 ## 계층과 의존성
 
@@ -23,17 +23,19 @@ flowchart LR
 | --- | --- | --- |
 | domain | 수수료·수취액 계산, 견적 발급·접수 상태와 만료(10분), 멱등성 재현 판단(24시간 창), 신원 유형별 일일 한도 검사, KST 기준일 | QuotePolicy, Quote, User, BusinessDay, RateSnapshot, BusinessException |
 | application | 회원·송금 사용 사례, 시간 경계, 외부 기술 포트(`application.port` 패키지의 인터페이스) | UserUseCases, TransferUseCases, AccountRepository, QuoteRepository, RateProvider, PasswordHasher, IdentityCipher, TokenProvider |
-| adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, RequestIdFilter, ErrorDescriptions |
+| adapter/web | 입력 검증, 인증 사용자 변환, 커서 처리, JSON 응답과 오류, OpenAPI 명세 선언 | UserController, TransferController, ApiModels, ApiExceptionHandler, JsonErrorController, OpenApiConfiguration, JsonConfiguration, RequestIdFilter, ErrorDescriptions |
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL). 계정(`JpaAccountRepository`)과 견적(`JpaQuoteRepository`) 저장소를 분리하고 DB 예외 판별(`PersistenceErrors`)·ID 범위 변환(`EntityIds`)은 공용으로 둔다 | JpaAccountRepository, JpaQuoteRepository, PersistenceErrors, EntityIds, UserEntity, QuoteEntity, RollbackSafeTransactionManager |
-| adapter/security | AES-GCM, JWT 발급·검증, 인증 필터 | AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
+| adapter/security | BCrypt 비밀번호 해시, AES-GCM, JWT 발급·검증, 인증 필터 | BCryptPasswordHasher, AesIdentityCipher, JwtTokens, JwtAuthenticationFilter, SecurityConfiguration |
 | adapter/forex | 설정 환율 제공, 지연·장애를 주입하는 모의 공급처 | ConfiguredRates, SimulatedRates |
-| bootstrap | 어댑터·설정 빈 조립(Clock, BCrypt, 환율 공급처와 허용 지연, 트랜잭션 매니저), 시작 실패 진단 | ApplicationConfiguration, DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer |
+| bootstrap | 설정 기반 조립(Clock, 환율 공급처와 허용 지연, 트랜잭션 매니저), 설정값 검증 파서, 시작 실패 진단 | ClockConfiguration, RatesConfiguration, PersistenceConfiguration, ConfigValues, DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer |
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 OpenApiConfiguration에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
 
+구성 클래스는 책임별로 나뉜다. 어댑터 구현은 어댑터 패키지에서 스스로 등록한다(`BCryptPasswordHasher`, `AesIdentityCipher`, `JwtTokens`는 `@Component`이고 키는 생성자의 `@Value`로 받아 기동 시 검증한다). 웹 직렬화 규칙(문자열·숫자 자동 변환 차단)은 `adapter/web/JsonConfiguration`이, `Clock`은 `ClockConfiguration`이, 환율 공급처 선택과 허용 지연은 `RatesConfiguration`이, 트랜잭션 매니저는 `PersistenceConfiguration`이 맡는다. 설정값 파서(`ConfigValues`)는 부호·공백·소수를 허용하지 않는 ASCII 정수와 `true`/`false`만 받고 오류 메시지에는 설정 키와 허용 범위만 담는다. 예전에는 이 모두가 하나의 `ApplicationConfiguration`(약 160줄)에 있었고 BCrypt 구현이 익명 클래스로 bootstrap에 들어 있었다.
+
 `application.port` 패키지는 계정·견적 저장(`AccountRepository`, `QuoteRepository`), 환율(`RateProvider`), 비밀번호(`PasswordHasher`), 식별번호 암호화(`IdentityCipher`), 토큰(`TokenProvider`)의 경계를 한 파일에 하나씩 최상위 인터페이스로 정의한다. 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다.
 
-사용 사례(`UserUseCases`, `TransferUseCases`)는 `@Service`로 선언해 컴포넌트 스캔과 생성자 주입으로 등록한다. 예전에는 application 계층을 Spring에서 분리하려고 `ApplicationConfiguration`의 `@Bean` 메서드로 직접 조립했지만, `@Transactional`을 허용한 뒤로는 그 근거가 약해져 관례에 맞췄다. 환율 허용 지연처럼 타입으로 주입하기 모호한 설정값은 `RateFreshnessPolicy` 레코드로 감싸 설정 쪽에서 검증해 빈으로 만든다. Spring 없이 생성자로 직접 만들어 단위 테스트하는 것(`RatePolicyTest`)은 여전히 가능하다.
+사용 사례(`UserUseCases`, `TransferUseCases`)는 `@Service`로 선언해 컴포넌트 스캔과 생성자 주입으로 등록한다. 예전에는 application 계층을 Spring에서 분리하려고 설정 클래스의 `@Bean` 메서드로 직접 조립했지만, `@Transactional`을 허용한 뒤로는 그 근거가 약해져 관례에 맞췄다. 환율 허용 지연처럼 타입으로 주입하기 모호한 설정값은 `RateFreshnessPolicy` 레코드로 감싸 설정 쪽에서 검증해 빈으로 만든다. Spring 없이 생성자로 직접 만들어 단위 테스트하는 것(`RatePolicyTest`)은 여전히 가능하다.
 
 트랜잭션은 사용 사례의 업무 메서드(`quote`, `request`, `history`, `signup`, `login`)에 붙인 `@Transactional`로 건다. application 계층에서 허용하는 Spring 의존은 `org.springframework.stereotype.Service`와 `org.springframework.transaction.annotation.Transactional` 두 타입뿐이며 `ArchitectureTest`가 그 밖의 Spring·JPA 참조(같은 패키지의 다른 타입 포함)를 계속 막는다(domain은 Spring 전체 금지). 프록시가 서브클래스를 만들므로 사용 사례 클래스는 final이 아니다. 예전의 `Work` 포트와 TransactionTemplate 구현(`TransactionalWork`)은 제거했다. 어댑터의 `RollbackSafeTransactionManager`는 롤백 자체가 실패해도 호출자가 원래 예외를 받게 한다.
 
@@ -43,7 +45,7 @@ RequestIdFilter가 보안 필터보다 먼저 실행돼 요청 ID를 응답 헤�
 
 송금 인증은 JwtAuthenticationFilter가 처리한다. 필터가 JWT 서명·만료를 확인하고 인증 사용자 ID를 컨트롤러에 전달한다. 송금 본문에서 별도의 사용자 ID를 받지 않는다. 인증 실패는 JSON 401로 응답한다.
 
-견적 생성은 사용자 확인 → 대상 통화·USD 환율 스냅샷(환율+기준 시각) 조회 → 신선도 검사(허용 지연 초과 시 RATE_STALE) → QuotePolicy 계산 → 견적 저장 순서로 진행한다. 대상이 USD면 스냅샷을 한 번만 조회한다. 공급 실패는 어댑터가 RATE_UNAVAILABLE로 알리며 둘 다 503이다. 신선도 판단은 도메인 규칙(`RateSnapshot.isFresh`)이고 어떤 공급처를 쓸지는 bootstrap이 설정으로 고른다(`configured`/`simulated`). 환율·수수료·수취액·USD 금액과 만료 시각을 함께 저장한다. 사용자 행에 접수 잠금을 걸지는 않지만, 저장 과정은 Work의 트랜잭션 안에서 실행한다.
+견적 생성은 사용자 확인 → 대상 통화·USD 환율 스냅샷(환율+기준 시각) 조회 → 신선도 검사(허용 지연 초과 시 RATE_STALE) → QuotePolicy 계산 → 견적 저장 순서로 진행한다. 대상이 USD면 스냅샷을 한 번만 조회한다. 공급 실패는 어댑터가 RATE_UNAVAILABLE로 알리며 둘 다 503이다. 신선도 판단은 도메인 규칙(`RateSnapshot.isFresh`)이고 어떤 공급처를 쓸지는 bootstrap이 설정으로 고른다(`configured`/`simulated`). 환율·수수료·수취액·USD 금액과 만료 시각을 함께 저장한다. 사용자 행에 접수 잠금을 걸지는 않지만, 저장 과정은 `@Transactional` 트랜잭션 안에서 실행한다.
 
 ## 송금 접수
 
