@@ -75,7 +75,7 @@ sequenceDiagram
 
 사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 멱등성 키 조회도 같은 잠금 안에서 하므로 같은 키의 동시 재시도는 한 번만 반영된다. 키는 접수된 견적 행의 `idempotency_key`에 저장하고 (user_id, idempotency_key) 유일 제약이 한 키를 한 견적에만 묶는다. 구체적인 경쟁 상황은 [[주요 설계]]에서 설명한다.
 
-H2 잠금 대기 한도는 JDBC URL의 `LOCK_TIMEOUT`으로 적용한다. 기본 5000ms를 넘기면 `JpaAccountRepository.lockUser`가 LOCK_TIMEOUT 업무 오류로 변환하고(판별은 `PersistenceErrors.isLockTimeout`) 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000의 ASCII 숫자 표기인지 검사(부호·공백·선행 0 불가)하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우에도 RollbackSafeTransactionManager가 롤백 실패를 삼켜 원래 업무 오류가 전달된다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
+잠금 대기 한도는 H2에서는 JDBC URL의 `LOCK_TIMEOUT`, PostgreSQL(기본)에서는 연결별 `SET lock_timeout`으로 적용한다. 기본 5000ms를 넘기면 `JpaAccountRepository.lockUser`가 LOCK_TIMEOUT 업무 오류로 변환하고(판별은 `PersistenceErrors.isLockTimeout`) 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000의 ASCII 숫자 표기인지 검사(부호·공백·선행 0 불가)하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우에도 RollbackSafeTransactionManager가 롤백 실패를 삼켜 원래 업무 오류가 전달된다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
 
 ## 이력 조회
 
@@ -151,7 +151,7 @@ Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별
 
 DatabaseConnectionFailureAnalyzer는 두 경로를 안내한다. (1) Flyway 초기화의 접속 실패(`FlywaySqlException: Unable to obtain connection from database`): 원인 연쇄의 SQLState(5자 영문 대문자·숫자 형식일 때만)로 인증 거부(`28xxx`)·DB 없음(`3D000`)·연결 불가(`08xxx`) 순으로 분류하고 그 밖은 일반 안내로 처리하며, 조치 문구는 예외 클래스명으로 H2·PostgreSQL을 구분한다. 예외 메시지는 감지 조건(접두사 비교)에만 쓰고 출력하지 않는다. 감지는 Flyway 내부 클래스와 영어 메시지 접두사에 의존하므로 Flyway를 올리면 `DatabaseConnectionFailureTest`로 다시 확인한다. (2) Hibernate의 JDBC metadata/Dialect 실패 표지(Flyway가 꺼져 있을 때 등). 출력에는 비밀번호·사용자명·호스트·URL을 넣지 않는다. 접속 실패가 아닌 Flyway 오류(마이그레이션 SQL 실패 등)와 이 표지가 없는 DB 시작 오류는 분류하지 않는다.
 
-`postgres` 프로파일은 같은 애플리케이션 코드에 PostgreSQL 데이터소스와 전용 Flyway 위치(`db/postgresql/migration`)만 바꾼다. 영속 어댑터와 사용 사례 코드는 그대로이며 잠금 대기 한도만 H2의 URL 옵션 대신 연결 초기화 SQL(`SET lock_timeout`)로 적용한다. 해당 프로파일의 동시 접수·락 타임아웃(잠금 대기 초과 → 503, PostgreSQL이 내는 SQLState 55P03은 별도 확인)·연결 끊김 복구는 PostgreSQL 16에서 단일 앱 프로세스 기준으로 검증했다. 다중 인스턴스는 검증하지 않았다.
+`postgres` 프로파일은 프로파일을 지정하지 않을 때의 기본값(`spring.profiles.default`)이며, 같은 애플리케이션 코드에 PostgreSQL 데이터소스와 전용 Flyway 위치(`db/postgresql/migration`)만 바꾼다. 영속 어댑터와 사용 사례 코드는 그대로이며 잠금 대기 한도만 H2의 URL 옵션 대신 연결 초기화 SQL(`SET lock_timeout`)로 적용한다. 해당 프로파일의 동시 접수·락 타임아웃(잠금 대기 초과 → 503, PostgreSQL이 내는 SQLState 55P03은 별도 확인)·연결 끊김 복구는 PostgreSQL 16에서 단일 앱 프로세스 기준으로 검증했다. 다중 인스턴스는 검증하지 않았다.
 
 ## 오류 응답과 관측 경계
 
@@ -159,4 +159,4 @@ ApiExceptionHandler는 업무 오류·MVC 입력 오류를 JSON 코드로 변환
 
 예외 메시지·요청 본문·쿼리스트링·토큰 대신 요청 ID·메서드·제한된 경로·예외 클래스 연쇄·SQLState/벤더 코드·앱 스택 프레임 일부를 사용한다. JsonErrorController와 보안 필터의 오류는 동일한 응답 형식이어도 이 예외 처리기의 관측 대상과 같지 않다.
 
-local 프로파일은 H2 콘솔과 SQL·DB 오류·연결 풀 진단을 켠다. 콘솔 활성화에 맞춰 SecurityConfiguration이 SAMEORIGIN 프레임 정책을 적용한다. 기본 프로파일의 개인정보 제한 로그와 로컬 확장 로그의 범위를 분리해서 사용한다.
+local 프로파일은 H2 콘솔과 SQL·DB 오류·연결 풀 진단을 켠다. `SPRING_PROFILES_ACTIVE`를 지정하면 기본 postgres가 대체되므로 local만 지정하면 H2로 실행되고, PostgreSQL에서 진단 로그를 쓰려면 `postgres,local`을 지정한다. 콘솔 활성화에 맞춰 SecurityConfiguration이 SAMEORIGIN 프레임 정책을 적용한다. 기본 프로파일의 개인정보 제한 로그와 로컬 확장 로그의 범위를 분리해서 사용한다.

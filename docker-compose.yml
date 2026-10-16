@@ -1,0 +1,26 @@
+# 로컬 개발용 PostgreSQL이다. 앱은 호스트에서 ./gradlew bootRun으로 실행하며 기본(postgres) 프로파일이 이 DB에 접속한다.
+# 사용: source ./secret.local && docker compose up -d --wait
+services:
+  postgres:
+    # 테스트(Testcontainers)와 같은 버전을 써서 로컬과 검증 환경의 차이를 줄인다.
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: remittance
+      POSTGRES_USER: ${REMITTANCE_DB_USER:-remittance}
+      # 비밀번호는 저장소에 두지 않고 환경에서 필수로 받는다. 비어 있으면 compose가 안내와 함께 중단한다.
+      POSTGRES_PASSWORD: "${REMITTANCE_DB_PASSWORD:?REMITTANCE_DB_PASSWORD를 설정하세요 - source ./secret.local}"
+    ports:
+      # 같은 PC에서만 접속되게 loopback에 묶는다.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      # 컨테이너를 지워도 데이터가 남는다. 비밀번호는 볼륨을 처음 만들 때 고정되므로 바꾸려면 docker compose down -v로 볼륨을 지운다.
+      - remittance-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      # up --wait가 DB 준비를 기다리도록 한다. 변수는 컨테이너 안에서 해석한다($$).
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  remittance-pg-data:

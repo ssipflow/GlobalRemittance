@@ -174,7 +174,7 @@ sequenceDiagram
 
 ## 잠금 실패·롤백·재시도
 
-잠금 대기는 H2 JDBC URL의 LOCK_TIMEOUT으로 제한한다. 기본값은 5000ms이며 REMITTANCE_LOCK_TIMEOUT_MS로 설정한다. 현재 H2 조합에서 JPA 잠금 timeout 힌트는 대기 한도 적용에 사용하지 않는다. 잠금 대기 초과는 `JpaAccountRepository`에서 업무 오류로 변환해 HTTP 503 LOCK_TIMEOUT을 반환한다.
+잠금 대기는 H2에서는 JDBC URL의 LOCK_TIMEOUT, PostgreSQL(기본)에서는 연결별 `SET lock_timeout`으로 제한한다. 기본값은 5000ms이며 REMITTANCE_LOCK_TIMEOUT_MS로 설정한다. 현재 H2 조합에서 JPA 잠금 timeout 힌트는 대기 한도 적용에 사용하지 않는다. 잠금 대기 초과는 `JpaAccountRepository`에서 업무 오류로 변환해 HTTP 503 LOCK_TIMEOUT을 반환한다.
 
 현재 구현은 서버에서 자동 재시도하지 않는다. 잠금 대기 한도는 HTTP 전체 처리 시간의 상한도 아니다. 인증·커넥션 획득·조회·응답 처리 시간까지 포함해 5초 이내를 보장하는 설정으로 해석하지 않는다.
 
@@ -303,7 +303,7 @@ MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이�
 
 | 결정 | 이유 | 대가 |
 | --- | --- | --- |
-| 기본 실행은 H2 그대로 두고 `postgres` 프로파일에서만 PostgreSQL을 쓴다 | 기존 실행·`./data` 파일 DB·기존 테스트가 영향받지 않는다 | 두 DB의 스키마 SQL을 따로 유지해야 한다 |
+| 기본 실행을 PostgreSQL로 바꾸고(`spring.profiles.default: postgres`) H2는 프로파일을 지정할 때(`h2`·`local`·`test`)만 쓴다. 로컬 DB는 `docker-compose.yml`로 구성한다 | 검증한 운영 DB 후보로 개발·실행해 H2와 PostgreSQL의 차이를 줄인다. `./data` 파일 DB·H2 테스트·기존 H2 설정은 그대로 보존한다 | 기본 실행에 Docker와 DB 비밀번호가 필요하다. 프로파일을 지정하면 기본값이 대체되므로 `local`만 지정하면 H2로 실행된다. 두 DB의 스키마 SQL을 따로 유지해야 한다 |
 | PostgreSQL 전용 마이그레이션을 `db/postgresql/migration`(H2 폴더의 형제)에 둔다 | H2 문법(`ENUM`, `ADD CONSTRAINT IF NOT EXISTS`)이 PostgreSQL에서 안 된다. 하위 폴더는 Flyway가 함께 읽어 방언이 섞인다 | V1/V2가 두 벌이라 새 변경은 양쪽에 같은 번호로 추가해야 한다 |
 | `ENUM`을 `VARCHAR + CHECK`로 옮기고 새 DB 전용(`IF NOT EXISTS` 없음)으로 쓴다 | 같은 값 제한을 유지하고, 이력 없이 객체가 이미 있는 DB를 조용히 인수하지 않고 충돌로 실패시킨다 | 기존 PostgreSQL DB를 가져오려면 별도 절차가 필요하다 |
 | 잠금 대기 한도를 연결 초기화 SQL `SET lock_timeout`으로 적용한다 | H2의 URL `LOCK_TIMEOUT`과 같은 역할이다. 값은 기동 시 1~30000 정수로 검증되어 SQL에 안전하다 | 풀에서 만든 모든 연결에 설정되지만 사용자가 직접 연결을 열면 적용되지 않는다 |
@@ -367,6 +367,6 @@ MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이�
 
 도메인·보안 단위 테스트와 H2/API 통합 테스트는 반올림·수수료·저장 범위·만료·KST 자정·한도·소유권·중복·동시 접수·페이지 경계를 확인한다. 동시 접수 테스트는 H2에서 두 스레드의 경쟁을 다루며 부하·교착·다중 프로세스 장애를 검증하지는 않는다.
 
-DB 행 잠금은 같은 DB를 쓰는 접수 경로의 직렬화 지점이다. 기본 실행의 embedded 파일 H2는 단일 프로세스 구성이고, PostgreSQL 16 검증도 단일 앱 프로세스 기준이다. 다중 인스턴스 환경의 검증 근거로 확장해서 해석하지 않는다.
+DB 행 잠금은 같은 DB를 쓰는 접수 경로의 직렬화 지점이다. `h2` 프로파일의 embedded 파일 H2는 단일 프로세스 구성이고, PostgreSQL 16 검증도 단일 앱 프로세스 기준이다. 다중 인스턴스 환경의 검증 근거로 확장해서 해석하지 않는다.
 
 실시간 환율, 금융기관 지급, 다른 시스템의 데이터 이전, 외부 로그 수집·알림 연동은 제공하지 않는다. 프레임워크 없는 내부 정책과 `application.port` 하위 패키지의 인터페이스는 외부 기술을 교체할 경계를 마련하지만, 새 어댑터의 동작은 별도 통합 검증이 필요하다. ArchitectureTest·Spotless·Checkstyle은 계층과 스타일을 검사하며 업무 정확성 검증을 대신하지 않는다.

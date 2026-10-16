@@ -24,7 +24,7 @@
 
 ## 구현 환경
 
-Java 17, Spring Boot 3, Spring Security, JPA, Flyway, embedded H2를 사용한다. 스키마는 Flyway SQL 마이그레이션으로 만들고 Hibernate는 검증만 한다. 기본 패키지는 `com.nelson.remittance`다. 금액은 BigDecimal로 계산하고 시각은 UTC Instant로 저장한다. API의 견적·이력 시각은 KST로 표시한다.
+Java 17, Spring Boot 3, Spring Security, JPA, Flyway, PostgreSQL을 사용한다. 기본 실행은 PostgreSQL이고 로컬 DB는 `docker-compose.yml`(PostgreSQL 16)로 띄운다. embedded H2는 `h2` 프로파일로 실행하며 기존 `./data` 파일 DB는 그대로 보존한다. 스키마는 Flyway SQL 마이그레이션으로 만들고 Hibernate는 검증만 한다. 기본 패키지는 `com.nelson.remittance`다. 금액은 BigDecimal로 계산하고 시각은 UTC Instant로 저장한다. API의 견적·이력 시각은 KST로 표시한다.
 
 테스트는 컨텍스트마다 분리된 메모리 H2와 고정 Clock·환율을 사용한다. 외부 환율 서비스나 사용자 홈 DB 없이 금액·만료·한도·동시 접수·페이지 경계를 재현한다.
 
@@ -41,9 +41,9 @@ Java 17, Spring Boot 3, Spring Security, JPA, Flyway, embedded H2를 사용한�
 | REMITTANCE_RATES_SIMULATED_AGE_SECONDS / _UNAVAILABLE | 모의 공급처의 지연(초)과 장애 여부 | 0 / false |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI(`/swagger-ui.html`)와 OpenAPI 명세(`/v3/api-docs`) 노출 | true |
 | REMITTANCE_LOCK_TIMEOUT_MS | 사용자 행 잠금 대기 한도(ms). H2는 URL `LOCK_TIMEOUT`, `postgres` 프로파일은 연결별 `SET lock_timeout`으로 적용한다. 1~30000 ASCII 숫자, 부호·공백·선행 0 불가 | 5000 |
-| REMITTANCE_DB_PASSWORD | DB 접속 비밀번호. H2는 `sa` 비밀번호이며 파일 DB를 처음 만들 때 고정되어 다른 값으로 실행하면 기동이 거부된다. `postgres` 프로파일은 PostgreSQL 비밀번호 | 빈 값 |
+| REMITTANCE_DB_PASSWORD | DB 접속 비밀번호. 기본(PostgreSQL)에서는 필수이며 compose의 `POSTGRES_PASSWORD`와 같은 값이다. H2는 `sa` 비밀번호이며 파일 DB를 처음 만들 때 고정되어 다른 값으로 실행하면 기동이 거부된다. `postgres` 프로파일은 PostgreSQL 비밀번호 | 빈 값(PostgreSQL은 필수) |
 | REMITTANCE_DB_URL / REMITTANCE_DB_USER | `postgres` 프로파일의 JDBC URL과 사용자 | `jdbc:postgresql://localhost:5432/remittance` / `remittance` |
-| SPRING_PROFILES_ACTIVE | `local`이면 H2 콘솔(`/h2-console`)과 SQL·DB 오류 로그를 켠다(로컬 개발 전용). `postgres`이면 H2 대신 PostgreSQL과 전용 마이그레이션을 쓴다 | 없음(H2, 콘솔 꺼짐) |
+| SPRING_PROFILES_ACTIVE | 지정하지 않으면 `postgres`(PostgreSQL과 전용 마이그레이션). 지정하면 기본값이 대체되어 `h2`는 H2 파일 DB, `local`은 H2 콘솔(`/h2-console`)과 SQL·DB 오류 로그를 켠 H2 실행이다(로컬 개발 전용). PostgreSQL에서 진단 로그를 쓰려면 `postgres,local` | 없음(`postgres`, 콘솔 꺼짐) |
 
 필수 키를 설정한 뒤 `./gradlew bootRun`으로 실행한다. 파일 DB는 `./data/remittance`에 생성된다. 암호화한 식별번호를 읽으려면 기존 AES 키를 유지해야 한다. 실제 키와 개인정보는 저장소나 문서에 넣지 않는다.
 

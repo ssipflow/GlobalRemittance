@@ -32,6 +32,7 @@
 | PostgreSQL 프로파일(운영 DB 검증 1단계) | `postgres` 프로파일, PostgreSQL 전용 Flyway V1/V2, `SET lock_timeout`, 태그 분리된 Testcontainers 스키마·기동·API 스모크 테스트 | [PostgreSQL 프로파일](tasks/postgres-profile.md) |
 | 테스트 가드 강화 | ArchitectureTest의 Swagger/springdoc 참조 금지와 양성 대조, OpenApiTest의 swagger-ui.html 302·Location 정밀 검증 | [가드 강화](tasks/test-guard-hardening.md) |
 | 개인정보 없는 오류 관측 | X-Request-Id, 예외 메시지·본문·쿼리 없이 클래스·SQLState·경로만 남기는 오류 로그, DB 접속 실패 진단, 로그 캡처 검증 | [오류 관측](tasks/error-observability.md) |
+| 기본 프로파일 PostgreSQL 전환 | `spring.profiles.default: postgres`, docker-compose PostgreSQL 16, H2는 `h2`/`local`/`test`로 유지, `./data` 보존 | [기본 프로파일](tasks/postgres-default.md), [결정](../decisions/postgres-default.md) |
 | 한글 설명 주석 | 직접 작성 코드·테스트·하네스·설정 주석과 지속 지침 | Git db6634b, PR #9 |
 
 완료는 위 범위에 대한 기록이며 모든 보안·정확성·운영 검증이 끝났다는 의미가 아니다.
