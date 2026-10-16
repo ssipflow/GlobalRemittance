@@ -1,21 +1,27 @@
 # GlobalRemittance
 
-원화로 USD·JPY 송금 견적을 만들고 접수하는 개인 프로젝트다. Java 17 / Spring Boot 3 / JPA / embedded H2를 사용하며 기본 패키지는 `com.nelson.remittance`다.
+원화로 USD·JPY 송금 견적을 만들고 접수하는 개인 프로젝트다. Java 17 / Spring Boot 3 / JPA / PostgreSQL(기본, docker-compose)을 사용하며 embedded H2는 `h2` 프로파일로 실행할 수 있고 기본 패키지는 `com.nelson.remittance`다.
 
 환율·수수료를 확정한 견적, 사용자별 일일 한도와 동시 접수, 성공 응답의 멱등 재현, 커서 기반 이력 조회를 구현했다. 접수는 DB에 기록하는 단계까지이며 실제 금융기관 지급과 실시간 시세 공급은 구현하지 않았다.
 
 ## 먼저 실행하기
 
-Java 17 이상과 저장소의 Gradle wrapper를 사용한다. AES 키는 Base64 32바이트, JWT 키는 Base64 32바이트 이상이어야 한다.
+Java 17 이상, Docker(Compose v2), 저장소의 Gradle wrapper를 사용한다. AES 키는 Base64 32바이트, JWT 키는 Base64 32바이트 이상이어야 한다.
+기본 실행은 PostgreSQL이며 로컬 DB는 `docker-compose.yml`로 띄운다.
 
 ```sh
-# 새 로컬 DB에서 사용할 개발 키 생성 예시
+# 새 로컬 DB에서 사용할 개발 키와 DB 비밀번호 생성 예시
 export REMITTANCE_AES_KEY="$(openssl rand -base64 32)"
 export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
+export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=')"
+docker compose up -d --wait   # PostgreSQL 16이 준비될 때까지 기다린다
 ./gradlew bootRun
 ```
 
-파일 DB는 `./data/remittance`다. 기존 식별번호를 읽으려면 처음 사용한 AES 키를 유지해야 한다. 위 예시를 매번 실행해 기존 키를 바꾸지 않는다. 환경변수의 export 구문을 `secret.local`에 두고 `source ./secret.local`로 읽을 수도 있다. 이 파일은 Git에서 제외되며 실제 값을 문서·PR에 붙여 넣지 않는다.
+DB 비밀번호는 필수다(compose가 비어 있으면 중단한다). PostgreSQL 데이터는 Docker 볼륨 `remittance-pg-data`에 남으며 `docker compose down`으로 컨테이너만 지운다. 비밀번호는 볼륨을 처음 만들 때 고정되므로 바꾸려면 데이터를 버려도 될 때 `docker compose down -v`로 볼륨을 지우고 다시 만든다.
+Docker 없이 embedded H2 파일 DB로 실행하려면 `SPRING_PROFILES_ACTIVE=h2 ./gradlew bootRun`을 쓴다. 파일 DB는 `./data/remittance`이며 기본 실행에서는 사용하지 않고 그대로 보존한다.
+
+AES 키로 암호화한 식별번호를 읽으려면 처음 사용한 AES 키를 유지해야 한다. 위 예시를 매번 실행해 기존 키를 바꾸지 않는다. 환경변수의 export 구문을 `secret.local`에 두고 `source ./secret.local`로 읽을 수도 있다. 이 파일은 Git에서 제외되며 실제 값을 문서·PR에 붙여 넣지 않는다.
 
 실행 후 `/swagger-ui.html`에서 API를 열고 회원가입·로그인한다. 로그인 응답의 token을 **Authorize**에 넣어 송금 API를 호출한다. OpenAPI JSON은 `/v3/api-docs`다. 두 경로는 인증 없이 열리며 `REMITTANCE_API_DOCS_ENABLED=false`로 함께 끈다.
 
@@ -25,15 +31,15 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 | --- | --- | --- |
 | REMITTANCE_AES_KEY | 식별번호 AES-GCM 암호화 키 | 필수 |
 | REMITTANCE_JWT_SECRET | JWT 서명 키 | 필수 |
-| REMITTANCE_DB_PASSWORD | 파일 H2의 sa 비밀번호 | 빈 값 |
+| REMITTANCE_DB_PASSWORD | DB 비밀번호. PostgreSQL(compose)은 필수, `h2` 프로파일의 sa 비밀번호는 빈 값 허용 | 빈 값 |
 | REMITTANCE_USD_TO_KRW | USD 1단위당 KRW | 1300, 예시 환율 |
 | REMITTANCE_JPY_TO_KRW | JPY 1단위당 KRW | 9, 예시 환율 |
 | REMITTANCE_RATES_MAX_AGE_SECONDS | 환율 기준 시각 허용 지연(초, 1~3600). 넘으면 견적 503 `RATE_STALE` | 60 |
 | REMITTANCE_RATES_SOURCE | `configured`(설정 환율) 또는 `simulated`(지연·장애를 주입하는 모의 공급처, 운영 사용 금지) | configured |
 | REMITTANCE_RATES_SIMULATED_AGE_SECONDS / _UNAVAILABLE | 모의 공급처의 지연(초)과 장애 여부 | 0 / false |
-| REMITTANCE_LOCK_TIMEOUT_MS | H2 잠금 대기 한도(ms) | 5000 |
+| REMITTANCE_LOCK_TIMEOUT_MS | 잠금 대기 한도(ms). PostgreSQL은 `SET lock_timeout`, H2는 URL `LOCK_TIMEOUT` | 5000 |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI·OpenAPI 노출 | true |
-| SPRING_PROFILES_ACTIVE | local이면 H2 콘솔·SQL 진단 활성화 | 지정하지 않음 |
+| SPRING_PROFILES_ACTIVE | 지정하지 않으면 `postgres`. `h2`는 H2 파일 DB, `local`은 H2 콘솔·SQL 진단(H2로 실행). PostgreSQL에서 진단 로그를 쓰려면 `postgres,local` | 지정하지 않음 |
 
 잠금 대기값은 1~30000의 ASCII 십진 정수다. 부호·공백·소수·단위·선행 0은 허용하지 않는다. 잘못된 값은 DB 연결 전에 거부하고 시작 실패 안내를 출력한다. 이 설정은 잠금 대기 한도이며 HTTP 요청 전체의 시간 제한은 아니다.
 
@@ -53,13 +59,13 @@ export REMITTANCE_JWT_SECRET="$(openssl rand -base64 32)"
 
 ### DB 비밀번호와 시작 실패
 
-H2 비밀번호는 파일 DB를 처음 만들 때 정해진다. 기본 빈 비밀번호로 만든 DB에 나중에 다른 REMITTANCE_DB_PASSWORD를 지정해도 기존 비밀번호가 변경되지는 않는다. 새 DB를 만들 때만 원하는 값을 지정하고, 기존 DB는 만들 때의 값을 사용한다.
+`h2` 프로파일의 H2 비밀번호는 파일 DB를 처음 만들 때 정해진다. 기본 빈 비밀번호로 만든 DB에 나중에 다른 REMITTANCE_DB_PASSWORD를 지정해도 기존 비밀번호가 변경되지는 않는다. 새 DB를 만들 때만 원하는 값을 지정하고, 기존 DB는 만들 때의 값을 사용한다.
 
 DB 접속에 실패하면 Flyway 초기화 단계(`flywayInitializer`)에서 먼저 실패하며, 시작 실패 분석기(DatabaseConnectionFailureAnalyzer)가 `APPLICATION FAILED TO START` 블록으로 원인을 SQLState로 분류해 안내한다: 인증 거부(`28xxx`, H2 28000·PostgreSQL 28P01), 서버에 연결 불가(`08xxx`), 데이터베이스 없음(`3D000`), 그 밖의 접속 실패. 안내에는 비밀번호·사용자명·호스트·JDBC URL을 넣지 않고 SQLState 코드만 보여 준다. 조치 문구는 예외 클래스명으로 H2와 PostgreSQL을 구분한다(H2는 파일 DB 비밀번호 고정·`trace.db`, PostgreSQL은 `pg_hba.conf`). 안내 블록 아래에는 스택이 나오지 않고, 라이브러리의 원래 메시지는 블록 바로 위 WARN 로그 한 줄에 있으며 사용자명이나 호스트:포트가 포함될 수 있다(직접 확인: 비밀번호와 JDBC URL은 없었다). H2 기본 프로파일의 틀린 비밀번호와 PostgreSQL의 틀린 비밀번호·닫힌 포트·없는 DB를 실제 jar 기동으로 확인했다. 기존 키·DB 비밀번호를 확인하고 로컬 프로파일의 연결 풀 로그나 `data/remittance.trace.db`를 살펴본다.
 
 데이터를 유지해야 하면 기존 비밀번호로 접속해 H2의 ALTER USER로 변경한다. DB를 재생성하는 방법은 기존 로컬 데이터를 버려도 되는 경우에만 사용한다. DB 접속 비밀번호가 파일 내용을 암호화하는 것은 아니다.
 
-### 로컬 H2 콘솔과 로그
+### 로컬 H2 콘솔과 로그(H2로 실행)
 
 ```sh
 SPRING_PROFILES_ACTIVE=local ./gradlew bootRun
@@ -84,27 +90,18 @@ local에서는 Hibernate SQL DEBUG, SqlExceptionHelper WARN, Hikari DEBUG를 켠
 
 적용한 SQL을 수정하지 않고 새 번호로 변경을 추가한다. Hibernate validate만으로 모든 인덱스·유일 제약·FK 이름을 검사한다고 가정하지 않는다. 기존 데이터 업그레이드는 MigrationTest에서 다루며 다른 시스템의 데이터를 이전하는 도구는 제공하지 않는다.
 
-### PostgreSQL로 실행(선택)
+### PostgreSQL(기본 실행)
 
-기본 실행은 H2 파일 DB다. `postgres` 프로파일을 켜면 PostgreSQL을 쓴다. 로컬에서는 Docker로 띄울 수 있다.
-
-```sh
-export REMITTANCE_DB_PASSWORD="$(openssl rand -base64 18 | tr -d '/+=')"
-docker run -d --name remittance-pg -e POSTGRES_USER=remittance \
-  -e POSTGRES_PASSWORD="$REMITTANCE_DB_PASSWORD" -e POSTGRES_DB=remittance \
-  -p 127.0.0.1:5432:5432 postgres:16-alpine
-until docker exec remittance-pg pg_isready -U remittance; do sleep 1; done
-SPRING_PROFILES_ACTIVE=postgres ./gradlew bootRun
-```
-
-`127.0.0.1`로 묶어 같은 PC에서만 접속되게 하고, `pg_isready`로 DB가 준비될 때까지 기다린 뒤 앱을 띄운다.
-끝나면 `docker rm -f remittance-pg`로 컨테이너를 지운다(데이터도 함께 사라진다).
+프로파일을 지정하지 않으면 `postgres` 프로파일이 적용된다. 위 "먼저 실행하기"의 `docker compose up -d --wait`가 `docker-compose.yml`의 PostgreSQL 16을 띄운다.
+`127.0.0.1`로 묶어 같은 PC에서만 접속되고, healthcheck(`pg_isready`)로 준비를 기다린다. 앱은 호스트에서 `./gradlew bootRun`으로 실행한다.
+`docker compose down`은 컨테이너만 지우고 데이터(볼륨)는 남긴다. 데이터까지 지우려면 `docker compose down -v`를 쓴다. compose 명령은 모두 `REMITTANCE_DB_PASSWORD`가 환경에 있어야 하므로 새 셸에서는 `source ./secret.local`(또는 export)을 먼저 한다.
+DB가 떠 있지 않으면 앱은 기동 시 Flyway 접속 실패로 종료하며 시작 실패 분석기가 SQLState로 원인을 안내한다.
 
 | 환경변수 | 용도 | 기본값 |
 | --- | --- | --- |
 | REMITTANCE_DB_URL | PostgreSQL JDBC URL | `jdbc:postgresql://localhost:5432/remittance` |
-| REMITTANCE_DB_USER | 접속 사용자 | `remittance` |
-| REMITTANCE_DB_PASSWORD | 접속 비밀번호(H2와 같은 변수) | 빈 값 |
+| REMITTANCE_DB_USER | 접속 사용자. compose의 `POSTGRES_USER`와 앱이 같은 값을 써야 한다 | `remittance` |
+| REMITTANCE_DB_PASSWORD | 접속 비밀번호. compose의 `POSTGRES_PASSWORD`와 같은 값(H2와 같은 변수) | 필수 |
 
 - 스키마는 `src/main/resources/db/postgresql/migration`의 PostgreSQL 전용 SQL로 만든다. H2용 `db/migration`의 하위 폴더가 아니다(Flyway가 하위까지 읽기 때문).
   H2의 `ENUM`은 `VARCHAR + CHECK`로 옮겼다. 새 DB 전용이라 `IF NOT EXISTS`를 쓰지 않으며, 이력 없는 기존 DB를 자동으로 인수하지 않는다.
