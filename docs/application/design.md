@@ -180,7 +180,7 @@ sequenceDiagram
 
 | 결정 | 이유 | 대가 |
 | --- | --- | --- |
-| LOCK_TIMEOUT 503에만 `Retry-After: 1`(고정 1초)을 붙인다 | 잠금은 보유 트랜잭션이 끝나면 풀려서 짧은 재시도가 의미 있고, 클라이언트가 즉시 재시도 폭주를 하지 않게 안내한다 | 실제 경합 시간을 반영한 값이 아니다. 재시도 한도·백오프는 클라이언트 몫이며 서버가 재시도를 보장하지 않는다 |
+| LOCK_TIMEOUT 503과 DB_UNAVAILABLE 503에만 `Retry-After: 1`(고정 1초)을 붙인다 | 잠금은 보유 트랜잭션이 끝나면 풀려서 짧은 재시도가 의미 있고, 클라이언트가 즉시 재시도 폭주를 하지 않게 안내한다 | 실제 경합 시간을 반영한 값이 아니다. 재시도 한도·백오프는 클라이언트 몫이며 서버가 재시도를 보장하지 않는다 |
 | `REMITTANCE_LOCK_TIMEOUT_MS`는 선행 0 없는 1~5자리 숫자(`[1-9][0-9]{0,4}`)이고 1~30000일 때만 받고 아니면 기동을 거부한다(DB 연결 전, EnvironmentPostProcessor) | 값이 H2 URL에 그대로 들어가므로 빈 값·문자가 섞이면 DB 접속 실패처럼 보이는 엉뚱한 오류가 난다. 상한은 대기 요청이 Tomcat 스레드와 DB 연결(풀 10개)을 오래 붙잡는 것을 막는다 | 30초를 넘기는 대기가 필요한 환경은 코드 수정이 필요하다. 상한 30000은 이 프로젝트의 판단이며 H2의 한계가 아니다 |
 | 실패 안내는 FailureAnalyzer로 출력하고 입력값은 출력 안전하게 정리해(ASCII 20자) 보여 준다 | 원인과 조치를 `APPLICATION FAILED TO START`로 바로 알 수 있다. 값은 비밀이 아니지만 개행 등 로그 주입을 막는다 | 잘못된 값의 앞 20자만 보인다 |
 
@@ -275,7 +275,7 @@ JWT 서명·만료로 확인한 사용자를 기준으로 견적 소유권을 �
 
 예상 밖 오류의 진단 정보는 ErrorDescriptions에서 선별한다. 예외 메시지와 예외 객체 전체 대신 클래스 연쇄·SQLState·벤더 코드·앱 스택 프레임 일부를 남긴다. 메서드·경로는 길이·문자를 제한하고 쿼리스트링·본문·토큰을 기록하지 않는다. 메시지에만 있는 단서는 사라지므로 전체 스택 로그보다 진단 정보가 적다.
 
-ApiExceptionHandler가 다루는 LOCK_TIMEOUT은 WARN, 일반 업무·입력 오류는 DEBUG, UNKNOWN_ERROR와 예상 밖 오류는 ERROR다. 기본 INFO 수준에서는 일부 4xx 로그가 보이지 않는다. 이 허용 목록은 해당 코드가 직접 남기는 로그의 정책이다. 보안 필터·서블릿 sendError·/error 디스패치의 모든 오류를 수집하지 않으며 오류 디스패치의 MDC와 라이브러리 로그도 별도 범위다.
+ApiExceptionHandler가 다루는 LOCK_TIMEOUT과 DB_UNAVAILABLE(DB 연결 장애)은 WARN, 일반 업무·입력 오류는 DEBUG, UNKNOWN_ERROR와 예상 밖 오류는 ERROR다. 기본 INFO 수준에서는 일부 4xx 로그가 보이지 않는다. 이 허용 목록은 해당 코드가 직접 남기는 로그의 정책이다. 보안 필터·서블릿 sendError·/error 디스패치의 모든 오류를 수집하지 않으며 오류 디스패치의 MDC와 라이브러리 로그도 별도 범위다.
 
 DB 접속 실패는 Flyway 초기화에서 먼저 드러난다(Flyway 도입 후). DatabaseConnectionFailureAnalyzer는 이 경우 원인 연쇄의 SQLState만으로 인증 거부(`28xxx`)·연결 불가(`08xxx`)·DB 없음(`3D000`)·그 밖의 접속 실패를 분류해 한국어 조치를 안내한다. 예외 메시지에는 사용자명·호스트가 섞일 수 있어 읽지 않고 SQLState 코드만 출력한다. Hibernate의 `Dialect` 표지 경로는 Flyway 없이 Hibernate가 먼저 실패할 때를 위해 남겼다.
 
@@ -323,9 +323,9 @@ MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이�
 | 별도 JDBC 연결이 같은 행을 `lock_timeout` 500ms로 `FOR UPDATE` | PostgreSQL이 실제로 SQLState `55P03`을 냄. 코드(`PersistenceErrors.isLockTimeout`)가 기대하는 값임을 직접 확인한 것이며, 앱 경로에서 어느 매핑 분기(JPA 예외 또는 SQLState)로 변환됐는지까지는 구분해 확인하지 않았다 |
 | 위와 같은 잠금 중 이력 조회 | 1초 안에 200(읽기는 쓰기 잠금에 막히지 않음. PostgreSQL 기본 격리 수준(READ COMMITTED)에 의존) |
 | 트랜잭션 도중 DB가 그 연결의 백엔드를 종료(`pg_terminate_backend`)해 JDBC 롤백이 실패(WARN에 `DataAccessResourceFailureException`, SQLState `57P01`) | 호출자는 원래 `BusinessException`(LOCK_TIMEOUT)을 받음. 같은 트랜잭션의 가입 쓰기는 남지 않음, 트랜잭션 리소스 정리, 점유 연결 0, 이후 풀 복구. 대조로 보존 장치 없는 기본 `JpaTransactionManager`는 같은 상황에서 원래 예외를 덮음(3회 반복 모두 통과) |
-| DB가 앱의 모든 연결을 끊음(`pg_terminate_backend`) | 끊긴 직후 첫 요청은 500(`UNKNOWN_ERROR`)이었고 두 번째 시도에 200으로 복구(3회 모두 `[500, 200]`). 실패한 시도는 부분 상태를 남기지 않아 접수는 정확히 1건 |
+| DB가 앱의 모든 연결을 끊음(`pg_terminate_backend`) | 끊긴 직후 첫 요청은 `Retry-After: 1`이 붙은 503 `DB_UNAVAILABLE`(원인 SQLState `57P01`)이고 재시도에 200으로 복구. 실패한 시도는 부분 상태를 남기지 않고 같은 키 재시도는 효과 1회. 이 매핑 도입 전에는 같은 시나리오의 첫 요청이 500(`UNKNOWN_ERROR`)이었다 |
 
-연결 끊김 뒤의 첫 500은 풀이 끊긴 연결을 처음 사용할 때 알게 되는 현재의 실제 동작이다. 클라이언트는 같은 `Idempotency-Key`로 재시도하면 안전하다. 이 500을 숨기려면 풀의 검증·수명 설정이나 재시도를 별도로 설계해야 하며 이번 범위가 아니다.
+연결 끊김 뒤의 첫 실패는 풀이 직전 500ms 안에 쓴 연결의 생존 확인을 건너뛰어(Hikari aliveBypassWindow) 끊긴 연결을 처음 사용할 때 알게 되는 동작이다. 이 실패를 없애지는 않고 500 대신 재시도 가능한 503 `DB_UNAVAILABLE`로 알린다(`ApiExceptionHandler`가 원인 연쇄의 SQLState 08xxx·57P01~03과 JDBC 연결 예외로 판별. 잠금 대기·제약 위반은 제외). 비용: 판별이 SQLState 기반이라 다른 DB·드라이버에서는 확인이 필요하고, 커밋 도중 연결이 끊겨 결과가 불확실한 경우도 같은 503이 되므로(검증하지 않음) 클라이언트는 `Idempotency-Key`로 재시도해야 한다. 첫 실패 자체를 없애려면 생존 확인 창이나 서버 측 재시도를 별도로 설계해야 한다.
 
 보장하지 않는 것: 다중 앱 인스턴스, 고부하·장시간 경쟁·교착, DB 재시작·네트워크 분리, 롤백 실패는 연결 종료로 만든 한 가지 원인만 검증했다(다른 원인과 커밋 단계 실패는 제외). 연결 끊김 시나리오는 모든 연결을 한 번에 끊은 한 경우뿐이다. PostgreSQL 16 한 버전만 사용했고 다른 버전·관리형 서비스·커넥션 풀 크기 변화는 확인하지 않았다.
 

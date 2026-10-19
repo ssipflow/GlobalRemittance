@@ -75,6 +75,19 @@ public class ApiExceptionHandler {
             LOG.debug("client error status=400 code=INVALID_REQUEST {}", where(request));
             return response(400, "INVALID_REQUEST");
         }
+        // DB 연결이 끊긴 직후의 실패는 서버 결함이 아니라 재시도 가능한 일시 장애이므로 500 대신 503으로 알린다.
+        // 연결이 죽은 트랜잭션은 DB가 롤백하므로 같은 Idempotency-Key로 재시도해도 접수는 한 번만 반영된다.
+        // 단 커밋 도중 끊겨 결과가 불확실한 경우도 같은 503이므로 클라이언트는 키로 재시도해 확인해야 한다.
+        if (DatabaseUnavailability.isUnavailable(error)) {
+            LOG.warn(
+                    "database unavailable {} {}",
+                    where(request),
+                    ErrorDescriptions.describe(error));
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .header(HttpHeaders.RETRY_AFTER, "1")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(new Result(503, "DB_UNAVAILABLE"));
+        }
         // 예외 객체를 로거에 넘기면 메시지와 스택이 출력되므로 안전한 설명 문자열만 남긴다.
         LOG.error("unexpected error {} {}", where(request), ErrorDescriptions.describe(error));
         return response(500, "UNKNOWN_ERROR");
