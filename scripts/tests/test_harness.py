@@ -99,6 +99,74 @@ class HarnessTest(unittest.TestCase):
         self.run_harness('finish', '--message', 'bad', success=False)
         self.assertEqual(self.git('diff', '--cached', '--name-only'), '')
 
+    # own으로 추가한 파일은 소유 범위에 들어가 종료·커밋되고 이력에 추가 기록이 남는지 확인한다.
+    def test_own_adds_file_so_it_can_be_committed(self):
+        self.begin()
+        (self.root / 'unowned.txt').write_text('later needed\n')
+        self.run_harness('own', '--files', 'unowned.txt')
+        task = json.loads(self.run_harness('status').stdout)['task']
+        self.assertIn('unowned.txt', task['files'])
+        self.assertEqual(task['ownership_additions'][0]['files'], ['unowned.txt'])
+        self.review()
+        self.run_harness('verify')
+        self.run_harness('finish', '--message', 'test: own')
+        self.assertIn('unowned.txt', self.git('show', '--name-only', '--format=', 'HEAD'))
+
+    # own은 디렉터리·절대 경로·상위 경로·내부 상태를 거부하고 목록을 바꾸지 않는지 확인한다.
+    def test_own_rejects_unsafe_paths(self):
+        self.begin()
+        (self.root / 'docs/extra').mkdir()
+        for bad in ('docs/extra', str(self.root / 'code.txt'), '../outside.txt', '.harness/task.json'):
+            self.run_harness('own', '--files', bad, success=False)
+        task = json.loads(self.run_harness('status').stdout)['task']
+        self.assertEqual(task['files'], ['code.txt', 'docs/harness/state.md'])
+        self.assertNotIn('ownership_additions', task)
+
+    # 활성 작업이 없으면 own을 거부하는지 확인한다.
+    def test_own_requires_active_task(self):
+        self.run_harness('own', '--files', 'code.txt', success=False)
+
+    # 이미 리뷰·검증된 snapshot에 포함된 파일을 own하면 증거가 그대로 유효하고 종료할 수 있는지 확인한다.
+    def test_own_keeps_valid_evidence_when_snapshot_is_unchanged(self):
+        self.begin()
+        (self.root / 'unowned.txt').write_text('reviewed already\n')
+        self.review()
+        self.run_harness('verify')
+        before = json.loads(self.run_harness('status').stdout)
+        self.run_harness('own', '--files', 'unowned.txt')
+        after = json.loads(self.run_harness('status').stdout)
+        self.assertEqual(before['snapshot'], after['snapshot'])
+        self.assertEqual(before['task']['review'], after['task']['review'])
+        self.assertEqual(before['task']['verification'], after['task']['verification'])
+        self.run_harness('finish', '--message', 'test: own after review')
+
+    # own 뒤 파일이 더 바뀌면 이전 리뷰·검증 증거로는 커밋할 수 없고 사유가 snapshot 불일치인지 확인한다.
+    def test_own_does_not_keep_stale_evidence(self):
+        self.begin()
+        (self.root / 'unowned.txt').write_text('reviewed already\n')
+        self.review()
+        self.run_harness('verify')
+        self.run_harness('own', '--files', 'unowned.txt')
+        (self.root / 'unowned.txt').write_text('changed after review\n')
+        result = self.run_harness('finish', '--message', 'bad', success=False)
+        self.assertIn('Latest snapshot needs', result.stdout + result.stderr)
+
+    # 이미 소유한 파일을 다시 추가하면 목록이 그대로이고 빈 추가 기록이 쌓이지 않는지 확인한다.
+    def test_own_ignores_already_owned_files(self):
+        self.begin()
+        self.run_harness('own', '--files', 'code.txt')
+        task = json.loads(self.run_harness('status').stdout)['task']
+        self.assertEqual(task['files'], ['code.txt', 'docs/harness/state.md'])
+        self.assertNotIn('ownership_additions', task)
+
+    # 커밋된 뒤에는 own으로 범위를 넓힐 수 없는지 확인한다.
+    def test_own_rejected_after_commit(self):
+        self.begin()
+        self.review()
+        self.run_harness('verify')
+        self.run_harness('finish', '--message', 'test: done')
+        self.run_harness('own', '--files', 'code.txt', success=False)
+
     # 기존 변경이 있는 작업 트리에서는 시작을 거부하는지 확인한다.
     def test_dirty_begin_rejected(self):
         (self.root / 'code.txt').write_text('user change\n')

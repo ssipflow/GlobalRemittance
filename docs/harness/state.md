@@ -20,9 +20,9 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/review-fixes-2. 코드 리뷰 후속과 사용자 결정 반영. 최소 금액 5000 KRW(`AMOUNT_TOO_SMALL`), 이메일 소문자 정규화와 Flyway V3, 로그인 더미 해시 비교, 보안 기본 거부, 이력 읽기 전용 트랜잭션, 한도 합계 쿼리 통합, Bearer 대소문자 무시.
-- 시작 기준: 2026-10-19 dev f5ea788, PR #52까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/review-fixes-2.md)의 항목별 확인, check·bootJar·postgresTest, dev PR. 결정: [최소 금액·이메일 정규화](../decisions/min-amount-and-email-normalization.md).
+- 현재 작업: feature/harness-own-command. 하네스에 소유 파일을 추가하는 `own` 명령을 넣어 `.harness/task.json` 수동 편집을 없앤다(앱 코드 불변).
+- 시작 기준: 2026-10-19 dev a7945ca, PR #53까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/harness-own-command.md)의 테스트 통과(`python3 -m unittest discover -s scripts/tests -p 'test_harness.py'`), dev PR.
 - 다음: 사람이 PR을 승인·병합한다. 남은 후보는 운영 DB 검증의 잔여 범위(네트워크 분리·비정상 종료·수 시간 부하)이며 사용자와 범위를 정해 시작한다. JWT 클레임(이메일·이름 포함)은 요구사항 때문에 보류 중.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
