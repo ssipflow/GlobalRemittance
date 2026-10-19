@@ -108,8 +108,8 @@ DB가 떠 있지 않으면 앱은 기동 시 Flyway 접속 실패로 종료하�
 - 잠금 대기 한도(`REMITTANCE_LOCK_TIMEOUT_MS`)는 연결마다 `SET lock_timeout`으로 적용한다(H2의 URL `LOCK_TIMEOUT`에 해당).
 - 검증은 Docker가 필요한 `./gradlew postgresTest`로 따로 실행한다. 기본 `check`에는 포함되지 않아 Docker 없이도 통과한다.
 - `postgresTest`가 PostgreSQL 16에서 검증하는 것: 스키마·Hibernate validate·기동·기본 API 흐름·`lock_timeout` 설정, 같은 견적/다른 견적(일일 한도)/같은 멱등성 키의 동시 접수(6스레드),
-  잠금 대기 초과의 503 `LOCK_TIMEOUT`(`Retry-After: 1`)과 해제 후 성공, 잠금 중에도 막히지 않는 이력 조회, DB가 연결을 모두 끊은 뒤의 풀 복구.
-- **검증하지 않은 것**: 다중 앱 인스턴스, 고부하·장시간 경쟁, DB 재시작·네트워크 분리, 롤백 실패 주입, 다른 PostgreSQL 버전·관리형 서비스.
+  잠금 대기 초과의 503 `LOCK_TIMEOUT`(`Retry-After: 1`)과 해제 후 성공, 잠금 중에도 막히지 않는 이력 조회, DB가 연결을 모두 끊은 뒤의 풀 복구, 트랜잭션 도중 연결이 끊겨 롤백이 실패해도 원래 업무 오류가 보존되고 쓰기가 남지 않으며 풀이 복구됨.
+- **검증하지 않은 것**: 다중 앱 인스턴스, 고부하·장시간 경쟁, DB 재시작·네트워크 분리, 연결 종료 외의 롤백 실패 원인, 다른 PostgreSQL 버전·관리형 서비스.
   연결이 끊긴 직후의 첫 요청은 500(`UNKNOWN_ERROR`)이 될 수 있고 재시도하면 복구된다(현재의 실제 동작).
 
 ## API 사용

@@ -20,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/postgres-default. 기본 프로파일을 PostgreSQL로 전환하고 docker-compose로 로컬 DB 구성(H2는 `h2` 등 지정 시 유지, `./data` 보존).
-- 시작 기준: 2026-10-16 dev 44b8921, PR #44까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/postgres-default.md)의 DefaultProfileTest, check·bootJar·compose config 통과, 실제 compose DB 기동 확인, dev PR. 결정: [기본 프로파일 전환](../decisions/postgres-default.md).
-- 다음: 사람이 PR을 승인·병합한다. 이후 백로그 후보(실제 환율 공급처, 운영 DB 검증의 남은 범위)는 사용자와 범위를 정해 시작한다.
+- 현재 작업: feature/postgres-rollback-failure. 운영 DB 검증 남은 범위 중 PostgreSQL 롤백 실패 주입 검증(테스트 추가, 운영 코드 불변).
+- 시작 기준: 2026-10-19 dev 07cf867, PR #46까지 병합된 상태(기본 프로파일 PostgreSQL). 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/postgres-rollback-failure.md)의 PostgresRollbackFailureTest 통과, check·bootJar·postgresTest, dev PR.
+- 다음: 사람이 PR을 승인·병합한다. 이후 남은 후보는 다중 인스턴스·고부하·DB 재시작·연결 끊김 직후 500 완화, 실제 환율 공급처이며 사용자와 범위를 정해 시작한다.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
