@@ -157,6 +157,31 @@ LOCK_TIMEOUT과 DB_UNAVAILABLE만 `Retry-After: 1`을 반환한다. 고정 1초�
 
 응답의 `X-Request-Id`로 로그를 찾는다. 클라이언트가 `[A-Za-z0-9._-]{1,64}` 값을 보내면 채택하고 그 외에는 UUID를 생성한다. 멱등성 키와 용도가 다르며 오류 JSON 본문에는 넣지 않는다. 기본 오류 로그는 예외 메시지·본문·쿼리스트링·토큰 대신 코드·요청 위치·예외 클래스·SQLState 등의 선별 정보를 남긴다. 보안 필터와 /error의 모든 실패를 이 예외 로깅이 수집하는 것은 아니다.
 
+## k6 부하 테스트
+
+로컬에서 실행 중인 앱에 부하를 거는 k6 스크립트가 `k6/`에 있다. CI에는 연결하지 않았고 필요할 때 직접 실행한다.
+
+- 전제: [k6](https://k6.io) 설치(v1.1.0에서 확인), 앱이 `BASE_URL`(기본 `http://localhost:8080`)에서 실행 중. 위 "먼저 실행하기"로 PostgreSQL과 앱을 띄운다.
+- 부하 테스트 사용자는 `k6load-<RUN_ID>-vu<번호>-u<순번>@example.com`으로 가입해 구분한다. 지우는 도구는 없으므로 개인 데이터와 섞이지 않는 로컬 DB에서 실행한다.
+
+```sh
+k6 run k6/transfer-flow.js                      # 점진 램프업 접수 흐름(약 2분, 최대 30 VU)
+k6 run k6/spike.js                              # 5 -> 100 VU 급증 후 복귀(약 95초)
+DURATION=5m VUS=20 k6 run k6/soak.js            # 지속 부하(기본 5m, 20 VU)
+```
+
+| 환경변수 | 의미 | 기본값 |
+| --- | --- | --- |
+| BASE_URL | 대상 서버 | `http://localhost:8080` |
+| VUS | transfer-flow 최대 VU, soak VU | 30 / 20 |
+| BASE_VUS, SPIKE_VUS | spike의 기준·급증 VU | 5 / 100 |
+| DURATION | soak 지속 시간(`90s`, `5m`, `1h`) | `5m` |
+| RUN_ID, LOAD_USER_PASSWORD | 사용자 이메일 접두사, 예시 비밀번호 | 현재 시각(VU마다 달라 실행 단위 구분엔 직접 지정 권장) / 예시 값 |
+
+결과 해석: 종료 시 `THRESHOLDS`의 모든 항목이 체크(통과)여야 한다. 핵심은 `unexpected_responses`(계약 밖 응답, 500 `UNKNOWN_ERROR`·401 등)가 0건이고 `invariant_violations`(같은 키 재시도의 200 재현, 키 없는 재시도의 409)가 0건인 것이다.
+`ALREADY_REQUESTED`·`LIMIT_EXCESS`(`expected_rejections`)와 정의된 503(`defined_503`, 코드별 태그)은 계약상 정상 응답이라 실패로 세지 않고 따로 집계한다. spike는 `phase:recovery`, soak는 `early/mid/late` 구간별 지연으로 급증 뒤 회복과 시간에 따른 급격한 악화를 본다(상한이 관찰값보다 넉넉해 완만한 악화는 놓칠 수 있다).
+임계값은 이 Mac에서 관찰한 값에 여유를 둔 것이며(근거: `docs/harness/tasks/k6-load-test.md`), 로컬 단일 인스턴스·단일 PostgreSQL 컨테이너에서 측정한 값이다. 운영 성능이나 용량을 보증하지 않는다.
+
 ## 설계와 문서
 
 BigDecimal·HALF_UP과 통화별 자릿수(KRW/JPY 0, USD 2)를 사용한다. 견적 시 환율·수수료·USD 금액을 고정하고, 접수에서는 사용자 DB 행을 잠근 뒤 KST 일일 SUM·한도·중복을 검사한다. 개인은 1000 USD, 법인은 5000 USD까지 허용한다.
