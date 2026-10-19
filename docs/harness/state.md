@@ -11,6 +11,7 @@
 ## 확인된 구현과 검증
 
 - 시작 기준: 2026-10-13 dev f0834e1, PR #24까지 로컬 병합 이력 확인.
+- 기본 DB: 프로파일 미지정 시 PostgreSQL(docker-compose). embedded H2는 `h2` 프로파일.
 - 구현: 회원·송금 API, 사용자 잠금과 일일 DB 집계, keyset 이력, 24시간 미만 성공 응답 멱등 재현.
 - 후속 구현: Swagger/OpenAPI, local H2·SQL 진단, X-Request-Id와 선별 오류 로그, Flyway V1/V2, Retry-After와 잠금 설정 사전 검증.
 - 최근 검증 기록: PR #24 작업에서 Java 17 check·bootJar 및 앱 96개 통과로 기록됐다. 이번 문서 작업의 새 앱 실행 결과가 아니다.
@@ -19,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: hotfix/remove-backup-sql. 참조되지 않는 H2 덤프 `backup.sql` 삭제(파일 삭제만, 코드 불변).
-- 시작 기준: 2026-10-15 dev, PR #43까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/remove-backup-sql.md)의 참조 없음 확인, check·bootJar 통과, dev PR.
-- 다음: 사람이 PR을 승인·병합한다. 이후 기본 프로파일(H2/PostgreSQL) 방향, `./data` 처분 등은 사용자 결정 대기.
+- 현재 작업: feature/postgres-default. 기본 프로파일을 PostgreSQL로 전환하고 docker-compose로 로컬 DB 구성(H2는 `h2` 등 지정 시 유지, `./data` 보존).
+- 시작 기준: 2026-10-16 dev 44b8921, PR #44까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/postgres-default.md)의 DefaultProfileTest, check·bootJar·compose config 통과, 실제 compose DB 기동 확인, dev PR. 결정: [기본 프로파일 전환](../decisions/postgres-default.md).
+- 다음: 사람이 PR을 승인·병합한다. 이후 백로그 후보(실제 환율 공급처, 운영 DB 검증의 남은 범위)는 사용자와 범위를 정해 시작한다.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

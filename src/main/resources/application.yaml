@@ -1,5 +1,10 @@
 spring:
-  # 프로젝트 하위 파일 DB를 사용하며 사용자 홈 DB와 H2 콘솔 접근을 피한다.
+  # 프로파일을 지정하지 않으면 postgres 프로파일(application-postgres.yaml)을 쓴다. 로컬 DB는 docker-compose.yml로 띄운다.
+  # SPRING_PROFILES_ACTIVE를 지정하면 이 기본값은 적용되지 않는다. 그래서 아래 H2 파일 DB 설정은 postgres가 아닌
+  # 프로파일(h2·local·test)의 기준값으로 남긴다. PostgreSQL과 local을 함께 쓰려면 postgres,local로 둘 다 지정한다.
+  profiles:
+    default: postgres
+  # 프로젝트 하위 파일 DB(h2 프로파일)이며 사용자 홈 DB와 H2 콘솔 접근을 피한다.
   datasource:
     url: jdbc:h2:file:./data/remittance;DB_CLOSE_ON_EXIT=FALSE;LOCK_TIMEOUT=${remittance.lock-timeout-ms}
     username: sa
