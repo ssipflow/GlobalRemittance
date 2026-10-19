@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.doThrow;
@@ -131,10 +132,10 @@ class RollbackFailureTest {
     }
 
     @Test
-    // 유스케이스가 CGLIB 프록시이고 모든 업무 메서드에 트랜잭션 속성이 있어 실제로 트랜잭션이 걸린다.
+    // 송금 유스케이스가 CGLIB 프록시이고 모든 업무 메서드에 트랜잭션 속성이 있어 실제로 트랜잭션이 걸린다.
+    // 가입·로그인은 느린 BCrypt 동안 DB 연결을 쥐지 않도록 의도적으로 트랜잭션이 없다(아래 별도 단언).
     void useCasesAreTransactionalProxies() throws Exception {
         assertTrue(AopUtils.isCglibProxy(transfers));
-        assertTrue(AopUtils.isCglibProxy(users));
         var source = new AnnotationTransactionAttributeSource();
         Method[] methods = {
             TransferUseCases.class.getMethod("quote", long.class, BigDecimal.class, String.class),
@@ -143,21 +144,19 @@ class RollbackFailureTest {
                     "history",
                     long.class,
                     com.nelson.remittance.application.port.repository.QuotePosition.class,
-                    int.class),
-            UserUseCases.class.getMethod(
-                    "signup",
-                    String.class,
-                    String.class,
-                    String.class,
-                    com.nelson.remittance.domain.user.User.IdentityType.class,
-                    String.class),
-            UserUseCases.class.getMethod("login", String.class, String.class)
+                    int.class)
         };
         for (Method method : methods) {
             var attribute = source.getTransactionAttribute(method, method.getDeclaringClass());
             assertNotNull(attribute, method.getName());
             assertFalse(attribute.isReadOnly(), method.getName());
         }
+        // 가입·로그인 유스케이스는 트랜잭션을 열지 않고 프록시도 아니다. 저장만 어댑터의 짧은 트랜잭션이 맡는다.
+        assertFalse(AopUtils.isCglibProxy(users));
+        assertNull(
+                source.getTransactionAttribute(
+                        UserUseCases.class.getMethod("login", String.class, String.class),
+                        UserUseCases.class));
     }
 
     @Nested

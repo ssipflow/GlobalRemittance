@@ -20,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/k6-load-test. k6 부하 테스트(접수 흐름 임계값·스파이크·소크) 추가와 실제 환율 공급처 백로그 삭제(앱 main 코드 불변).
-- 시작 기준: 2026-10-19 dev 931761e, PR #50까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/k6-load-test.md)의 시나리오 실행·임계값 통과, check·bootJar, k6 inspect, dev PR. 결정: [환율 공급처 미연동](../decisions/no-real-rate-provider.md).
-- 다음: 사람이 PR을 승인·병합한다. 남은 후보는 운영 DB 검증의 잔여 범위(비정상 종료·네트워크 분리·장시간 부하)이며 사용자와 범위를 정해 시작한다.
+- 현재 작업: feature/review-fixes-1. 코드 리뷰(src/main) 지적 중 1~3을 재현 테스트로 확인해 처리. 견적 저장의 잠금 타임아웃 500을 503 LOCK_TIMEOUT으로, 가입·로그인의 BCrypt를 DB 트랜잭션 밖으로 이동. 0.00 금액 견적은 정책 공백이라 코드 불변(현재 동작 고정 테스트·문서만).
+- 시작 기준: 2026-10-19 dev eae2882, PR #51까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/review-fixes-1.md)의 재현·수정 확인, check·bootJar·postgresTest, dev PR.
+- 다음: 사람이 PR을 승인·병합한다. 남은 리뷰 지적(이메일 대소문자, 로그인 타이밍, 보안 기본 허용 중복, 이력 읽기 전용, 한도 쿼리 중복, Bearer 대소문자)은 다음 PR 후보이고, 0.00 금액 정책과 이메일 정규화는 사용자 결정이 필요하다. JWT 클레임은 요구사항 때문에 보류.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

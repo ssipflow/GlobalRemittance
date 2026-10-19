@@ -14,11 +14,9 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 // 가입과 로그인을 조정하며 암호화·해시·토큰·저장 구현을 포트로 호출한다.
 // 컴포넌트 스캔으로 등록되는 빈이며 생성자 주입 대상은 모두 포트다.
-// 프록시가 서브클래스를 만들어 @Transactional을 적용하므로 final로 두지 않는다.
 @Service
 public class UserUseCases {
     private final AccountRepository accountRepository;
@@ -40,8 +38,10 @@ public class UserUseCases {
         this.clock = clock;
     }
 
-    // 입력 바이트 수를 확인하고 중복 조회, 비밀번호 해시, 번호 암호화와 저장을 한 트랜잭션으로 수행한다.
-    @Transactional
+    // 입력 바이트 수를 확인하고 중복 조회, 비밀번호 해시, 번호 암호화와 저장을 수행한다.
+    // 수백 ms가 걸리는 BCrypt 동안 DB 연결을 쥐지 않도록 이 메서드는 트랜잭션을 열지 않는다.
+    // 조회는 연결을 즉시 반납하고, 저장만 어댑터가 짧은 트랜잭션으로 감싼다.
+    // 사전 중복 조회와 저장 사이에 동시 가입이 끼어들 수 있으나 DB 유일 제약이 DUPLICATE_USER로 최종 방어한다.
     public void signup(
             String userId, String password, String name, User.IdentityType idType, String idValue) {
         // BCrypt는 UTF-8 72바이트까지만 처리하므로 문자 수와 별도로 검사해 잘림을 방지한다.
@@ -73,7 +73,7 @@ public class UserUseCases {
     }
 
     // 저장된 해시와 비밀번호를 비교한 뒤 토큰을 발급하며 실패 이유는 동일한 인증 오류로 처리한다.
-    @Transactional
+    // 읽기만 하므로 트랜잭션이 필요 없고, 느린 BCrypt 비교 동안 DB 연결을 쥐지 않는다.
     public String login(String userId, String password) {
         if (password == null || password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new BusinessException(UNAUTHORIZED);

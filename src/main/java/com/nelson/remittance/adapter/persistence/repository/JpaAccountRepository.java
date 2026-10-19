@@ -13,6 +13,7 @@ import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceException;
 import java.util.Optional;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 // 계정 저장과 사용자 행 잠금을 담당한다.
@@ -31,7 +32,10 @@ public class JpaAccountRepository implements AccountRepository {
     }
 
     @Override
-    // 필요한 사용자만 조회해 내부 모델로 변환한다. 트랜잭션은 사용 사례의 포트 경계가 제공한다.
+    // 필요한 사용자만 조회해 내부 모델로 변환한다. 가입·로그인은 느린 해시 계산 동안 연결을 쥐지 않으려고
+    // 사용 사례 트랜잭션 없이 호출하므로, 결과 스트림을 읽는 동안만 유지되는 읽기 전용 트랜잭션을 둔다.
+    // 이미 트랜잭션 안에서 호출되면 그 트랜잭션에 참여한다.
+    @Transactional(readOnly = true)
     public Optional<User> findUser(String userId) {
         return em.createQuery(
                         "select u from UserEntity u where u.userId = :userId", UserEntity.class)
@@ -64,7 +68,9 @@ public class JpaAccountRepository implements AccountRepository {
     }
 
     @Override
+    // 사용 사례(가입)가 느린 해시 계산 동안 연결을 쥐지 않도록 저장만 짧은 트랜잭션으로 감싼다.
     // 저장을 즉시 반영해 동시 가입의 유일 제약 실패를 업무 오류로 바꾼다.
+    @Transactional
     public User saveUser(User user) {
         UserEntity entity = new UserEntity(user);
         try {

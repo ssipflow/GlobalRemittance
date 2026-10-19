@@ -1,6 +1,7 @@
 package com.nelson.remittance.adapter.persistence.repository;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.IDEMPOTENCY_KEY_REUSED;
+import static com.nelson.remittance.domain.exception.ErrorCode.LOCK_TIMEOUT;
 import static com.nelson.remittance.domain.exception.ErrorCode.QUOTE_NOT_FOUND;
 
 import com.nelson.remittance.adapter.persistence.entity.QuoteEntity;
@@ -57,8 +58,14 @@ public class JpaQuoteRepository implements QuoteRepository {
                     new QuoteEntity(
                             quote,
                             em.getReference(UserEntity.class, EntityIds.toInt(quote.userId())));
-            em.persist(entity);
-            em.flush();
+            try {
+                em.persist(entity);
+                em.flush();
+            } catch (PersistenceException error) {
+                // 새 견적 INSERT는 외래키 검사로 사용자 행에 공유 잠금을 요청한다. 접수가 그 행을
+                // 오래 쥐면 여기서도 lock_timeout이 나므로 lockUser와 같이 재시도 가능한 503으로 알린다.
+                throw translateLockTimeout(error);
+            }
             return entity.toDomain();
         }
         QuoteEntity entity = em.find(QuoteEntity.class, EntityIds.toInt(quote.id()));
@@ -75,9 +82,14 @@ public class JpaQuoteRepository implements QuoteRepository {
             if (PersistenceErrors.isUniqueViolation(error)) {
                 throw new BusinessException(IDEMPOTENCY_KEY_REUSED);
             }
-            throw error;
+            throw translateLockTimeout(error);
         }
         return entity.toDomain();
+    }
+
+    // 락 대기 초과면 업무 오류(LOCK_TIMEOUT)로, 아니면 원래 예외를 그대로 돌려준다.
+    private static RuntimeException translateLockTimeout(PersistenceException error) {
+        return PersistenceErrors.isLockTimeout(error) ? new BusinessException(LOCK_TIMEOUT) : error;
     }
 
     @Override
