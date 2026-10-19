@@ -129,6 +129,8 @@ userId는 이메일 형식·최대 255자, password는 공백 불가·최대 72�
 
 소수 입력은 HALF_UP으로 KRW 정수화한 뒤 정책을 적용한다. 입력이 양수가 아니거나 수수료 차감 후 음수이면 NEGATIVE_NUMBER, 저장 가능한 DECIMAL 범위를 넘으면 INVALID_REQUEST다.
 
+수수료 차감 후 순송금액이 0 이상이면 발급한다. 순송금이 1원처럼 작아 수취액·USD 금액이 `0.00`으로 반올림되는 견적도 현재는 발급·접수되며(요구사항이 음수만 거부하고 최소 금액을 정하지 않았다), 그 접수는 일일 한도에 0.00 USD로 합산된다. 최소 금액 규칙은 정책 결정 사항이다. 견적 저장은 사용자 행에 외래키 공유 잠금을 요청하므로, 같은 사용자의 접수가 그 행을 오래 쥐고 있어 대기 한도를 넘기면 견적도 503 `LOCK_TIMEOUT`(`Retry-After: 1`)을 반환한다. 이때 견적은 저장되지 않는다.
+
 ## POST /transfer/request
 
 quoteId는 양의 숫자 문자열이며 실제 INT 식별자 범위를 검증한다.
@@ -272,4 +274,4 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 | 503 | RATE_UNAVAILABLE | 견적 | 환율 조회 실패. 발급된 견적의 접수에는 영향이 없다 |
 | 503 | RATE_STALE | 견적 | 환율 기준 시각이 허용 지연(기본 60초)을 벗어남 |
 | 503 | DB_UNAVAILABLE | 모든 DB 사용 요청 | DB 연결이 끊겼거나 풀이 연결을 얻지 못한 일시 장애(SQLState 08xxx·57P01~03 또는 JDBC 연결 예외). `Retry-After: 1`이 붙으며 연결이 죽은 트랜잭션은 DB가 롤백하므로 같은 `Idempotency-Key`로 재시도할 수 있다. 다만 커밋 도중 끊기면 결과가 불확실할 수 있어(검증하지 않음) 키 없이 재시도하면 ALREADY_REQUESTED가 될 수 있으니 같은 키로 재시도하거나 이력으로 확인한다 |
-| 503 | LOCK_TIMEOUT | 접수 | 사용자 행 잠금 대기 한도 초과. `Retry-After: 1`(초) 헤더가 붙는다. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS(1~30000)로 설정 |
+| 503 | LOCK_TIMEOUT | 접수, 견적 | 사용자 행 잠금 대기 한도 초과(견적은 저장 시 외래키 공유 잠금 대기). `Retry-After: 1`(초) 헤더가 붙는다. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS(1~30000)로 설정 |

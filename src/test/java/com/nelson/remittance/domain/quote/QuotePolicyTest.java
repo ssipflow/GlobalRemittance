@@ -81,6 +81,19 @@ class QuotePolicyTest {
     }
 
     @Test
+    // 순송금 1원이 수취·USD 0.00으로 반올림되는 최소 양수 경계도 현재 정책에서는 허용되고,
+    // 수수료가 원금을 1원이라도 넘으면 거부됨을 고정한다. 최소 금액 규칙은 요구사항에 없다.
+    void netOneWonRoundsToZeroReceivedButIsNotRejected() {
+        var quote = QuotePolicy.calculate(n("1003"), "USD", n("1300"), n("1300"));
+        decimal("1", quote.sourceAmount().subtract(quote.fee()));
+        decimal("0.00", quote.targetAmount());
+        decimal("0.00", quote.usdAmount());
+        failure(
+                NEGATIVE_NUMBER,
+                () -> QuotePolicy.calculate(n("1001"), "USD", n("1300"), n("1300")));
+    }
+
+    @Test
     // 환율을 소수 12자리로 반올림하는 규칙을 확인한다.
     void foreignExchangeRateIsRoundedToTwelveDecimals() {
         var rate = QuotePolicy.rate(n("1300.1234567890126"));

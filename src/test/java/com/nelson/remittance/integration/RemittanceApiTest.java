@@ -1160,4 +1160,64 @@ class RemittanceApiTest {
             assertEquals(200, listPage(token, null, cursor).getResponse().getStatus());
         }
     }
+
+    // 요구사항은 음수만 NEGATIVE_NUMBER로 거부한다. 수수료 차감 후 순송금 1원이 USD 0.00으로 반올림되는
+    // 견적도 현재 정책상 발급·접수되며, 이 계약을 관찰값으로 고정한다(최소 금액 규칙은 정해지지 않았다).
+    @Test
+    void roundedZeroUsdQuoteIsIssuedAndRequestedUnderCurrentPolicy() throws Exception {
+        String token = user("rounded-zero@example.com", "REG_NO");
+        String id = quote(token, "1003", "USD");
+        assertEquals(200, request(token, id).getResponse().getStatus());
+        JsonNode item = list(token).get("history").get(0);
+        assertEquals(0, new BigDecimal("0.00").compareTo(item.get("targetAmount").decimalValue()));
+        assertEquals(0, new BigDecimal("0.00").compareTo(item.get("usdAmount").decimalValue()));
+    }
+
+    @Autowired javax.sql.DataSource dataSource;
+
+    // BCrypt 계산(수백 ms) 동안 DB 연결을 쥐고 있으면 풀이 작을 때 다른 요청이 굶는다.
+    // 로그인 한 번 동안 풀의 사용 중 연결이 연속으로 1 이상이던 최장 시간을 표본 추출로 관찰한다.
+    @Test
+    void loginDoesNotHoldDbConnectionWhileHashingPassword() throws Exception {
+        var pool =
+                dataSource.unwrap(com.zaxxer.hikari.HikariDataSource.class).getHikariPoolMXBean();
+        user("hold-conn@example.com", "REG_NO");
+        login("hold-conn@example.com"); // 워밍업: 클래스 로딩·풀 확장 비용을 관찰에서 제외한다.
+        var stop = new java.util.concurrent.atomic.AtomicBoolean();
+        var longestBusyMs = new java.util.concurrent.atomic.AtomicLong();
+        var samples = new java.util.concurrent.atomic.AtomicLong();
+        Thread sampler =
+                new Thread(
+                        () -> {
+                            long busySince = -1;
+                            while (!stop.get()) {
+                                long now = System.nanoTime();
+                                if (pool.getActiveConnections() > 0) {
+                                    busySince = busySince < 0 ? now : busySince;
+                                    longestBusyMs.accumulateAndGet(
+                                            TimeUnit.NANOSECONDS.toMillis(now - busySince),
+                                            Math::max);
+                                } else {
+                                    busySince = -1;
+                                }
+                                samples.incrementAndGet();
+                                try {
+                                    Thread.sleep(1);
+                                } catch (InterruptedException interrupted) {
+                                    return;
+                                }
+                            }
+                        });
+        sampler.start();
+        long started = System.nanoTime();
+        login("hold-conn@example.com");
+        long loginMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - started);
+        stop.set(true);
+        sampler.join();
+        // 해시 비교(BCrypt cost 12, 수백 ms)가 로그인 시간의 대부분을 차지해야 관찰이 의미 있고,
+        // 표본이 충분히 쌓여야(샘플러가 굶지 않아야) 연결 점유 단언이 공허하게 통과하지 않는다.
+        assertTrue(loginMs >= 100, "BCrypt 비교 시간이 관찰돼야 한다: " + loginMs);
+        assertTrue(samples.get() >= loginMs / 10, "표본 수가 부족하다: " + samples + "/" + loginMs);
+        assertTrue(longestBusyMs.get() < loginMs / 2, "연결 점유 ms: " + longestBusyMs);
+    }
 }
