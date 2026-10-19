@@ -30,7 +30,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 
 // postgres 프로파일이 실제 PostgreSQL에서 기동하고 같은 API 계약으로 동작하는지 검증한다.
 // Docker가 필요하며 없으면 건너뛰지 않고 실패한다. 기본 test 태스크에서는 제외되고 postgresTest로 실행한다.
-// 컨텍스트가 뜬 것 자체가 Flyway V1~V2 적용과 ddl-auto: validate(엔티티-스키마 일치) 통과를 뜻한다.
+// 컨텍스트가 뜬 것 자체가 Flyway V1~V3 적용과 ddl-auto: validate(엔티티-스키마 일치) 통과를 뜻한다.
 @Tag("postgres")
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -71,7 +71,7 @@ class PostgresProfileTest {
                         "select version || ':' || success from flyway_schema_history"
                                 + " where version is not null order by installed_rank",
                         String.class);
-        assertEquals(List.of("1:true", "2:true"), applied);
+        assertEquals(List.of("1:true", "2:true", "3:true"), applied);
     }
 
     @Test

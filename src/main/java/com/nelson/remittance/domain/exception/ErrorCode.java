@@ -4,6 +4,7 @@ package com.nelson.remittance.domain.exception;
 public enum ErrorCode {
     INVALID_REQUEST,
     NEGATIVE_NUMBER,
+    AMOUNT_TOO_SMALL,
     UNAUTHORIZED,
     FORBIDDEN,
     DUPLICATE_USER,

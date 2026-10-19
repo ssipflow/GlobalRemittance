@@ -49,7 +49,8 @@ public class TransferController {
             description = "KRW 금액과 수취 통화(USD, JPY)로 견적을 만든다. 만료시각은 생성 후 10분이다.")
     @ApiResponse(
             responseCode = "400",
-            description = "입력 오류(INVALID_REQUEST) 또는 양수가 아니거나 수수료 차감 후 음수(NEGATIVE_NUMBER)",
+            description =
+                    "입력 오류(INVALID_REQUEST), 양수가 아님(NEGATIVE_NUMBER), 최소 금액 5000 KRW 미만(AMOUNT_TOO_SMALL)",
             content = @Content(schema = @Schema(implementation = Result.class)))
     @ApiResponse(
             responseCode = "401",

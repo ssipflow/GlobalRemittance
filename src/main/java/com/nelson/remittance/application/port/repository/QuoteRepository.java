@@ -1,7 +1,6 @@
 package com.nelson.remittance.application.port.repository;
 
 import com.nelson.remittance.domain.quote.Quote;
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -21,7 +20,4 @@ public interface QuoteRepository {
 
     // [from, to) 구간에 접수된 견적의 건수와 USD 합계를 한 쿼리로 집계한다. 없으면 0건, 0.00이다.
     DailyTotal requestedDailyTotal(long userId, Instant from, Instant to);
-
-    // [from, to) 구간에 접수된 견적의 USD 금액 합계다. 접수 건이 없으면 0.00을 돌려준다.
-    BigDecimal requestedUsdTotal(long userId, Instant from, Instant to);
 }
