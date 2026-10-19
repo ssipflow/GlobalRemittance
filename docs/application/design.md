@@ -191,7 +191,7 @@ sequenceDiagram
 | 업무 예외 후 롤백도 실패 | RollbackSafeTransactionManager가 롤백 실패를 로그만 남기고 삼켜 원래 예외(BusinessException 포함)를 전달 | 오류 원인 유지와 DB 복구 확인은 별개 |
 | 커밋 후 응답 유실 | 클라이언트는 성공 여부를 알 수 없음 | 같은 Idempotency-Key로 재요청하면 24시간 미만이면 200이 재현된다. 키가 없었다면 이력으로 확인 |
 
-`@Transactional`을 쓰고 기본 `JpaTransactionManager` 기준으로 롤백 자체가 예외를 던지면 그 예외가 원래 업무 예외를 덮는다. 전환 중에 H2 락 타임아웃 테스트가 503이 아니라 500으로 깨지는 것이 관찰됐고(개발 중 관찰, 현재 코드로는 재현되지 않는다), 롤백이 실패하게 만든 결정적 재현 테스트(Mockito 대역 EntityManagerFactory)에서는 호출자가 원래 `BusinessException`이 아니라 `JpaSystemException`을 받는다. 실제 H2·PostgreSQL에서 이 현상이 일반적으로 나타나는지까지는 단정하지 않는다. 그래서 JpaTransactionManager를 상속한 `RollbackSafeTransactionManager`가 `doRollback`의 RuntimeException을 삼키고 예외 클래스명·SQLState만 WARN으로 남긴다. 이전 `TransactionalWork`는 `BusinessException`만 보존하고 그 외 예외에서는 롤백 예외를 던졌지만, 새 방식은 모든 원래 예외를 보존한다. 롤백 실패를 삼키는 것이므로 커넥션 상태가 불확실한 채 풀에 반환될 수 있다(풀이 반환 시 정리하는지는 이 프로젝트에서 확인하지 않았다). 이 처리가 롤백 재시도나 커밋 결과 조회까지 수행하지는 않는다.
+`@Transactional`을 쓰고 기본 `JpaTransactionManager` 기준으로 롤백 자체가 예외를 던지면 그 예외가 원래 업무 예외를 덮는다. 전환 중에 H2 락 타임아웃 테스트가 503이 아니라 500으로 깨지는 것이 관찰됐고(개발 중 관찰, 현재 코드로는 재현되지 않는다), 롤백이 실패하게 만든 결정적 재현 테스트(Mockito 대역 EntityManagerFactory)에서는 호출자가 원래 `BusinessException`이 아니라 `JpaSystemException`을 받는다. PostgreSQL 16에서는 트랜잭션 도중 DB가 연결을 끊게 해 같은 현상을 직접 재현했다(아래 "PostgreSQL 프로파일"의 롤백 실패 행). 다른 DB에서 일반적으로 나타나는지까지는 단정하지 않는다. 그래서 JpaTransactionManager를 상속한 `RollbackSafeTransactionManager`가 `doRollback`의 RuntimeException을 삼키고 예외 클래스명·SQLState만 WARN으로 남긴다. 이전 `TransactionalWork`는 `BusinessException`만 보존하고 그 외 예외에서는 롤백 예외를 던졌지만, 새 방식은 모든 원래 예외를 보존한다. 롤백 실패를 삼키는 것이므로 커넥션 상태가 불확실한 채 풀에 반환될 수 있다. PostgreSQL 16에서 끊긴 연결로는 반환 후 점유 연결이 0이고 이후 풀이 복구됨을 확인했지만, 끊김 이외의 롤백 실패 원인은 확인하지 않았다. 이 처리가 롤백 재시도나 커밋 결과 조회까지 수행하지는 않는다.
 
 트랜잭션 전환에서 달라진 점: 이전에는 `signup`·`login`의 입력 형식 검증(비밀번호·식별번호 길이, UTF-8 바이트 제한)이 트랜잭션 바깥이었지만 지금은 메서드 전체가 `@Transactional`이라 잘못된 입력도 빈 트랜잭션을 열었다 닫는다. 오류 코드와 응답은 같고, Hibernate가 트랜잭션 시작 시 풀 연결을 잡을 수 있어 형식 오류 요청도 연결을 잠깐 점유한다. 한도가 정해진 풀(기본 10개)에서 잘못된 요청이 몰릴 때의 영향은 측정하지 않았다. 또 직접 등록한 트랜잭션 매니저는 Boot 기본 구성을 대체하므로 `spring.transaction.*` 속성이 적용되도록 `TransactionManagerCustomizers`를 연결했다.
 
@@ -322,11 +322,12 @@ MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이�
 | 다른 연결이 사용자 행을 `FOR UPDATE`로 잡은 채 접수 | 설정 한도(2000ms) 후 503 `LOCK_TIMEOUT`과 `Retry-After: 1`(측정 약 2.03초). 해제 후 같은 키 요청이 200, 타임아웃된 시도는 접수 시각·키를 남기지 않음 |
 | 별도 JDBC 연결이 같은 행을 `lock_timeout` 500ms로 `FOR UPDATE` | PostgreSQL이 실제로 SQLState `55P03`을 냄. 코드(`PersistenceErrors.isLockTimeout`)가 기대하는 값임을 직접 확인한 것이며, 앱 경로에서 어느 매핑 분기(JPA 예외 또는 SQLState)로 변환됐는지까지는 구분해 확인하지 않았다 |
 | 위와 같은 잠금 중 이력 조회 | 1초 안에 200(읽기는 쓰기 잠금에 막히지 않음. PostgreSQL 기본 격리 수준(READ COMMITTED)에 의존) |
+| 트랜잭션 도중 DB가 그 연결의 백엔드를 종료(`pg_terminate_backend`)해 JDBC 롤백이 실패(WARN에 `DataAccessResourceFailureException`, SQLState `57P01`) | 호출자는 원래 `BusinessException`(LOCK_TIMEOUT)을 받음. 같은 트랜잭션의 가입 쓰기는 남지 않음, 트랜잭션 리소스 정리, 점유 연결 0, 이후 풀 복구. 대조로 보존 장치 없는 기본 `JpaTransactionManager`는 같은 상황에서 원래 예외를 덮음(3회 반복 모두 통과) |
 | DB가 앱의 모든 연결을 끊음(`pg_terminate_backend`) | 끊긴 직후 첫 요청은 500(`UNKNOWN_ERROR`)이었고 두 번째 시도에 200으로 복구(3회 모두 `[500, 200]`). 실패한 시도는 부분 상태를 남기지 않아 접수는 정확히 1건 |
 
 연결 끊김 뒤의 첫 500은 풀이 끊긴 연결을 처음 사용할 때 알게 되는 현재의 실제 동작이다. 클라이언트는 같은 `Idempotency-Key`로 재시도하면 안전하다. 이 500을 숨기려면 풀의 검증·수명 설정이나 재시도를 별도로 설계해야 하며 이번 범위가 아니다.
 
-보장하지 않는 것: 다중 앱 인스턴스, 고부하·장시간 경쟁·교착, DB 재시작·네트워크 분리, 롤백 자체가 실패하는 상황(`RollbackSafeTransactionManager`의 원래 예외 보존)은 H2 락 타임아웃 테스트와 Mockito 기반 결정적 재현으로만 확인했고 PostgreSQL에서는 검증하지 않았다. 연결 끊김 시나리오는 모든 연결을 한 번에 끊은 한 경우뿐이다. PostgreSQL 16 한 버전만 사용했고 다른 버전·관리형 서비스·커넥션 풀 크기 변화는 확인하지 않았다.
+보장하지 않는 것: 다중 앱 인스턴스, 고부하·장시간 경쟁·교착, DB 재시작·네트워크 분리, 롤백 실패는 연결 종료로 만든 한 가지 원인만 검증했다(다른 원인과 커밋 단계 실패는 제외). 연결 끊김 시나리오는 모든 연결을 한 번에 끊은 한 경우뿐이다. PostgreSQL 16 한 버전만 사용했고 다른 버전·관리형 서비스·커넥션 풀 크기 변화는 확인하지 않았다.
 
 ## 환율 신선도 정책
 

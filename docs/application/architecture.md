@@ -130,7 +130,7 @@ users는 계정·비밀번호 해시·암호화 식별번호·신원 유형을 �
 
 도메인 ID는 long이고 DB ID는 순차 INT다. 영속 어댑터에서 범위를 검사하고 변환한다. 시각 저장은 UTC, 일일 한도 판정과 견적·이력 응답 표시는 KST다.
 
-ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의존성을 검사한다. H2/API 테스트는 실제 인증·금액·동시 접수·페이지 경계·JSON 오류 디스패치를 검증한다. PostgreSQL 16에서는 `postgres` 태그 테스트가 단일 앱 프로세스의 동시 접수·락 타임아웃·연결 끊김 복구를 검증한다. 다중 프로세스·다른 DB 버전에서의 잠금·복구는 별도 검증이 필요하다.
+ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의존성을 검사한다. H2/API 테스트는 실제 인증·금액·동시 접수·페이지 경계·JSON 오류 디스패치를 검증한다. PostgreSQL 16에서는 `postgres` 태그 테스트가 단일 앱 프로세스의 동시 접수·락 타임아웃·연결 끊김 복구·롤백 실패 주입을 검증한다. 다중 프로세스·다른 DB 버전에서의 잠금·복구는 별도 검증이 필요하다.
 
 테스트 패키지는 단위 테스트가 대상 클래스의 main 패키지를 그대로 따른다(`domain`, `application/transfer`, `adapter/security`, `adapter/persistence/*`, `bootstrap/*`). 애플리케이션 전체를 띄우는 H2 기반 테스트와 Flyway 마이그레이션 테스트는 `integration`, Docker가 필요한 `postgres` 태그 테스트는 `postgres`, 의존성 방향 검사는 `architecture`에 둔다. 단위 테스트가 같은 패키지의 package-private 클래스를 검증할 수 있도록(`ConfigValuesTest`, `PersistenceErrorsTest`, `HistoryPagingTest`) 접근 범위를 넓히지 않는다.
 
@@ -151,7 +151,7 @@ Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별
 
 DatabaseConnectionFailureAnalyzer는 두 경로를 안내한다. (1) Flyway 초기화의 접속 실패(`FlywaySqlException: Unable to obtain connection from database`): 원인 연쇄의 SQLState(5자 영문 대문자·숫자 형식일 때만)로 인증 거부(`28xxx`)·DB 없음(`3D000`)·연결 불가(`08xxx`) 순으로 분류하고 그 밖은 일반 안내로 처리하며, 조치 문구는 예외 클래스명으로 H2·PostgreSQL을 구분한다. 예외 메시지는 감지 조건(접두사 비교)에만 쓰고 출력하지 않는다. 감지는 Flyway 내부 클래스와 영어 메시지 접두사에 의존하므로 Flyway를 올리면 `DatabaseConnectionFailureTest`로 다시 확인한다. (2) Hibernate의 JDBC metadata/Dialect 실패 표지(Flyway가 꺼져 있을 때 등). 출력에는 비밀번호·사용자명·호스트·URL을 넣지 않는다. 접속 실패가 아닌 Flyway 오류(마이그레이션 SQL 실패 등)와 이 표지가 없는 DB 시작 오류는 분류하지 않는다.
 
-`postgres` 프로파일은 프로파일을 지정하지 않을 때의 기본값(`spring.profiles.default`)이며, 같은 애플리케이션 코드에 PostgreSQL 데이터소스와 전용 Flyway 위치(`db/postgresql/migration`)만 바꾼다. 영속 어댑터와 사용 사례 코드는 그대로이며 잠금 대기 한도만 H2의 URL 옵션 대신 연결 초기화 SQL(`SET lock_timeout`)로 적용한다. 해당 프로파일의 동시 접수·락 타임아웃(잠금 대기 초과 → 503, PostgreSQL이 내는 SQLState 55P03은 별도 확인)·연결 끊김 복구는 PostgreSQL 16에서 단일 앱 프로세스 기준으로 검증했다. 다중 인스턴스는 검증하지 않았다.
+`postgres` 프로파일은 프로파일을 지정하지 않을 때의 기본값(`spring.profiles.default`)이며, 같은 애플리케이션 코드에 PostgreSQL 데이터소스와 전용 Flyway 위치(`db/postgresql/migration`)만 바꾼다. 영속 어댑터와 사용 사례 코드는 그대로이며 잠금 대기 한도만 H2의 URL 옵션 대신 연결 초기화 SQL(`SET lock_timeout`)로 적용한다. 해당 프로파일의 동시 접수·락 타임아웃(잠금 대기 초과 → 503, PostgreSQL이 내는 SQLState 55P03은 별도 확인)·연결 끊김 복구와 롤백 실패(연결 종료로 주입) 시 원래 업무 오류 보존은 PostgreSQL 16에서 단일 앱 프로세스 기준으로 검증했다. 다중 인스턴스는 검증하지 않았다.
 
 ## 오류 응답과 관측 경계
 
