@@ -9,7 +9,7 @@
 | 순서 | 후보 | 현재 근거 | 선택 시 완료 기준 |
 | --- | --- | --- | --- |
 | 1 | 실제 환율 공급처 어댑터 | 신선도 정책과 모의 공급처는 완료. 실제 외부 공급처는 사용자 결정으로 미연동 | 공급처 선정 후 타임아웃·재시도·서킷 브레이커, 트랜잭션 밖 호출, 견적에 기준 시각 저장(감사용 스키마 변경) |
-| 2 | 운영 DB 검증의 남은 범위 | PostgreSQL 16 동시성·락·연결 끊김 복구와 같은 JVM 내 앱 인스턴스 2개 간 경쟁([기록](tasks/postgres-multi-instance.md))은 검증. 고부하·DB 재시작·별도 프로세스/네트워크 분리는 미검증. 연결 끊김 직후 500은 503 `DB_UNAVAILABLE`로 완화([기록](tasks/db-unavailable-503.md)). 롤백 실패 주입은 PostgreSQL에서 검증([기록](tasks/postgres-rollback-failure.md)) | 필요한 항목을 골라 범위를 정하고 재현 가능한 통합 검증 |
+| 2 | 운영 DB 검증의 남은 범위 | PostgreSQL 16 동시성·락·연결 끊김 복구와 같은 JVM 내 앱 인스턴스 2개 간 경쟁([기록](tasks/postgres-multi-instance.md))은 검증. 컨테이너 정상 재시작·단기 고부하·풀 고갈([기록](tasks/postgres-restart-load.md))도 검증. 별도 프로세스·네트워크 분리·비정상 종료·장시간 부하는 미검증. 연결 끊김 직후 500은 503 `DB_UNAVAILABLE`로 완화([기록](tasks/db-unavailable-503.md)). 롤백 실패 주입은 PostgreSQL에서 검증([기록](tasks/postgres-rollback-failure.md)) | 필요한 항목을 골라 범위를 정하고 재현 가능한 통합 검증 |
 
 ## 완료된 기존 개선 범위
 
