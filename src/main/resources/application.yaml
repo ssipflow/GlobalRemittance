@@ -44,6 +44,9 @@ remittance:
   # 사용자 행 잠금을 기다리는 최대 시간(ms)이다. H2는 URL의 LOCK_TIMEOUT, postgres 프로파일은 연결별 SET lock_timeout으로 적용한다. 초과하면 503 LOCK_TIMEOUT이다.
   # 허용 범위는 1~30000이며 벗어나면 DB 연결 전에 기동을 거부한다(대기 요청이 스레드·연결을 오래 점유하지 않게 한다).
   lock-timeout-ms: ${REMITTANCE_LOCK_TIMEOUT_MS:5000}
+  # PostgreSQL JDBC 소켓 읽기 대기 한도(초)다(postgres 프로파일만 적용, H2는 무관). DB가 응답 없이 멈췄을 때 요청이 이 시간 뒤 503 DB_UNAVAILABLE로 끝난다.
+  # lock-timeout-ms 최대값(30초)보다 커야 하므로 31 이상을 권장한다. 기본 60초.
+  db-socket-timeout-seconds: ${REMITTANCE_DB_SOCKET_TIMEOUT_SECONDS:60}
   # 환율 공급처와 신선도 정책이다. 잘못된 값은 기동 시점에 거부한다.
   rates:
     # configured(설정 환율) | simulated(지연·장애를 주입하는 모의 공급처, 운영 사용 금지)

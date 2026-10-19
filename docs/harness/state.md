@@ -20,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/harness-own-command. 하네스에 소유 파일을 추가하는 `own` 명령을 넣어 `.harness/task.json` 수동 편집을 없앤다(앱 코드 불변).
-- 시작 기준: 2026-10-19 dev a7945ca, PR #53까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/harness-own-command.md)의 테스트 통과(`python3 -m unittest discover -s scripts/tests -p 'test_harness.py'`), dev PR.
-- 다음: 사람이 PR을 승인·병합한다. 남은 후보는 운영 DB 검증의 잔여 범위(네트워크 분리·비정상 종료·수 시간 부하)이며 사용자와 범위를 정해 시작한다. JWT 클레임(이메일·이름 포함)은 요구사항 때문에 보류 중.
+- 현재 작업: feature/postgres-failure-modes. PostgreSQL 비정상 종료(kill -9)·무응답(pause) 검증과 장시간(2시간) k6 소크. pause에서 풀 연결 요청이 무한 대기하는 결함을 확인해 JDBC socketTimeout(`REMITTANCE_DB_SOCKET_TIMEOUT_SECONDS`, 기본 60)과 기동 검증으로 수정.
+- 시작 기준: 2026-10-19 dev 457b83e, PR #54까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/postgres-failure-modes.md), [소켓 타임아웃 결정](../decisions/db-socket-timeout.md), check·bootJar·postgresTest·k6 inspect, 소크 결과 기록(2시간, 오류 0), dev PR.
+- 다음: 사람이 PR을 승인·병합한다. 백로그는 비게 된다. JWT 클레임(이메일·이름 포함)은 요구사항 때문에 보류 중이며 새 방향은 사용자와 정한다.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
@@ -31,5 +31,5 @@
 - 2026-10-15 사용자 요청으로 옵시디언 프로젝트 폴더에 `하네스 워크플로우.md`를 별도 작성하고 읽기·원본 일치를 확인했다. 자동 export 대상은 그대로이며, 진행 중인 구현의 리뷰·검증·커밋·publish는 이 문서 작업에서 수행하지 않았다.
 
 - 환율은 설정 예시이며(실제 공급처는 미연동으로 결정) 실시간 시세·실제 금융기관 송금·다른 시스템의 데이터 이전은 미구현이다(스키마는 Flyway로 관리).
-- 멱등성 키는 접수의 성공 응답만 24시간 재현한다(실패 응답 미저장, 요청 본문 전체 비교 없음). 잠금·복구 검증은 H2 범위이며 운영 DB에 대한 근거는 없다.
+- 멱등성 키는 접수의 성공 응답만 24시간 재현한다(실패 응답 미저장, 요청 본문 전체 비교 없음). 잠금·복구 검증은 H2와 PostgreSQL 16(Testcontainers·로컬 k6)에서 했으며 실제 운영 환경 근거는 없다.
 - 실제 배포·CI/CD는 요청 범위 밖이다. GitHub AI 자동 리뷰 연결과 서버 측 브랜치 보호 강제 여부는 별도 확인이 필요하다.

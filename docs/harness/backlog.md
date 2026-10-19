@@ -8,7 +8,7 @@
 
 | 순서 | 후보 | 현재 근거 | 선택 시 완료 기준 |
 | --- | --- | --- | --- |
-| 1 | 운영 DB 검증의 남은 범위 | PostgreSQL 16 동시성·락·연결 끊김 복구와 같은 JVM 내 앱 인스턴스 2개 간 경쟁([기록](tasks/postgres-multi-instance.md))은 검증. 컨테이너 정상 재시작·단기 고부하·풀 고갈([기록](tasks/postgres-restart-load.md))도 검증. k6 부하 테스트([기록](tasks/k6-load-test.md))로 로컬 단일 인스턴스의 지연·처리량·5분 소크도 측정. 네트워크 분리·비정상 종료·장시간(수 시간) 부하는 미검증. 연결 끊김 직후 500은 503 `DB_UNAVAILABLE`로 완화([기록](tasks/db-unavailable-503.md)). 롤백 실패 주입은 PostgreSQL에서 검증([기록](tasks/postgres-rollback-failure.md)) | 필요한 항목을 골라 범위를 정하고 재현 가능한 통합 검증 |
+| - | (없음) | 현재 등록된 후보가 없다. 새 방향은 사용자와 범위·완료 기준을 정한다. 미검증 한계: 실제 네트워크 분리(패킷 드롭/RST), 커밋 응답 유실, 수 일 단위 부하, JWT 클레임 최소화(요구사항으로 보류) | 사용자와 범위 결정 |
 
 실제 환율 공급처 어댑터는 2026-10-19 사용자 결정으로 백로그에서 삭제했다([결정](../decisions/no-real-rate-provider.md)).
 
@@ -34,6 +34,7 @@
 | 테스트 가드 강화 | ArchitectureTest의 Swagger/springdoc 참조 금지와 양성 대조, OpenApiTest의 swagger-ui.html 302·Location 정밀 검증 | [가드 강화](tasks/test-guard-hardening.md) |
 | 개인정보 없는 오류 관측 | X-Request-Id, 예외 메시지·본문·쿼리 없이 클래스·SQLState·경로만 남기는 오류 로그, DB 접속 실패 진단, 로그 캡처 검증 | [오류 관측](tasks/error-observability.md) |
 | 기본 프로파일 PostgreSQL 전환 | `spring.profiles.default: postgres`, docker-compose PostgreSQL 16, H2는 `h2`/`local`/`test`로 유지, `./data` 보존 | [기본 프로파일](tasks/postgres-default.md), [결정](../decisions/postgres-default.md) |
+| 운영 DB 검증 잔여(비정상 종료·무응답·장시간) | kill -9·pause 시 500 없이 503 복구, 풀 연결 무한 대기 결함 수정(JDBC socketTimeout, 기동 검증), 2시간 k6 소크(89만 요청, 오류 0, 자원 평탄) | [작업 기록](tasks/postgres-failure-modes.md), [결정](../decisions/db-socket-timeout.md) |
 | k6 부하 테스트 | 접수 흐름·스파이크·5분 소크 시나리오, 예상 밖 응답 0건과 구간별 p95 임계값, 로컬 실행 가이드 | [k6](tasks/k6-load-test.md) |
 | 한글 설명 주석 | 직접 작성 코드·테스트·하네스·설정 주석과 지속 지침 | Git db6634b, PR #9 |
 
