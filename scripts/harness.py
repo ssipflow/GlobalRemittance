@@ -243,6 +243,21 @@ def hook(root):
     print(json.dumps(output))
 
 
+# 소유 파일 입력을 저장소 상대 경로의 개별 파일로 검증해 정규화한다. begin과 own이 같은 규칙을 쓴다.
+
+
+def owned_paths(root, items):
+    files = []
+    for item in items:
+        path = Path(item)
+        if path.is_absolute() or '..' in path.parts or not path.parts:
+            raise ValueError('Owned files must be explicit repository-relative paths.')
+        if path.parts[0] in ('.git', '.harness') or (root / path).is_dir():
+            raise ValueError('Specify individual files, not directories or internal state.')
+        files.append(path.as_posix())
+    return files
+
+
 # 명령별 상태 전이를 처리하고 최신 리뷰·검증 증거만 커밋에 사용한다.
 
 
@@ -259,6 +274,8 @@ def main():
     review.add_argument('--snapshot', required=True)
     review.add_argument('--evidence', required=True,
                         help='Reviewer summary and reference; no unresolved blocking defects.')
+    own = commands.add_parser('own', help='Add individual files to the active task ownership.')
+    own.add_argument('--files', nargs='+', required=True)
     commands.add_parser('verify')
     finish = commands.add_parser('finish')
     finish.add_argument('--message', required=True)
@@ -294,14 +311,7 @@ def main():
             raise ValueError('Existing task must be finished or resumed; do not overwrite it.')
         if changed(root):
             raise ValueError('Begin requires a clean working tree; preserve existing changes separately.')
-        files = []
-        for item in args.files:
-            path = Path(item)
-            if path.is_absolute() or '..' in path.parts or not path.parts:
-                raise ValueError('Owned files must be explicit repository-relative paths.')
-            if path.parts[0] in ('.git', '.harness') or (root / path).is_dir():
-                raise ValueError('Specify individual files, not directories or internal state.')
-            files.append(path.as_posix())
+        files = owned_paths(root, args.files)
         task = {'id': args.id, 'goal': args.goal, 'files': sorted(set(files)),
                 'branch': branch, 'dev_base': git('rev-parse', 'dev', root=root).decode().strip(),
                 'checks': args.check, 'status': 'active', 'continuations': 0,
@@ -353,6 +363,17 @@ def main():
         return
     task = require_task(root)
     require_work_branch(root, task)
+    # 작업 중 필요해진 파일을 소유 목록에 추가한다. task.json을 직접 고치지 않게 하는 경로다.
+    # 범위만 넓힐 뿐이다. snapshot은 소유 여부와 무관하게 무시되지 않은 모든 파일을 포함하므로
+    # 리뷰·검증 증거는 own 때문에 약해지지도 갱신되지도 않고, 이후 내용이 바뀌면 무효가 된다.
+    if args.command == 'own':
+        added = sorted(set(owned_paths(root, args.files)) - set(task['files']))
+        task['files'] = sorted(set(task['files']) | set(added))
+        if added:
+            task.setdefault('ownership_additions', []).append({'files': added, 'at': time.time()})
+        save(root, task)
+        print('Added to ownership: ' + (', '.join(added) if added else '(nothing new)'))
+        return
     # 현재 스냅샷을 직접 확인한 리뷰 결과만 유효하게 기록한다.
     if args.command == 'attest-review':
         current = snapshot(root)

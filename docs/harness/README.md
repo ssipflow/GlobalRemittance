@@ -44,6 +44,16 @@ python3 scripts/harness.py begin --id test-isolation \
 python3 scripts/harness.py status
 ```
 
+작업 중 목록에 없던 파일을 바꿔야 하면 `.harness/task.json`을 직접 고치지 말고 `own`으로 추가한다.
+`begin`과 같은 규칙(저장소 상대 경로의 개별 파일, 디렉터리·내부 상태 거부)을 적용하고 추가 내역은
+`ownership_additions`에 시각과 함께 남는다. 활성 작업에서만 쓸 수 있으며 리뷰·검증 증거는
+내용 기반 snapshot에 묶여 있어 `own` 자체는 증거를 바꾸지 않고, 이후 파일이 바뀌면 다시 리뷰·검증해야 한다.
+`begin`과 달리 이미 수정된 파일도 추가할 수 있으므로 사용자의 기존 변경을 포함하지 않도록 Coordinator가 확인한다.
+
+```bash
+python3 scripts/harness.py own --files src/test/java/com/nelson/remittance/example/ExampleTest.java
+```
+
 메인 에이전트에게 다음과 같이 지시한다:
 
 > AGENTS.md를 따라 현재 작업을 implementer에게 위임해라.
