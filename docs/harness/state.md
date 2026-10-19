@@ -20,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/postgres-rollback-failure. 운영 DB 검증 남은 범위 중 PostgreSQL 롤백 실패 주입 검증(테스트 추가, 운영 코드 불변).
-- 시작 기준: 2026-10-19 dev 07cf867, PR #46까지 병합된 상태(기본 프로파일 PostgreSQL). 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/postgres-rollback-failure.md)의 PostgresRollbackFailureTest 통과, check·bootJar·postgresTest, dev PR.
-- 다음: 사람이 PR을 승인·병합한다. 이후 남은 후보는 다중 인스턴스·고부하·DB 재시작·연결 끊김 직후 500 완화, 실제 환율 공급처이며 사용자와 범위를 정해 시작한다.
+- 현재 작업: feature/db-unavailable-503. DB 연결이 끊긴 직후 첫 요청의 500을 `Retry-After: 1`의 503 `DB_UNAVAILABLE`로 응답(웹 어댑터 매핑, 도메인 불변).
+- 시작 기준: 2026-10-19 dev bb56b3d, PR #47까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/db-unavailable-503.md)의 단위·PostgreSQL 통합 테스트 통과, check·bootJar·postgresTest, dev PR. 결정: [DB 연결 장애 503](../decisions/db-unavailable-503.md).
+- 다음: 사람이 PR을 승인·병합한다. 이후 남은 후보는 다중 인스턴스·고부하·DB 재시작, 실제 환율 공급처이며 사용자와 범위를 정해 시작한다.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

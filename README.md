@@ -110,7 +110,7 @@ DB가 떠 있지 않으면 앱은 기동 시 Flyway 접속 실패로 종료하�
 - `postgresTest`가 PostgreSQL 16에서 검증하는 것: 스키마·Hibernate validate·기동·기본 API 흐름·`lock_timeout` 설정, 같은 견적/다른 견적(일일 한도)/같은 멱등성 키의 동시 접수(6스레드),
   잠금 대기 초과의 503 `LOCK_TIMEOUT`(`Retry-After: 1`)과 해제 후 성공, 잠금 중에도 막히지 않는 이력 조회, DB가 연결을 모두 끊은 뒤의 풀 복구, 트랜잭션 도중 연결이 끊겨 롤백이 실패해도 원래 업무 오류가 보존되고 쓰기가 남지 않으며 풀이 복구됨.
 - **검증하지 않은 것**: 다중 앱 인스턴스, 고부하·장시간 경쟁, DB 재시작·네트워크 분리, 연결 종료 외의 롤백 실패 원인, 다른 PostgreSQL 버전·관리형 서비스.
-  연결이 끊긴 직후의 첫 요청은 500(`UNKNOWN_ERROR`)이 될 수 있고 재시도하면 복구된다(현재의 실제 동작).
+  DB가 연결을 끊은 직후의 첫 요청은 풀이 끊긴 연결을 집어 실패할 수 있으며, 이는 500이 아니라 `Retry-After: 1`이 붙은 503 `DB_UNAVAILABLE`로 응답한다. 같은 `Idempotency-Key`로 재시도하면 복구되고 접수는 한 번만 반영된다(키 없이 재시도하거나 커밋 도중 끊긴 경우는 이력으로 확인한다).
 
 ## API 사용
 
@@ -151,9 +151,9 @@ curl -i -X POST http://localhost:8080/transfer/request \
 | 404 | QUOTE_NOT_FOUND, NOT_FOUND |
 | 409 / 422 | DUPLICATE_USER, ALREADY_REQUESTED / IDEMPOTENCY_KEY_REUSED |
 | 405 / 406 / 415 | METHOD_NOT_ALLOWED / NOT_ACCEPTABLE / UNSUPPORTED_MEDIA_TYPE |
-| 500 / 503 | UNKNOWN_ERROR / LOCK_TIMEOUT |
+| 500 / 503 | UNKNOWN_ERROR / LOCK_TIMEOUT, DB_UNAVAILABLE |
 
-LOCK_TIMEOUT만 `Retry-After: 1`을 반환한다. 고정 1초의 재시도 안내이며 그 뒤 성공을 보장하거나 서버가 자동 재시도하는 기능은 아니다. 원 요구사항 철자인 QUOTE_EXPRIED를 유지한다.
+LOCK_TIMEOUT과 DB_UNAVAILABLE만 `Retry-After: 1`을 반환한다. 고정 1초의 재시도 안내이며 그 뒤 성공을 보장하거나 서버가 자동 재시도하는 기능은 아니다. 원 요구사항 철자인 QUOTE_EXPRIED를 유지한다.
 
 응답의 `X-Request-Id`로 로그를 찾는다. 클라이언트가 `[A-Za-z0-9._-]{1,64}` 값을 보내면 채택하고 그 외에는 UUID를 생성한다. 멱등성 키와 용도가 다르며 오류 JSON 본문에는 넣지 않는다. 기본 오류 로그는 예외 메시지·본문·쿼리스트링·토큰 대신 코드·요청 위치·예외 클래스·SQLState 등의 선별 정보를 남긴다. 보안 필터와 /error의 모든 실패를 이 예외 로깅이 수집하는 것은 아니다.
 

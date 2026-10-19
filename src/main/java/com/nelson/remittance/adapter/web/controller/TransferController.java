@@ -99,7 +99,8 @@ public class TransferController {
             content = @Content(schema = @Schema(implementation = Result.class)))
     @ApiResponse(
             responseCode = "503",
-            description = "사용자 잠금 대기 초과(LOCK_TIMEOUT). 같은 Idempotency-Key로 재시도할 수 있다",
+            description =
+                    "사용자 잠금 대기 초과(LOCK_TIMEOUT) 또는 DB 연결 일시 장애(DB_UNAVAILABLE). 같은 Idempotency-Key로 재시도할 수 있다",
             content = @Content(schema = @Schema(implementation = Result.class)))
     @PostMapping(value = "/request", consumes = "application/json", produces = "application/json")
     // 문자열 견적 ID를 INT 저장 범위로 확인한 뒤 인증 사용자로 접수한다.

@@ -155,7 +155,7 @@ DatabaseConnectionFailureAnalyzer는 두 경로를 안내한다. (1) Flyway 초�
 
 ## 오류 응답과 관측 경계
 
-ApiExceptionHandler는 업무 오류·MVC 입력 오류를 JSON 코드로 변환하고, 예상 밖 예외는 ErrorDescriptions의 선별 진단 정보를 ERROR로 기록한다. LOCK_TIMEOUT은 WARN과 Retry-After: 1, 일반 업무 오류는 DEBUG다. UNKNOWN_ERROR 업무 코드는 ERROR로 남긴다.
+ApiExceptionHandler는 업무 오류·MVC 입력 오류를 JSON 코드로 변환하고, 예상 밖 예외는 ErrorDescriptions의 선별 진단 정보를 ERROR로 기록한다. 단, 원인 연쇄에 DB 연결 장애(SQLState 08xxx·57P01~03, JDBC 연결 예외; `DatabaseUnavailability`)가 있으면 WARN과 `Retry-After: 1`의 503 `DB_UNAVAILABLE`로 응답한다(도메인 `ErrorCode`가 아닌 웹 어댑터의 분류). LOCK_TIMEOUT은 WARN과 Retry-After: 1, 일반 업무 오류는 DEBUG다. UNKNOWN_ERROR 업무 코드는 ERROR로 남긴다.
 
 예외 메시지·요청 본문·쿼리스트링·토큰 대신 요청 ID·메서드·제한된 경로·예외 클래스 연쇄·SQLState/벤더 코드·앱 스택 프레임 일부를 사용한다. JsonErrorController와 보안 필터의 오류는 동일한 응답 형식이어도 이 예외 처리기의 관측 대상과 같지 않다.
 
