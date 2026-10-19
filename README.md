@@ -86,7 +86,7 @@ local에서는 Hibernate SQL DEBUG, SqlExceptionHelper WARN, Hikari DEBUG를 켠
 | V1 | users·remittances 및 사용자/접수시각 인덱스 |
 | V2 | idempotency_key와 (user_id, idempotency_key) 유일 제약 |
 
-새 DB는 V1부터 적용한다. Flyway 이력이 없는 비어 있지 않은 DB는 버전 0으로 기준선을 잡은 뒤 V1·V2를 적용한다. 두 SQL의 IF NOT EXISTS는 이전 앱이 만든 객체를 보존하기 위한 것이며 임의의 구 스키마를 정상 상태로 복구한다는 의미는 아니다. 적용 이력은 flyway_schema_history에 저장한다.
+새 DB는 V1부터 적용한다. Flyway 이력이 없는 비어 있지 않은 DB는 버전 0으로 기준선을 잡은 뒤 V1~V3을 적용한다. V3은 기존 `users.user_id`를 소문자로 바꾸며, 대소문자만 다른 중복 계정이 있으면 합치지 않고 실패하므로 운영자가 직접 정리한 뒤 다시 실행한다. 두 SQL의 IF NOT EXISTS는 이전 앱이 만든 객체를 보존하기 위한 것이며 임의의 구 스키마를 정상 상태로 복구한다는 의미는 아니다. 적용 이력은 flyway_schema_history에 저장한다.
 
 적용한 SQL을 수정하지 않고 새 번호로 변경을 추가한다. Hibernate validate만으로 모든 인덱스·유일 제약·FK 이름을 검사한다고 가정하지 않는다. 기존 데이터 업그레이드는 MigrationTest에서 다루며 다른 시스템의 데이터를 이전하는 도구는 제공하지 않는다.
 
@@ -146,7 +146,7 @@ curl -i -X POST http://localhost:8080/transfer/request \
 
 | HTTP | 대표 코드 |
 | --- | --- |
-| 400 | INVALID_REQUEST, NEGATIVE_NUMBER, QUOTE_EXPRIED, LIMIT_EXCESS |
+| 400 | INVALID_REQUEST, NEGATIVE_NUMBER, AMOUNT_TOO_SMALL, QUOTE_EXPRIED, LIMIT_EXCESS |
 | 401 / 403 | UNAUTHORIZED / FORBIDDEN |
 | 404 | QUOTE_NOT_FOUND, NOT_FOUND |
 | 409 / 422 | DUPLICATE_USER, ALREADY_REQUESTED / IDEMPOTENCY_KEY_REUSED |

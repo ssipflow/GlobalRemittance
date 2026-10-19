@@ -131,19 +131,4 @@ public class JpaQuoteRepository implements QuoteRepository {
                 ((Number) row[0]).intValue(),
                 QuotePolicy.money(sum == null ? BigDecimal.ZERO : sum, "USD"));
     }
-
-    @Override
-    // 접수 시각이 [from, to)인 견적의 USD 합계를 DB에서 집계하고 결과가 없으면 0.00으로 정규화한다.
-    public BigDecimal requestedUsdTotal(long userId, Instant from, Instant to) {
-        BigDecimal sum =
-                em.createQuery(
-                                "select sum(q.usdAmount) from QuoteEntity q where q.user.id = :userId "
-                                        + "and q.requestedTime >= :from and q.requestedTime < :to",
-                                BigDecimal.class)
-                        .setParameter("userId", EntityIds.toInt(userId))
-                        .setParameter("from", from)
-                        .setParameter("to", to)
-                        .getSingleResult();
-        return QuotePolicy.money(sum == null ? BigDecimal.ZERO : sum, "USD");
-    }
 }

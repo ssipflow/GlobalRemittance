@@ -1,5 +1,6 @@
 package com.nelson.remittance.domain.quote;
 
+import static com.nelson.remittance.domain.exception.ErrorCode.AMOUNT_TOO_SMALL;
 import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 import static com.nelson.remittance.domain.exception.ErrorCode.NEGATIVE_NUMBER;
 
@@ -11,6 +12,9 @@ import java.util.Currency;
 // 수수료와 순송금액을 십진수로 계산하고 통화 자릿수와 저장 범위를 검증한다.
 public final class QuotePolicy {
     private static final BigDecimal MAX = new BigDecimal("9999999999.999999999999");
+    // 최소 송금 금액(KRW). 고정 수수료(1000~3000원)에 묻혀 수취액이 0.00으로 반올림되는 무의미한 견적을 막는다.
+    // 정수화된(HALF_UP) 원화 기준이며 정확히 이 금액은 허용한다.
+    static final BigDecimal MIN_AMOUNT = new BigDecimal("5000");
     private static final BigDecimal THRESHOLD = new BigDecimal("1000000");
 
     private QuotePolicy() {}
@@ -46,6 +50,10 @@ public final class QuotePolicy {
         BigDecimal source = money(amount, "KRW");
         if (source.compareTo(MAX) > 0 || amount.scale() > 12) {
             throw new BusinessException(INVALID_REQUEST);
+        }
+        // 부호 오류(NEGATIVE_NUMBER)를 먼저 가린 뒤, 정수화한 금액이 최소 금액 미만이면 별도 코드로 거절한다.
+        if (source.compareTo(MIN_AMOUNT) < 0) {
+            throw new BusinessException(AMOUNT_TOO_SMALL);
         }
         rate = rate(rate);
         usdRate = rate(usdRate);

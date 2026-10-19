@@ -149,7 +149,9 @@ class RollbackFailureTest {
         for (Method method : methods) {
             var attribute = source.getTransactionAttribute(method, method.getDeclaringClass());
             assertNotNull(attribute, method.getName());
-            assertFalse(attribute.isReadOnly(), method.getName());
+            // 이력 조회만 읽기 전용이고 견적 발급·접수는 쓰기 트랜잭션이다.
+            assertEquals(
+                    "history".equals(method.getName()), attribute.isReadOnly(), method.getName());
         }
         // 가입·로그인 유스케이스는 트랜잭션을 열지 않고 프록시도 아니다. 저장만 어댑터의 짧은 트랜잭션이 맡는다.
         assertFalse(AopUtils.isCglibProxy(users));

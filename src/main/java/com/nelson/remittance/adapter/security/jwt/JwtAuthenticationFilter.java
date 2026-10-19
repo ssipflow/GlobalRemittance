@@ -13,26 +13,27 @@ import java.io.IOException;
 import java.util.List;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 // 송금 요청의 Bearer 토큰을 인증 주체로 바꾸며 실패 응답에는 내부 원인을 노출하지 않는다.
 public final class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final TokenProvider tokens;
     private final ObjectMapper json;
+    private final RequestMatcher publicPaths;
 
-    public JwtAuthenticationFilter(TokenProvider tokens, ObjectMapper json) {
+    // 공개 경로 매처는 SecurityConfiguration과 공유해 '토큰 없이 열린 경로'의 출처를 하나로 둔다.
+    public JwtAuthenticationFilter(
+            TokenProvider tokens, ObjectMapper json, RequestMatcher publicPaths) {
         this.tokens = tokens;
         this.json = json;
+        this.publicPaths = publicPaths;
     }
 
     @Override
-    // 가입·로그인은 토큰 검사 대상에서 제외하고 컨텍스트 경로를 제거한 송금 경로만 검사한다.
+    // 공개 경로(가입·로그인·API 문서 등)는 토큰 검사 대상에서 제외하고 그 밖의 모든 경로는 검사한다.
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getServletPath();
-        if (path.isEmpty()) {
-            path = request.getRequestURI().substring(request.getContextPath().length());
-        }
-        return !(path.equals("/transfer") || path.startsWith("/transfer/"));
+        return publicPaths.matches(request);
     }
 
     @Override
@@ -43,7 +44,8 @@ public final class JwtAuthenticationFilter extends OncePerRequestFilter {
         String header = request.getHeader("Authorization");
         if (header != null) {
             try {
-                if (!header.startsWith("Bearer ") || header.length() <= 7) {
+                // RFC 7235: 인증 스킴 이름은 대소문자를 구분하지 않는다.
+                if (!header.regionMatches(true, 0, "Bearer ", 0, 7) || header.length() <= 7) {
                     throw new BusinessException(ErrorCode.UNAUTHORIZED);
                 }
                 long id = tokens.verify(header.substring(7));

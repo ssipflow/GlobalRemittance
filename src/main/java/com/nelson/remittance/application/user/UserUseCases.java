@@ -13,6 +13,9 @@ import com.nelson.remittance.domain.user.User;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 // 가입과 로그인을 조정하며 암호화·해시·토큰·저장 구현을 포트로 호출한다.
@@ -24,6 +27,9 @@ public class UserUseCases {
     private final IdentityCipher identityCipher;
     private final TokenProvider tokenProvider;
     private final Clock clock;
+    // 없는 사용자 로그인에서도 해시 비교를 수행해 응답 시간 차이로 계정 존재 여부가 드러나지 않게 하는 해시다.
+    // 기동 시 임의 값으로 같은 해시기(같은 cost)가 만들므로 고정 비밀 값을 코드에 두지 않는다.
+    private final String dummyHash;
 
     public UserUseCases(
             AccountRepository accountRepository,
@@ -36,6 +42,14 @@ public class UserUseCases {
         this.identityCipher = identityCipher;
         this.tokenProvider = tokenProvider;
         this.clock = clock;
+        this.dummyHash = passwordHasher.hash(UUID.randomUUID().toString());
+    }
+
+    // 이메일은 대소문자를 구분하지 않는 식별자로 취급해 소문자(Locale.ROOT)로 정규화한다.
+    // 'Alice@x.com'과 'alice@x.com'이 별개 계정으로 가입되는 우회를 막고, 저장·조회가 같은 값을 쓰게 한다.
+    // 앞뒤 공백은 입력 검증(@Email)이 이미 거부하므로 별도로 다듬지 않는다.
+    static String normalizeUserId(String userId) {
+        return userId == null ? null : userId.toLowerCase(Locale.ROOT);
     }
 
     // 입력 바이트 수를 확인하고 중복 조회, 비밀번호 해시, 번호 암호화와 저장을 수행한다.
@@ -54,6 +68,14 @@ public class UserUseCases {
         if (idValue == null
                 || idValue.isBlank()
                 || idValue.getBytes(StandardCharsets.UTF_8).length > 64) {
+            throw new BusinessException(INVALID_REQUEST);
+        }
+        if (userId == null) {
+            throw new BusinessException(INVALID_REQUEST);
+        }
+        userId = normalizeUserId(userId);
+        // 소문자 변환은 일부 문자(예: İ)를 늘릴 수 있어 정규화 뒤 길이를 다시 확인한다(컬럼 길이 위반 500 방지).
+        if (userId.length() > 255) {
             throw new BusinessException(INVALID_REQUEST);
         }
         if (accountRepository.findUser(userId).isPresent()) {
@@ -78,13 +100,13 @@ public class UserUseCases {
         if (password == null || password.getBytes(StandardCharsets.UTF_8).length > 72) {
             throw new BusinessException(UNAUTHORIZED);
         }
-        User user =
-                accountRepository
-                        .findUser(userId)
-                        .orElseThrow(() -> new BusinessException(UNAUTHORIZED));
-        if (!passwordHasher.matches(password, user.passwordHash())) {
+        // 사용자가 없어도 더미 해시와 비교해 BCrypt 비용을 동일하게 치르고, 실패 이유는 구분하지 않는다.
+        Optional<User> found = accountRepository.findUser(normalizeUserId(userId));
+        boolean matched =
+                passwordHasher.matches(password, found.map(User::passwordHash).orElse(dummyHash));
+        if (found.isEmpty() || !matched) {
             throw new BusinessException(UNAUTHORIZED);
         }
-        return tokenProvider.issue(user);
+        return tokenProvider.issue(found.get());
     }
 }

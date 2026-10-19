@@ -462,7 +462,7 @@ class RemittanceApiTest {
                 0,
                 new BigDecimal("1000.00")
                         .compareTo(list(personal).get("todayTransferUsdAmount").decimalValue()));
-        error(request(personal, quote(personal, "1012", "USD")), 400, "LIMIT_EXCESS");
+        error(request(personal, quote(personal, "5000", "USD")), 400, "LIMIT_EXCESS");
         String business = user("business@example.com", "BUSINESS_NO");
         assertEquals(
                 200,
@@ -471,7 +471,7 @@ class RemittanceApiTest {
                 0,
                 new BigDecimal("5000.00")
                         .compareTo(list(business).get("todayTransferUsdAmount").decimalValue()));
-        error(request(business, quote(business, "1012", "USD")), 400, "LIMIT_EXCESS");
+        error(request(business, quote(business, "5000", "USD")), 400, "LIMIT_EXCESS");
     }
 
     @Test
@@ -533,7 +533,11 @@ class RemittanceApiTest {
                 "UNSUPPORTED_MEDIA_TYPE");
         error(mvc.perform(get("/missing")).andReturn(), 404, "NOT_FOUND");
         error(mvc.perform(get("/user/signup")).andReturn(), 405, "METHOD_NOT_ALLOWED");
-        error(mvc.perform(get("/_test/failure")).andReturn(), 500, "UNKNOWN_ERROR");
+        error(
+                mvc.perform(get("/_test/failure").header("Authorization", "Bearer " + token))
+                        .andReturn(),
+                500,
+                "UNKNOWN_ERROR");
         for (String content :
                 List.of(
                         "{\"amount\":100000,\"targetCurrency\":\"EUR\"}",
@@ -574,10 +578,13 @@ class RemittanceApiTest {
     // 실제 서블릿 오류와 HTML 요청에서도 JSON 오류를 반환하는지 확인한다.
     void actualServletErrorDispatchAndHtmlAcceptStillReturnJson() throws Exception {
         var client = java.net.http.HttpClient.newHttpClient();
+        // /_test/send-error는 컨트롤러가 있어 기본 거부 대상이므로 인증된 요청으로 호출한다.
+        String token = user("servlet-error@example.com", "REG_NO");
         for (String path : List.of("/error", "/missing", "/_test/send-error")) {
             var request =
                     java.net.http.HttpRequest.newBuilder(
                                     java.net.URI.create("http://localhost:" + port + path))
+                            .header("Authorization", "Bearer " + token)
                             .header("Accept", "text/html")
                             .GET()
                             .build();
@@ -828,7 +835,7 @@ class RemittanceApiTest {
     void failedAttemptsDoNotConsumeKey() throws Exception {
         String token = user("idem-failed@example.com", "REG_NO");
         assertEquals(200, request(token, quote(token, "1004004", "USD")).getResponse().getStatus());
-        String over = quote(token, "1012", "USD");
+        String over = quote(token, "5000", "USD");
         error(request(token, over, "key-f"), 400, "LIMIT_EXCESS");
         assertEquals(
                 0,
@@ -967,7 +974,7 @@ class RemittanceApiTest {
         assertEquals(200, request(token, quote(token, "1004004", "USD")).getResponse().getStatus());
         clock.set(Instant.parse("2026-01-01T15:00:00Z"));
         assertEquals(200, request(token, quote(token, "1004004", "USD")).getResponse().getStatus());
-        error(request(token, quote(token, "1012", "USD")), 400, "LIMIT_EXCESS");
+        error(request(token, quote(token, "5000", "USD")), 400, "LIMIT_EXCESS");
         assertEquals(1, list(token).get("todayTransferCount").asInt());
     }
 
@@ -1161,16 +1168,92 @@ class RemittanceApiTest {
         }
     }
 
-    // 요구사항은 음수만 NEGATIVE_NUMBER로 거부한다. 수수료 차감 후 순송금 1원이 USD 0.00으로 반올림되는
-    // 견적도 현재 정책상 발급·접수되며, 이 계약을 관찰값으로 고정한다(최소 금액 규칙은 정해지지 않았다).
+    MvcResult quoteResult(String token, String amount, String currency) throws Exception {
+        return mvc.perform(
+                        post("/transfer/quote")
+                                .header("Authorization", "Bearer " + token)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        payload(
+                                                Map.of(
+                                                        "amount",
+                                                        new BigDecimal(amount),
+                                                        "targetCurrency",
+                                                        currency))))
+                .andReturn();
+    }
+
+    // 최소 금액 5000 KRW 정책: 순송금 1원이 USD 0.00이 되던 1003원 견적은 이제 400 AMOUNT_TOO_SMALL이다.
+    // 정확히 5000원은 발급·접수되고 수취액이 0보다 크다. 거절된 요청은 견적을 저장하지 않는다.
     @Test
-    void roundedZeroUsdQuoteIsIssuedAndRequestedUnderCurrentPolicy() throws Exception {
-        String token = user("rounded-zero@example.com", "REG_NO");
-        String id = quote(token, "1003", "USD");
+    void amountBelowMinimumIsRejectedAndMinimumIsAccepted() throws Exception {
+        String token = user("min-amount@example.com", "REG_NO");
+        error(quoteResult(token, "1003", "USD"), 400, "AMOUNT_TOO_SMALL");
+        error(quoteResult(token, "4999", "USD"), 400, "AMOUNT_TOO_SMALL");
+        error(quoteResult(token, "4999", "JPY"), 400, "AMOUNT_TOO_SMALL");
+        assertEquals(0, jdbc.queryForObject("select count(*) from remittances", Integer.class));
+        String id = quote(token, "5000", "USD");
         assertEquals(200, request(token, id).getResponse().getStatus());
         JsonNode item = list(token).get("history").get(0);
-        assertEquals(0, new BigDecimal("0.00").compareTo(item.get("targetAmount").decimalValue()));
-        assertEquals(0, new BigDecimal("0.00").compareTo(item.get("usdAmount").decimalValue()));
+        assertTrue(item.get("targetAmount").decimalValue().signum() > 0);
+        assertTrue(item.get("usdAmount").decimalValue().signum() > 0);
+        assertEquals(200, request(token, quote(token, "5000", "JPY")).getResponse().getStatus());
+    }
+
+    // 이메일은 대소문자를 구분하지 않는다. 대소문자만 다른 재가입은 409이고 로그인은 어떤 표기로도 되며 저장값은 소문자다.
+    @Test
+    void emailCaseCannotBypassDuplicateSignup() throws Exception {
+        assertEquals(
+                200,
+                signup("Case.User@Example.com", "REG_NO", "test-password", "1234567890123")
+                        .getResponse()
+                        .getStatus());
+        error(
+                signup("case.user@example.com", "REG_NO", "test-password", "1234567890123"),
+                409,
+                "DUPLICATE_USER");
+        error(
+                signup("CASE.USER@EXAMPLE.COM", "REG_NO", "test-password", "1234567890123"),
+                409,
+                "DUPLICATE_USER");
+        assertEquals(
+                java.util.List.of("case.user@example.com"),
+                jdbc.queryForList(
+                        "select user_id from users where lower(user_id) = 'case.user@example.com'",
+                        String.class));
+        assertFalse(login("CASE.user@example.COM").isEmpty());
+        assertFalse(login("case.user@example.com").isEmpty());
+    }
+
+    // 인증 스킴 이름은 대소문자를 구분하지 않는다(RFC 7235). 잘못된 스킴과 토큰 없는 스킴은 401이다.
+    @Test
+    void bearerSchemeIsCaseInsensitive() throws Exception {
+        String token = user("bearer-case@example.com", "REG_NO");
+        for (String scheme : List.of("bearer", "BEARER", "BeArEr")) {
+            assertEquals(
+                    200,
+                    mvc.perform(get("/transfer/list").header("Authorization", scheme + " " + token))
+                            .andReturn()
+                            .getResponse()
+                            .getStatus(),
+                    scheme);
+        }
+        for (String header : List.of("Basic " + token, "Bearer", "Bearer ", "Bearertoken", token)) {
+            error(
+                    mvc.perform(get("/transfer/list").header("Authorization", header)).andReturn(),
+                    401,
+                    "UNAUTHORIZED");
+        }
+    }
+
+    // 기본 거부: 컨트롤러가 있는 경로는 /transfer 밖이어도 인증 없이는 401이고, 컨트롤러가 없는 경로는 404 계약을 유지한다.
+    @Test
+    void mappedPathsOutsideTransferDefaultToUnauthorizedWhileUnknownPathsStay404()
+            throws Exception {
+        error(mvc.perform(get("/_test/failure")).andReturn(), 401, "UNAUTHORIZED");
+        error(mvc.perform(get("/missing")).andReturn(), 404, "NOT_FOUND");
+        // 송금 API 영역은 컨트롤러가 없는 하위 경로도 익명이면 401이다.
+        error(mvc.perform(get("/transfer/anything")).andReturn(), 401, "UNAUTHORIZED");
     }
 
     @Autowired javax.sql.DataSource dataSource;

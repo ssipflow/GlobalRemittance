@@ -50,7 +50,7 @@ curl "http://localhost:8080/transfer/list?size=20" -H "Authorization: Bearer $TO
 
 | 필드 | 형식·제약 |
 | --- | --- |
-| userId | 이메일, 공백 불가, 최대 255자, 유일함 |
+| userId | 이메일, 공백 불가, 최대 255자, 유일함(대소문자 무시) |
 | password | 공백 불가, 최대 72자 및 UTF-8 72바이트 |
 | name | 공백 불가, 최대 128자 |
 | idType | REG_NO(개인) 또는 BUSINESS_NO(법인) |
@@ -73,7 +73,7 @@ curl "http://localhost:8080/transfer/list?size=20" -H "Authorization: Bearer $TO
 }
 ```
 
-동일 이메일은 HTTP 409 DUPLICATE_USER다. 비밀번호와 식별번호 원문은 응답에 포함하지 않는다.
+동일 이메일은 HTTP 409 DUPLICATE_USER다. 이메일은 대소문자를 구분하지 않으며 서버가 소문자(`Locale.ROOT`)로 정규화해 저장·비교하므로 `Alice@x.com`과 `alice@x.com`은 같은 계정이다. JWT의 `userId` 클레임도 정규화된 소문자 값이다. 비밀번호와 식별번호 원문은 응답에 포함하지 않는다.
 
 ## POST /user/login
 
@@ -94,13 +94,13 @@ userId는 이메일 형식·최대 255자, password는 공백 불가·최대 72�
 }
 ```
 
-계정 없음·비밀번호 불일치는 HTTP 401 UNAUTHORIZED다. 둘을 구분하지 않는다.
+계정 없음·비밀번호 불일치는 HTTP 401 UNAUTHORIZED다. 둘을 구분하지 않으며, 계정이 없어도 더미 해시와 비교해 응답 시간으로 계정 존재 여부가 드러나는 것을 완화한다(가입의 중복 응답 409는 계정 존재를 직접 알려 주므로 열거를 완전히 막지는 않는다). userId는 가입과 같은 규칙으로 대소문자를 무시한다.
 
 ## POST /transfer/quote
 
 | 필드 | 형식·제약 |
 | --- | --- |
-| amount | KRW 금액, 양수, 정수부 최대 10자리·소수부 최대 12자리 |
+| amount | KRW 금액, 최소 5000(정수화 후), 정수부 최대 10자리·소수부 최대 12자리 |
 | targetCurrency | USD 또는 JPY |
 
 ```json
@@ -127,9 +127,9 @@ userId는 이메일 형식·최대 255자, password는 공백 불가·최대 72�
 
 환율의 기준 시각이 현재와 허용 지연(기본 60초, `REMITTANCE_RATES_MAX_AGE_SECONDS`로 1~3600)을 초과해 벗어나면(같으면 신선) 견적을 만들지 않고 503 `RATE_STALE`을, 환율 조회가 실패하면 503 `RATE_UNAVAILABLE`을 반환한다. 오래된 환율을 몰래 쓰지 않고 `Retry-After`도 붙이지 않는다. 클라이언트는 잠시 뒤 다시 요청한다. 이미 발급된 견적은 발급 시점 환율로 10분간 고정이므로 환율 장애와 무관하게 접수할 수 있다. 기본 설정(설정 환율)에서는 기준 시각이 항상 현재라 이 오류가 나지 않는다.
 
-소수 입력은 HALF_UP으로 KRW 정수화한 뒤 정책을 적용한다. 입력이 양수가 아니거나 수수료 차감 후 음수이면 NEGATIVE_NUMBER, 저장 가능한 DECIMAL 범위를 넘으면 INVALID_REQUEST다.
+소수 입력은 HALF_UP으로 KRW 정수화한 뒤 정책을 적용한다. 입력이 양수가 아니면 NEGATIVE_NUMBER(수수료 차감 후 음수 검사는 최소 금액 5000원 때문에 현재 도달하지 않는 방어 코드다), 저장 가능한 DECIMAL 범위를 넘으면 INVALID_REQUEST다.
 
-수수료 차감 후 순송금액이 0 이상이면 발급한다. 순송금이 1원처럼 작아 수취액·USD 금액이 `0.00`으로 반올림되는 견적도 현재는 발급·접수되며(요구사항이 음수만 거부하고 최소 금액을 정하지 않았다), 그 접수는 일일 한도에 0.00 USD로 합산된다. 최소 금액 규칙은 정책 결정 사항이다. 견적 저장은 사용자 행에 외래키 공유 잠금을 요청하므로, 같은 사용자의 접수가 그 행을 오래 쥐고 있어 대기 한도를 넘기면 견적도 503 `LOCK_TIMEOUT`(`Retry-After: 1`)을 반환한다. 이때 견적은 저장되지 않는다.
+최소 송금 금액은 5000 KRW다(사용자 결정, [근거](../decisions/min-amount-and-email-normalization.md)). HALF_UP으로 정수화한 금액이 5000 미만이면 400 `AMOUNT_TOO_SMALL`이며 정확히 5000은 허용한다(양수가 아닌 입력은 그대로 `NEGATIVE_NUMBER`). 5000원의 순송금액은 USD 3990원, JPY 1750원이라 수취액은 USD 환율이 798000 이하(JPY는 3500 이하)이면 0보다 크다. 이 최소 금액 규칙은 원 요구사항에 없는 추가 정책이다. 극단적인 환율에서는 5000원 이상이어도 수취액이 `0.00`으로 반올림될 수 있고 별도로 막지 않는다. 견적 저장은 사용자 행에 외래키 공유 잠금을 요청하므로, 같은 사용자의 접수가 그 행을 오래 쥐고 있어 대기 한도를 넘기면 견적도 503 `LOCK_TIMEOUT`(`Retry-After: 1`)을 반환한다. 이때 견적은 저장되지 않는다.
 
 ## POST /transfer/request
 
@@ -257,13 +257,14 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 | HTTP | resultMsg | 발생하는 곳 | 의미 |
 | --- | --- | --- | --- |
 | 400 | INVALID_REQUEST | 모든 입력 | 입력 형식·통화·자릿수·식별자 범위 오류, 잘못된 cursor·size |
-| 400 | NEGATIVE_NUMBER | 견적 | 양수가 아닌 입력 또는 수수료 차감 후 음수 |
+| 400 | NEGATIVE_NUMBER | 견적 | 양수가 아닌 입력(수수료 차감 후 음수 검사는 현재 도달하지 않는 방어 코드) |
+| 400 | AMOUNT_TOO_SMALL | 견적 | 정수화한 KRW 금액이 최소 금액 5000 미만 |
 | 400 | QUOTE_EXPRIED | 접수 | 만료시각 이상에서 접수 요청. 원 요구사항의 철자를 유지 |
 | 400 | LIMIT_EXCESS | 접수 | KST 하루 순송금 USD 합계 초과 |
-| 401 | UNAUTHORIZED | 로그인, 송금 API | 로그인 실패, 누락·잘못된·만료 토큰 |
+| 401 | UNAUTHORIZED | 로그인, 송금 API | 로그인 실패, 누락·잘못된·만료 토큰. `Authorization` 스킴 `Bearer`는 대소문자를 구분하지 않는다. 가입·로그인·API 문서 외에 컨트롤러가 있는 경로는 기본적으로 인증이 필요하다 |
 | 403 | FORBIDDEN | 접수 | 타인 견적 접수 또는 접근 거부 |
 | 404 | QUOTE_NOT_FOUND | 접수 | 견적 없음 |
-| 404 | NOT_FOUND | 모든 경로 | 존재하지 않는 경로 |
+| 404 | NOT_FOUND | 모든 경로 | 존재하지 않는 경로(컨트롤러가 없는 경로는 인증 없이도 404) |
 | 405 | METHOD_NOT_ALLOWED | 모든 경로 | 허용하지 않은 HTTP 메서드 |
 | 406 | NOT_ACCEPTABLE | 모든 경로 | 지원하지 않는 응답 형식 요청 |
 | 409 | DUPLICATE_USER | 회원가입 | 중복 회원 |

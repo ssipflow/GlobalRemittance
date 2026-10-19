@@ -421,4 +421,64 @@ class PostgresConcurrencyTest {
         }
         assertNotNull(quote(user, "100000"));
     }
+
+    // 대소문자만 다른 이메일로 동시에 가입해도 정규화된 단일 값에 대한 유일 제약으로 1건만 성공한다.
+    // 사전 중복 조회는 서로 보지 못하므로 최종 방어(DB 유일 제약 -> 409)까지 실제 PostgreSQL로 확인한다.
+    @Test
+    void concurrentCaseVariantSignupsCreateExactlyOneUser() throws Exception {
+        String base = "race-" + System.nanoTime() + "@example.com";
+        List<String> variants =
+                List.of(
+                        base,
+                        base.toUpperCase(java.util.Locale.ROOT),
+                        "R" + base.substring(1),
+                        base.replace("race", "RaCe"),
+                        base.replace("example", "EXAMPLE"),
+                        base.toUpperCase(java.util.Locale.ROOT));
+        var pool = Executors.newFixedThreadPool(variants.size());
+        var ready = new CountDownLatch(variants.size());
+        var start = new CountDownLatch(1);
+        try {
+            List<Future<Integer>> jobs = new ArrayList<>();
+            for (String email : variants) {
+                jobs.add(
+                        pool.submit(
+                                () -> {
+                                    ready.countDown();
+                                    if (!start.await(10, TimeUnit.SECONDS)) {
+                                        throw new IllegalStateException("start timed out");
+                                    }
+                                    return mvc.perform(
+                                                    post("/user/signup")
+                                                            .contentType(MediaType.APPLICATION_JSON)
+                                                            .content(
+                                                                    json.writeValueAsString(
+                                                                            signupBody(
+                                                                                    Map.of(
+                                                                                            "userId",
+                                                                                            email,
+                                                                                            "password",
+                                                                                            PASSWORD)))))
+                                            .andReturn()
+                                            .getResponse()
+                                            .getStatus();
+                                }));
+            }
+            assertTrue(ready.await(10, TimeUnit.SECONDS));
+            start.countDown();
+            List<Integer> statuses = new ArrayList<>();
+            for (var job : jobs) {
+                statuses.add(job.get(30, TimeUnit.SECONDS));
+            }
+            assertEquals(1, Collections.frequency(statuses, 200), statuses.toString());
+            assertEquals(
+                    variants.size() - 1, Collections.frequency(statuses, 409), statuses.toString());
+        } finally {
+            pool.shutdownNow();
+        }
+        assertEquals(
+                List.of(base),
+                jdbc.queryForList(
+                        "select user_id from users where lower(user_id) = ?", String.class, base));
+    }
 }

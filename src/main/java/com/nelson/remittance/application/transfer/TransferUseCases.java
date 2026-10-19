@@ -85,7 +85,8 @@ public class TransferUseCases {
         Quote requested = quote.request(actorId, now, idempotencyKey);
         // 이력 전체를 읽지 않고 KST 당일 [00:00, 익일 00:00) 합계만 DB에서 집계한다.
         BusinessDay day = BusinessDay.of(now);
-        BigDecimal total = quoteRepository.requestedUsdTotal(actorId, day.start(), day.end());
+        BigDecimal total =
+                quoteRepository.requestedDailyTotal(actorId, day.start(), day.end()).usdAmount();
         user.checkDailyLimit(total, quote.calculation().usdAmount());
         quoteRepository.saveQuote(requested);
     }
@@ -99,9 +100,10 @@ public class TransferUseCases {
             QuotePosition nextAfter) {}
 
     // 사용자 잠금 없이 읽는다. 조회가 접수 직렬화에 참여해 대기하거나 막지 않는다.
-    // 오늘 건수·합계는 목록과 별개의 한 집계 쿼리로 구하므로 어느 페이지에서도 같고 서로 모순되지 않지만,
-    // 접수와 겹치면 목록과 집계의 시점이 다를 수 있다. limit+1건을 읽어 다음 페이지 존재를 판단한다.
-    @Transactional
+    // 읽기 전용 트랜잭션 안의 사용자·집계·목록 세 쿼리는 같은 트랜잭션에 있지만, PostgreSQL 기본 격리(READ COMMITTED)에서는
+    // 쿼리마다 스냅샷이 달라 접수와 겹치면 목록과 집계의 시점이 다를 수 있다(일관 스냅샷 보장은 아니다).
+    // 오늘 건수·합계는 한 집계 쿼리로 구하므로 서로 모순되지 않는다. limit+1건을 읽어 다음 페이지 존재를 판단한다.
+    @Transactional(readOnly = true)
     public History history(long actorId, QuotePosition after, int limit) {
         User user =
                 accountRepository

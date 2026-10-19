@@ -149,9 +149,13 @@ sequenceDiagram
 
 한 요청이 저장되고 다른 요청이 유일 제약 위반을 받으면 `JpaAccountRepository`가 DUPLICATE_USER로 변환한다(판별은 `PersistenceErrors.isUniqueViolation`). DB 진단에 이메일이 포함될 수 있어 원시 SQL 오류 로그를 차단한다. 사용자 접수 잠금과 이메일 유일 제약은 서로 다른 경쟁을 해결한다.
 
+이메일은 사용 사례(UserUseCases)가 소문자(`Locale.ROOT`)로 정규화한 값으로 조회·저장하므로 대소문자만 다른 가입도 같은 유일 제약에 걸린다. 별도 `lower(user_id)` 함수형 인덱스는 두지 않았다(저장값 자체가 소문자라 기존 유일 제약으로 충분하며 H2·PostgreSQL 이식성을 유지한다). 기존 데이터는 V3이 소문자로 맞춘다. 로그인은 계정이 없어도 기동 시 임의 값으로 만든 더미 BCrypt 해시와 `matches`를 수행해, 응답 시간으로 계정 존재 여부를 추측하기 어렵게 한다(시간 동일성을 측정으로 증명하지는 않았고, 테스트는 비교 호출 여부만 확인한다).
+
 ## 이력 조회의 일관성
 
 이력 조회는 접수용 사용자 쓰기 잠금을 잡지 않는다. 접수를 기다리는 조회나 조회 때문에 대기하는 접수를 줄이려는 선택이다. 이는 모든 DB 조회가 어떤 상황에서도 기다리지 않는다는 뜻은 아니다.
+
+이력 조회는 `@Transactional(readOnly = true)`다. 다만 사용자·집계·목록 세 쿼리는 같은 트랜잭션에서 실행될 뿐, PostgreSQL 기본 격리(READ COMMITTED)에서는 쿼리마다 스냅샷이 달라 일관 스냅샷을 보장하지 않는다(REPEATABLE READ로 올리지 않았다). 한도 검사에 쓰는 접수 시점 합계와 이력의 오늘 합계는 같은 쿼리(`requestedDailyTotal`) 하나를 공유한다.
 
 오늘 건수·USD 합계는 같은 집계 쿼리에서 읽는다. 페이지 크기·커서는 당일 전체 집계의 범위를 바꾸지 않는다. 페이지 목록은 다른 쿼리에서 읽으므로 아래와 같은 결과가 가능하다.
 
@@ -249,7 +253,7 @@ BigDecimal로 십진수 금액을 계산하고 HALF_UP으로 반올림한다. Ja
 
 예시로 400000 KRW를 환율 1300으로 USD 송금하면 수수료는 `1000 + 400000 × 0.002 = 1800` KRW이고 수취액은 `398200 ÷ 1300 → 306.31` USD다. JPY 소수 표기 예시와 통화 자릿수 규칙이 충돌했던 원 요구사항은 통화 자릿수 규칙을 우선해 해석했다.
 
-수수료 차감 후 0은 허용하고 음수는 거부한다. DECIMAL(22,12)에 저장할 수 있는 범위를 넘으면 INVALID_REQUEST로 거부한다. 과도한 지수·정밀도도 반올림 연산 전에 차단한다.
+정수화한 입력 금액이 최소 금액 5000 KRW 미만이면 AMOUNT_TOO_SMALL(400)로 거부한다. 고정 수수료(1000~3000원)에 묻혀 수취액이 `0.00`이 되는 무의미한 견적을 막기 위한 사용자 결정이며 원 요구사항에는 없다(근거: [결정 기록](../decisions/min-amount-and-email-normalization.md)). 최소 금액 때문에 수수료 차감 후 음수·0은 현재 발생하지 않으며(고정 수수료 최대 3000원, 비율 최대 5%) 관련 검사는 방어 코드로 남겨 두었다. DECIMAL(22,12)에 저장할 수 있는 범위를 넘으면 INVALID_REQUEST로 거부한다. 과도한 지수·정밀도도 반올림 연산 전에 차단한다.
 
 견적에는 환율·수수료·수취액·USD 금액을 저장한다. 접수는 requestedTime과 updatedAt만 변경하므로 견적 이후 환율 설정이 바뀌어도 계산 근거를 유지한다. 만료 전까지는 견적의 기존 환율을 사용하고, 새 환율을 적용하려면 새 견적을 만들어야 한다. Quote는 불변 객체지만 DB 감사 기록의 위변조를 별도로 탐지하는 기능은 없다.
 
@@ -287,9 +291,9 @@ local 프로파일은 H2 콘솔과 Hibernate SQL DEBUG, SqlExceptionHelper WARN,
 
 ## 스키마 마이그레이션
 
-Flyway SQL은 스키마 변경을 명시적으로 남기는 원본이다. V1은 멱등성 도입 이전의 users·remittances와 인덱스를, V2는 idempotency_key와 사용자별 유일 제약을 만든다. Hibernate는 ddl-auto: validate로 컬럼·타입을 대조하고 스키마를 변경하지 않는다.
+Flyway SQL은 스키마 변경을 명시적으로 남기는 원본이다. V1은 멱등성 도입 이전의 users·remittances와 인덱스를, V2는 idempotency_key와 사용자별 유일 제약을 만들고, V3은 기존 user_id를 소문자로 정규화한다. V3은 정규화 후 중복이 생기면 데이터를 합치지 않고 실패한다(PostgreSQL은 사전 검사로 어떤 행도 바꾸기 전에 명시적 예외, H2는 유일 제약 위반). Hibernate는 ddl-auto: validate로 컬럼·타입을 대조하고 스키마를 변경하지 않는다.
 
-새 DB는 V1부터 적용한다. 이전 앱이 만든 비어 있지 않은 DB에 Flyway 이력이 없으면 baseline-version 0으로 기준선을 잡은 뒤 V1·V2를 실행한다. 두 SQL의 IF NOT EXISTS는 기존 객체를 건너뛰기 위한 것이다. baseline은 기존 DB가 정상이라는 검증 결과가 아니며, IF NOT EXISTS도 잘못된 컬럼·제약을 수정하지 않는다.
+새 DB는 V1부터 적용한다. 이전 앱이 만든 비어 있지 않은 DB에 Flyway 이력이 없으면 baseline-version 0으로 기준선을 잡은 뒤 V1~V3을 실행한다. 두 SQL의 IF NOT EXISTS는 기존 객체를 건너뛰기 위한 것이다(V3은 UPDATE뿐이라 멱등하다). baseline은 기존 DB가 정상이라는 검증 결과가 아니며, IF NOT EXISTS도 잘못된 컬럼·제약을 수정하지 않는다.
 
 적용 이력은 flyway_schema_history에 저장한다. 적용된 SQL을 수정하면 체크섬 검증에 영향을 주므로 이후 변경은 새 번호로 추가한다. validate만으로 유일 제약·인덱스·FK 이름까지 검사한다고 가정하지 않는다. MigrationTest와 API 스키마 테스트로 필요한 구조를 확인한다.
 

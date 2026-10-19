@@ -13,17 +13,17 @@
 - 시작 기준: 2026-10-13 dev f0834e1, PR #24까지 로컬 병합 이력 확인.
 - 기본 DB: 프로파일 미지정 시 PostgreSQL(docker-compose). embedded H2는 `h2` 프로파일.
 - 구현: 회원·송금 API, 사용자 잠금과 일일 DB 집계, keyset 이력, 24시간 미만 성공 응답 멱등 재현.
-- 후속 구현: Swagger/OpenAPI, local H2·SQL 진단, X-Request-Id와 선별 오류 로그, Flyway V1/V2, Retry-After와 잠금 설정 사전 검증.
+- 후속 구현: Swagger/OpenAPI, local H2·SQL 진단, X-Request-Id와 선별 오류 로그, Flyway V1~V3, Retry-After와 잠금 설정 사전 검증.
 - 최근 검증 기록: PR #24 작업에서 Java 17 check·bootJar 및 앱 96개 통과로 기록됐다. 이번 문서 작업의 새 앱 실행 결과가 아니다.
 - 품질 게이트: Spotless·Checkstyle·회귀 테스트. 기본 테스트는 격리된 메모리 H2를 사용하고 마이그레이션은 임시 DB로 검증한다.
 - 옵시디언: 앱 문서 네 종류만 내보내며 작업 내역·PR 상태는 별도 하네스 기억에 보존한다.
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/review-fixes-1. 코드 리뷰(src/main) 지적 중 1~3을 재현 테스트로 확인해 처리. 견적 저장의 잠금 타임아웃 500을 503 LOCK_TIMEOUT으로, 가입·로그인의 BCrypt를 DB 트랜잭션 밖으로 이동. 0.00 금액 견적은 정책 공백이라 코드 불변(현재 동작 고정 테스트·문서만).
-- 시작 기준: 2026-10-19 dev eae2882, PR #51까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/review-fixes-1.md)의 재현·수정 확인, check·bootJar·postgresTest, dev PR.
-- 다음: 사람이 PR을 승인·병합한다. 남은 리뷰 지적(이메일 대소문자, 로그인 타이밍, 보안 기본 허용 중복, 이력 읽기 전용, 한도 쿼리 중복, Bearer 대소문자)은 다음 PR 후보이고, 0.00 금액 정책과 이메일 정규화는 사용자 결정이 필요하다. JWT 클레임은 요구사항 때문에 보류.
+- 현재 작업: feature/review-fixes-2. 코드 리뷰 후속과 사용자 결정 반영. 최소 금액 5000 KRW(`AMOUNT_TOO_SMALL`), 이메일 소문자 정규화와 Flyway V3, 로그인 더미 해시 비교, 보안 기본 거부, 이력 읽기 전용 트랜잭션, 한도 합계 쿼리 통합, Bearer 대소문자 무시.
+- 시작 기준: 2026-10-19 dev f5ea788, PR #52까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/review-fixes-2.md)의 항목별 확인, check·bootJar·postgresTest, dev PR. 결정: [최소 금액·이메일 정규화](../decisions/min-amount-and-email-normalization.md).
+- 다음: 사람이 PR을 승인·병합한다. 남은 후보는 운영 DB 검증의 잔여 범위(네트워크 분리·비정상 종료·수 시간 부하)이며 사용자와 범위를 정해 시작한다. JWT 클레임(이메일·이름 포함)은 요구사항 때문에 보류 중.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

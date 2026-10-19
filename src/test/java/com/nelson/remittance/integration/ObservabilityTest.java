@@ -47,6 +47,13 @@ class ObservabilityTest {
             "leak owner@example.com Bearer eyJhbGciOi.secret.token password=hunter2";
 
     @Autowired MockMvc mvc;
+    @Autowired com.nelson.remittance.application.port.security.TokenProvider tokens;
+
+    // 기본 거부 정책 아래서 테스트 전용 엔드포인트(인증 필요)를 호출하기 위한 인증된 사용자다.
+    static org.springframework.test.web.servlet.request.RequestPostProcessor authed() {
+        return org.springframework.security.test.web.servlet.request
+                .SecurityMockMvcRequestPostProcessors.user("obs");
+    }
 
     @TestConfiguration
     static class Endpoints {
@@ -119,7 +126,7 @@ class ObservabilityTest {
     void clearsMdcAfterRequest() throws Exception {
         mvc.perform(get("/_obs/ok")).andReturn();
         assertNull(MDC.get("requestId"));
-        mvc.perform(get("/_obs/failure")).andReturn();
+        mvc.perform(get("/_obs/failure").with(authed())).andReturn();
         assertNull(MDC.get("requestId"));
     }
 
@@ -128,11 +135,24 @@ class ObservabilityTest {
     void unexpectedErrorLogIsSafeAndResponseContractUnchanged(CapturedOutput output)
             throws Exception {
         String id = "obs-" + UUID.randomUUID();
+        // 유효한 토큰으로 인증을 통과시키고, 그 토큰 값이 로그에 남지 않는지 확인한다.
+        var now = java.time.Instant.now();
+        String token =
+                tokens.issue(
+                        new com.nelson.remittance.domain.user.User(
+                                1,
+                                "obs@example.com",
+                                "hash",
+                                "n",
+                                com.nelson.remittance.domain.user.User.IdentityType.REG_NO,
+                                "enc",
+                                now,
+                                now));
         MvcResult result =
                 mvc.perform(
                                 get("/_obs/failure?email=query-secret@example.com")
                                         .header("X-Request-Id", id)
-                                        .header("Authorization", "Bearer header-secret-token"))
+                                        .header("Authorization", "Bearer " + token))
                         .andExpect(jsonPath("$.resultCode").value(500))
                         .andExpect(jsonPath("$.resultMsg").value("UNKNOWN_ERROR"))
                         .andReturn();
@@ -146,7 +166,7 @@ class ObservabilityTest {
         assertFalse(logs.contains("hunter2"));
         assertFalse(logs.contains("leak "));
         assertFalse(logs.contains("query-secret"));
-        assertFalse(logs.contains("header-secret-token"));
+        assertFalse(logs.contains(token));
     }
 
     // 요청 본문 값은 로그에 나오지 않는다.
@@ -154,6 +174,7 @@ class ObservabilityTest {
     void requestBodyIsNotLogged(CapturedOutput output) throws Exception {
         mvc.perform(
                         post("/_obs/failure")
+                                .with(authed())
                                 .contentType("application/json")
                                 .content("{\"secret\":\"body-secret-value\"}"))
                 .andReturn();
@@ -163,9 +184,10 @@ class ObservabilityTest {
     // LOCK_TIMEOUT은 WARN으로 남고 그 밖의 업무 오류는 기본 로그 수준에서 출력되지 않는다.
     @Test
     void businessErrorLogLevels(CapturedOutput output) throws Exception {
-        mvc.perform(get("/_obs/business").header("X-Request-Id", "biz-debug-id")).andReturn();
+        mvc.perform(get("/_obs/business").with(authed()).header("X-Request-Id", "biz-debug-id"))
+                .andReturn();
         assertFalse(output.getAll().contains("biz-debug-id"));
-        mvc.perform(get("/_obs/lock").header("X-Request-Id", "lock-warn-id"))
+        mvc.perform(get("/_obs/lock").with(authed()).header("X-Request-Id", "lock-warn-id"))
                 .andExpect(jsonPath("$.resultMsg").value("LOCK_TIMEOUT"));
         String logs = output.getAll();
         assertTrue(logs.contains("WARN [lock-warn-id]"), logs);

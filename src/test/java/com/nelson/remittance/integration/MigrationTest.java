@@ -122,7 +122,7 @@ class MigrationTest {
 
         flyway.migrate();
 
-        assertEquals("2", currentVersion(flyway));
+        assertEquals("3", currentVersion(flyway));
         assertEquals(1, columnCount(url, "USERS", "USER_ID"));
         assertEquals(1, columnCount(url, "REMITTANCES", "IDEMPOTENCY_KEY"));
         assertEquals(1, uniqueConstraintCount(url));
@@ -139,7 +139,7 @@ class MigrationTest {
         Flyway latest = flyway(url, null, false);
         latest.migrate();
 
-        assertEquals("2", currentVersion(latest));
+        assertEquals("3", currentVersion(latest));
         assertEquals(1, count(url, "SELECT COUNT(*) FROM users"));
         assertEquals(
                 1, count(url, "SELECT COUNT(*) FROM remittances WHERE requested_time IS NOT NULL"));
@@ -175,7 +175,7 @@ class MigrationTest {
         Flyway rerun = flyway(url, null, true);
         rerun.migrate();
 
-        assertEquals("2", currentVersion(rerun));
+        assertEquals("3", currentVersion(rerun));
         assertEquals(1, count(url, "SELECT COUNT(*) FROM users"));
         assertEquals(
                 1, count(url, "SELECT COUNT(*) FROM remittances WHERE idempotency_key = 'key-1'"));
@@ -193,10 +193,54 @@ class MigrationTest {
         Flyway rerun = flyway(url, null, true);
         rerun.migrate();
 
-        assertEquals("2", currentVersion(rerun));
+        assertEquals("3", currentVersion(rerun));
         assertEquals(1, count(url, "SELECT COUNT(*) FROM users"));
         assertEquals(1, count(url, "SELECT COUNT(*) FROM remittances"));
         assertEquals(1, columnCount(url, "REMITTANCES", "IDEMPOTENCY_KEY"));
         assertEquals(1, uniqueConstraintCount(url));
+    }
+
+    private static void insertUserId(String url, String userId) throws SQLException {
+        exec(
+                url,
+                "INSERT INTO users (user_id, password, name, id_type, id_value, created_at, updated_at) "
+                        + "VALUES ('"
+                        + userId
+                        + "', 'pw', 'name', 'REG_NO', 'example-identity', "
+                        + "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)");
+    }
+
+    // V2 상태의 대소문자 혼재 계정이 V3에서 소문자로 바뀌고 다른 행·연결(접수 건)은 유지되는지 확인한다.
+    @Test
+    void v3LowercasesExistingUserIdsAndKeepsRelations() throws SQLException {
+        String url = newUrl();
+        flyway(url, "2", false).migrate();
+        insertUser(url);
+        insertUserId(url, "Alice@Example.COM");
+        insertRequestedRemittance(url);
+
+        flyway(url, null, false).migrate();
+
+        assertEquals(
+                1, count(url, "SELECT COUNT(*) FROM users WHERE user_id = 'alice@example.com'"));
+        assertEquals(
+                0, count(url, "SELECT COUNT(*) FROM users WHERE user_id = 'Alice@Example.COM'"));
+        assertEquals(1, count(url, "SELECT COUNT(*) FROM users WHERE user_id = 'u1'"));
+        assertEquals(1, count(url, "SELECT COUNT(*) FROM remittances"));
+    }
+
+    // 정규화 후 중복이 되는 계정이 있으면 조용히 합치지 않고 마이그레이션이 실패하며 데이터는 그대로다.
+    @Test
+    void v3FailsInsteadOfMergingCaseOnlyDuplicates() throws SQLException {
+        String url = newUrl();
+        flyway(url, "2", false).migrate();
+        insertUserId(url, "Dup@Example.com");
+        insertUserId(url, "dup@example.com");
+
+        Flyway latest = flyway(url, null, false);
+        assertThrows(org.flywaydb.core.api.FlywayException.class, latest::migrate);
+
+        assertEquals(2, count(url, "SELECT COUNT(*) FROM users"));
+        assertEquals(1, count(url, "SELECT COUNT(*) FROM users WHERE user_id = 'Dup@Example.com'"));
     }
 }

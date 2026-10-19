@@ -1,6 +1,7 @@
 package com.nelson.remittance.domain.quote;
 
 import static com.nelson.remittance.domain.exception.ErrorCode.ALREADY_REQUESTED;
+import static com.nelson.remittance.domain.exception.ErrorCode.AMOUNT_TOO_SMALL;
 import static com.nelson.remittance.domain.exception.ErrorCode.FORBIDDEN;
 import static com.nelson.remittance.domain.exception.ErrorCode.INVALID_REQUEST;
 import static com.nelson.remittance.domain.exception.ErrorCode.NEGATIVE_NUMBER;
@@ -64,33 +65,47 @@ class QuotePolicyTest {
         var quote = usd("15000.5");
         decimal("15001", quote.sourceAmount());
         decimal("30", quote.ratedFee());
-        var half = QuotePolicy.calculate(n("1003"), "USD", n("8"), n("8"));
-        decimal("0.13", half.targetAmount());
+        // 순송금 3990원을 환율 798000으로 나누면 정확히 0.005이며 HALF_UP으로 0.01이 된다.
+        var half = QuotePolicy.calculate(n("5000"), "USD", n("798000"), n("798000"));
+        decimal("0.01", half.targetAmount());
         assertEquals(2, half.targetAmount().scale());
     }
 
     @Test
-    // 0과 반올림 결과 0은 허용하고 음수 결과만 거부하는지 확인한다.
-    void zeroNetOrRoundedZeroIsAllowedButNegativeIsNot() {
-        decimal("0.00", usd("1002").targetAmount());
-        var tiny = QuotePolicy.calculate(n("1003"), "USD", n("100000000"), n("100000000"));
+    // 부호 오류는 NEGATIVE_NUMBER, 극단 환율로 인한 반올림 결과 0은 허용한다(최소 금액을 넘긴 입력 기준).
+    void nonPositiveIsNegativeAndRoundedZeroResultIsAllowed() {
+        var tiny = QuotePolicy.calculate(n("5000"), "USD", n("100000000"), n("100000000"));
+        decimal("0.00", tiny.targetAmount());
         decimal("0.00", tiny.usdAmount());
         failure(NEGATIVE_NUMBER, () -> usd("-1"));
         failure(NEGATIVE_NUMBER, () -> usd("0"));
-        failure(NEGATIVE_NUMBER, () -> usd("1000"));
     }
 
     @Test
-    // 순송금 1원이 수취·USD 0.00으로 반올림되는 최소 양수 경계도 현재 정책에서는 허용되고,
-    // 수수료가 원금을 1원이라도 넘으면 거부됨을 고정한다. 최소 금액 규칙은 요구사항에 없다.
-    void netOneWonRoundsToZeroReceivedButIsNotRejected() {
-        var quote = QuotePolicy.calculate(n("1003"), "USD", n("1300"), n("1300"));
-        decimal("1", quote.sourceAmount().subtract(quote.fee()));
-        decimal("0.00", quote.targetAmount());
-        decimal("0.00", quote.usdAmount());
+    // 최소 금액 5000 KRW: 정확히 5000은 허용, 4999는 거절한다. 소수 입력은 HALF_UP 정수화 후 비교한다.
+    void minimumAmountIsFiveThousandWonInclusive() {
+        decimal("5000", usd("5000").sourceAmount());
+        decimal("5000", usd("4999.5").sourceAmount());
+        failure(AMOUNT_TOO_SMALL, () -> usd("4999"));
+        failure(AMOUNT_TOO_SMALL, () -> usd("4999.4"));
+        failure(AMOUNT_TOO_SMALL, () -> usd("1000"));
+        // 과거에 현재 동작으로 고정했던 순송금 1원 견적(1003원)도 이제 최소 금액으로 거절된다.
         failure(
-                NEGATIVE_NUMBER,
-                () -> QuotePolicy.calculate(n("1001"), "USD", n("1300"), n("1300")));
+                AMOUNT_TOO_SMALL,
+                () -> QuotePolicy.calculate(n("1003"), "USD", n("1300"), n("1300")));
+        failure(AMOUNT_TOO_SMALL, () -> QuotePolicy.calculate(n("4999"), "JPY", n("9"), n("1300")));
+    }
+
+    @Test
+    // 5000원이어도 수수료를 뺀 순송금액이 양수이고 일반적인 환율에서 수취액이 0보다 큰지 확인한다.
+    // USD는 순송금 3990원이라 환율이 798000 미만이면, JPY는 1750원이라 환율이 3500 이하이면 수취액이 양수다.
+    void minimumAmountStillReceivesPositiveAmountAtRealisticRates() {
+        var usd = QuotePolicy.calculate(n("5000"), "USD", n("1300"), n("1300"));
+        decimal("3990", usd.sourceAmount().subtract(usd.fee()));
+        decimal("3.07", usd.targetAmount());
+        var jpy = QuotePolicy.calculate(n("5000"), "JPY", n("9"), n("1300"));
+        decimal("1750", jpy.sourceAmount().subtract(jpy.fee()));
+        decimal("194", jpy.targetAmount());
     }
 
     @Test
