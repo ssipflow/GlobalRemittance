@@ -20,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/network-partition. Toxiproxy로 앱-PostgreSQL 사이 블랙홀·연결 리셋·단절·지연·응답 방향 차단을 재현해 503 응답·복구·무부분상태를 검증(결함 없음).
-- 시작 기준: 2026-10-20 dev f3e7c3a, PR #56까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/network-partition.md), check·bootJar·postgresTest, dev PR.
-- 다음: 사람이 PR을 승인·병합한다. 백로그는 비어 있다. 남은 후보: JWT 클레임 최소화(요구사항 보류). 데이터 보존·정리 정책은 사용자 결정으로 후보에서 제외했다.
+- 현재 작업: feature/close-backlog. JWT 클레임 유지 결정([결정](../decisions/jwt-claims-keep.md))을 기록하고 백로그를 마무리한다. 코드 변경 없음.
+- 시작 기준: 2026-10-20 dev 41587ab, PR #57까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: 결정 문서, state·백로그 갱신, `git diff --check`, dev PR.
+- 다음: 사람이 PR을 승인·병합한다. 백로그에 후보가 없다. 새 방향은 사용자와 정한다(데이터 보존 정책과 JWT 클레임 최소화는 사용자 결정으로 제외).
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
