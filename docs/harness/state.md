@@ -20,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/postgres-failure-modes. PostgreSQL 비정상 종료(kill -9)·무응답(pause) 검증과 장시간(2시간) k6 소크. pause에서 풀 연결 요청이 무한 대기하는 결함을 확인해 JDBC socketTimeout(`REMITTANCE_DB_SOCKET_TIMEOUT_SECONDS`, 기본 60)과 기동 검증으로 수정.
-- 시작 기준: 2026-10-19 dev 457b83e, PR #54까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/postgres-failure-modes.md), [소켓 타임아웃 결정](../decisions/db-socket-timeout.md), check·bootJar·postgresTest·k6 inspect, 소크 결과 기록(2시간, 오류 0), dev PR.
-- 다음: 사람이 PR을 승인·병합한다. 백로그는 비게 된다. JWT 클레임(이메일·이름 포함)은 요구사항 때문에 보류 중이며 새 방향은 사용자와 정한다.
+- 현재 작업: feature/commit-response-loss. 접수 커밋 응답 유실(DB 커밋 후 앱이 결과를 모름)과 커밋 전 유실에서 같은 Idempotency-Key 재시도가 중복 없이 같은 결과를 내는지 TCP 프록시 결함 주입으로 검증(결함 없음).
+- 시작 기준: 2026-10-20 dev 64020cd, PR #55까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/commit-response-loss.md), check·bootJar·postgresTest, dev PR.
+- 다음: 사람이 PR을 승인·병합한다. 백로그는 비어 있다. 후보: 데이터 보존·정리 정책, 실제 네트워크 분리 재현, JWT 클레임 최소화(요구사항 보류).
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계

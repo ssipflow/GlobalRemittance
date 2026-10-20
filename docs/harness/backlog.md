@@ -8,7 +8,7 @@
 
 | 순서 | 후보 | 현재 근거 | 선택 시 완료 기준 |
 | --- | --- | --- | --- |
-| - | (없음) | 현재 등록된 후보가 없다. 새 방향은 사용자와 범위·완료 기준을 정한다. 미검증 한계: 실제 네트워크 분리(패킷 드롭/RST), 커밋 응답 유실, 수 일 단위 부하, JWT 클레임 최소화(요구사항으로 보류) | 사용자와 범위 결정 |
+| - | (없음) | 현재 등록된 후보가 없다. 새 방향은 사용자와 범위·완료 기준을 정한다. 미검증 한계: 실제 네트워크 분리(패킷 드롭/지연), 수 일 단위 부하, JWT 클레임 최소화(요구사항으로 보류) | 사용자와 범위 결정 |
 
 실제 환율 공급처 어댑터는 2026-10-19 사용자 결정으로 백로그에서 삭제했다([결정](../decisions/no-real-rate-provider.md)).
 
@@ -35,6 +35,7 @@
 | 개인정보 없는 오류 관측 | X-Request-Id, 예외 메시지·본문·쿼리 없이 클래스·SQLState·경로만 남기는 오류 로그, DB 접속 실패 진단, 로그 캡처 검증 | [오류 관측](tasks/error-observability.md) |
 | 기본 프로파일 PostgreSQL 전환 | `spring.profiles.default: postgres`, docker-compose PostgreSQL 16, H2는 `h2`/`local`/`test`로 유지, `./data` 보존 | [기본 프로파일](tasks/postgres-default.md), [결정](../decisions/postgres-default.md) |
 | 운영 DB 검증 잔여(비정상 종료·무응답·장시간) | kill -9·pause 시 500 없이 503 복구, 풀 연결 무한 대기 결함 수정(JDBC socketTimeout, 기동 검증), 2시간 k6 소크(89만 요청, 오류 0, 자원 평탄) | [작업 기록](tasks/postgres-failure-modes.md), [결정](../decisions/db-socket-timeout.md) |
+| 커밋 응답 유실 | DB 커밋 후 응답 유실 시 503, 같은 Idempotency-Key 재시도가 1건·같은 응답, 커밋 전 유실은 롤백 후 1건 성공(프록시 결함 주입) | [작업 기록](tasks/commit-response-loss.md) |
 | k6 부하 테스트 | 접수 흐름·스파이크·5분 소크 시나리오, 예상 밖 응답 0건과 구간별 p95 임계값, 로컬 실행 가이드 | [k6](tasks/k6-load-test.md) |
 | 한글 설명 주석 | 직접 작성 코드·테스트·하네스·설정 주석과 지속 지침 | Git db6634b, PR #9 |
 
