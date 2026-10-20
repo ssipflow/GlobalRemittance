@@ -20,10 +20,10 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/commit-response-loss. 접수 커밋 응답 유실(DB 커밋 후 앱이 결과를 모름)과 커밋 전 유실에서 같은 Idempotency-Key 재시도가 중복 없이 같은 결과를 내는지 TCP 프록시 결함 주입으로 검증(결함 없음).
-- 시작 기준: 2026-10-20 dev 64020cd, PR #55까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
-- 완료 기준: [작업 기록](tasks/commit-response-loss.md), check·bootJar·postgresTest, dev PR.
-- 다음: 사람이 PR을 승인·병합한다. 백로그는 비어 있다. 후보: 데이터 보존·정리 정책, 실제 네트워크 분리 재현, JWT 클레임 최소화(요구사항 보류).
+- 현재 작업: feature/network-partition. Toxiproxy로 앱-PostgreSQL 사이 블랙홀·연결 리셋·단절·지연·응답 방향 차단을 재현해 503 응답·복구·무부분상태를 검증(결함 없음).
+- 시작 기준: 2026-10-20 dev f3e7c3a, PR #56까지 병합된 상태. 저장소 이름은 ssipflow/GlobalRemittance.
+- 완료 기준: [작업 기록](tasks/network-partition.md), check·bootJar·postgresTest, dev PR.
+- 다음: 사람이 PR을 승인·병합한다. 백로그는 비어 있다. 남은 후보: JWT 클레임 최소화(요구사항 보류). 데이터 보존·정리 정책은 사용자 결정으로 후보에서 제외했다.
 - 기존 상세 동시성 설명은 유지한다. 현재 항목은 작업 전환 시 교체하고 이력은 tasks/Git에 남긴다.
 
 ## 남은 한계
