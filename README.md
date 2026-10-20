@@ -180,6 +180,7 @@ DURATION=5m VUS=20 k6 run k6/soak.js            # 지속 부하(기본 5m, 20 VU
 
 결과 해석: 종료 시 `THRESHOLDS`의 모든 항목이 체크(통과)여야 한다. 핵심은 `unexpected_responses`(계약 밖 응답, 500 `UNKNOWN_ERROR`·401 등)가 0건이고 `invariant_violations`(같은 키 재시도의 200 재현, 키 없는 재시도의 409)가 0건인 것이다.
 `ALREADY_REQUESTED`·`LIMIT_EXCESS`(`expected_rejections`)와 정의된 503(`defined_503`, 코드별 태그)은 계약상 정상 응답이라 실패로 세지 않고 따로 집계한다. spike는 `phase:recovery`, soak는 `early/mid/late` 구간별 지연으로 급증 뒤 회복과 시간에 따른 급격한 악화를 본다(상한이 관찰값보다 넉넉해 완만한 악화는 놓칠 수 있다).
+`DURATION=2h`로 20 VU 소크를 1회 돌린 결과(오류 0, 지연·메모리·연결 수 평탄)는 `docs/harness/tasks/postgres-failure-modes.md`에 있다.
 임계값은 이 Mac에서 관찰한 값에 여유를 둔 것이며(근거: `docs/harness/tasks/k6-load-test.md`), 로컬 단일 인스턴스·단일 PostgreSQL 컨테이너에서 측정한 값이다. 운영 성능이나 용량을 보증하지 않는다.
 
 ## 설계와 문서

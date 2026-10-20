@@ -27,7 +27,7 @@ flowchart LR
 | adapter/persistence | JPA 모델 변환, 저장·집계·페이지 조회, 사용자 잠금(스키마는 Flyway SQL). 계정(`JpaAccountRepository`)과 견적(`JpaQuoteRepository`) 저장소를 분리하고 DB 예외 판별(`PersistenceErrors`)·ID 범위 변환(`EntityIds`)은 저장소 패키지 안에서만 쓰므로 package-private으로 둔다. 하위 패키지는 `entity`(UserEntity, QuoteEntity), `repository`(JpaAccountRepository, JpaQuoteRepository, PersistenceErrors, EntityIds), `tx`(RollbackSafeTransactionManager)이며 엔티티 필드는 열지 않고 `QuoteEntity.markRequested` 같은 의도 메서드로만 상태를 바꾼다. 엔티티 생성자와 `toDomain()`은 저장소 패키지가 쓰도록 public이므로, `ArchitectureTest`가 `adapter/persistence` 밖의 클래스가 엔티티 패키지를 참조하지 못하게 막는다 | entity/UserEntity, entity/QuoteEntity, repository/*, tx/RollbackSafeTransactionManager |
 | adapter/security | BCrypt 비밀번호 해시, AES-GCM, JWT 발급·검증, 인증 필터. 하위 패키지는 `crypto`(BCryptPasswordHasher, AesIdentityCipher)와 `jwt`(JwtTokens, JwtAuthenticationFilter)이고 SecurityConfiguration은 루트에 둔다 | crypto/*, jwt/*, SecurityConfiguration |
 | adapter/forex | 설정 환율 제공, 지연·장애를 주입하는 모의 공급처 | ConfiguredRates, SimulatedRates |
-| bootstrap | 설정 기반 조립(Clock, 환율 공급처와 허용 지연, 트랜잭션 매니저), 설정값 검증 파서, 시작 실패 진단. 하위 패키지는 `config`(ClockConfiguration, RatesConfiguration, PersistenceConfiguration, ConfigValues)와 `diagnostics`(DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer, InvalidLockTimeoutException)이며, `diagnostics`의 클래스는 `META-INF/spring.factories`에 FQCN으로 등록돼 이동 시 함께 고쳐야 한다 | config/*, diagnostics/* |
+| bootstrap | 설정 기반 조립(Clock, 환율 공급처와 허용 지연, 트랜잭션 매니저), 설정값 검증 파서, 시작 실패 진단. 하위 패키지는 `config`(ClockConfiguration, RatesConfiguration, PersistenceConfiguration, ConfigValues)와 `diagnostics`(DatabaseConnectionFailureAnalyzer, LockTimeoutEnvironmentPostProcessor, LockTimeoutFailureAnalyzer, InvalidLockTimeoutException, SocketTimeoutEnvironmentPostProcessor, SocketTimeoutFailureAnalyzer, InvalidSocketTimeoutException)이며, `diagnostics`의 클래스는 `META-INF/spring.factories`에 FQCN으로 등록돼 이동 시 함께 고쳐야 한다 | config/*, diagnostics/* |
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 `adapter/web/config/OpenApiConfiguration`에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
 
@@ -145,7 +145,7 @@ flowchart TD
     H --> S[서비스 시작]
 ```
 
-도식은 관련 기동 단계의 의존 순서를 나타내며 전체 Spring 시작 절차를 나열한 것은 아니다. LockTimeoutEnvironmentPostProcessor는 설정 로딩 이후 최종 값을 검사하고 잘못된 값이면 DB 연결 전에 시작을 거부한다. LockTimeoutFailureAnalyzer는 해당 실패에 설정 안내를 제공한다.
+도식은 관련 기동 단계의 의존 순서를 나타내며 전체 Spring 시작 절차를 나열한 것은 아니다. LockTimeoutEnvironmentPostProcessor는 설정 로딩 이후 최종 값을 검사하고 잘못된 값이면 DB 연결 전에 시작을 거부한다. LockTimeoutFailureAnalyzer는 해당 실패에 설정 안내를 제공한다. 같은 방식으로 SocketTimeoutEnvironmentPostProcessor가 `remittance.db-socket-timeout-seconds`를 1~3600초 ASCII 정수이면서 잠금 대기 한도(ms)보다 큰지 DB 연결 전에 검사한다(잠금 대기 값이 잘못됐으면 비교를 건너뛰고 잠금 대기 검증기가 거부한다).
 
 Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별 유일 제약, V3은 기존 `users.user_id`의 소문자 정규화다(대소문자만 다른 중복이 있으면 실패). 기존 앱의 비어 있지 않은 DB에 Flyway 이력이 없으면 baseline 0 후 V1~V3을 적용한다. IF NOT EXISTS는 기존 객체를 건너뛰는 방식이고 스키마 오류 전체를 보정하지 않는다. Hibernate validate는 컬럼·타입을 검사하며 제약과 인덱스는 마이그레이션 및 스키마 테스트로 확인한다.
 
