@@ -33,7 +33,7 @@ Java 17, Spring Boot 3, Spring Security, JPA, Flyway, PostgreSQL을 사용한다
 
 ## 실행 설정
 
-필수 설정은 Base64 32바이트 AES 키(`REMITTANCE_AES_KEY`), Base64 32바이트 이상 JWT 키(`REMITTANCE_JWT_SECRET`), 기본 PostgreSQL의 DB 비밀번호(`REMITTANCE_DB_PASSWORD`)다. 개발 키 생성·Docker DB·프로파일·타임아웃 등 전체 설정은 [README 실행 안내](../../README.md#먼저-실행하기)와 [설정 표](../../README.md#설정)를 따른다.
+필수 설정은 Base64 32바이트 AES 키(`REMITTANCE_AES_KEY`), Base64 32바이트 이상 JWT 키(`REMITTANCE_JWT_SECRET`), 기본 PostgreSQL의 DB 비밀번호(`REMITTANCE_DB_PASSWORD`)다. 개발 키 생성·Docker DB·프로파일·타임아웃 등 전체 설정은 [README 실행 안내](../../README.md#먼저-실행하기)와 [로컬 실행 설정](local-guide.md#설정)를 따른다.
 
 키와 DB를 준비한 뒤 `./gradlew bootRun`으로 실행한다. `./data/remittance` 파일 DB는 `h2` 또는 H2 기반 `local` 프로파일에서만 사용한다. 기본 PostgreSQL 실행은 이 파일을 만들지 않는다. 기존 암호화 식별번호를 읽으려면 AES 키를 유지해야 한다. 비밀 값과 개인정보는 저장소·문서에 기록하지 않는다.
 
@@ -47,4 +47,4 @@ local 프로파일의 `/h2-console`은 앱 JWT를 사용하지 않고 DB 로그�
 
 응답의 X-Request-Id는 서버 로그를 찾는 값이고, Idempotency-Key는 접수 재시도를 구분하는 값이다. LOCK_TIMEOUT·DB_UNAVAILABLE의 Retry-After: 1은 고정 1초 뒤 재시도 안내이며 자동 재시도·성공 보장은 아니다.
 
-실행 인자, DB 비밀번호 유지, 로컬 진단과 마이그레이션 절차는 저장소 README에 모았다. 스키마는 V1~V3 SQL과 Flyway 이력으로 관리하며 임의의 외부 DB를 자동으로 복구하거나 이전하지 않는다.
+실행 인자, DB 비밀번호 유지, 로컬 진단과 마이그레이션 절차는 [로컬 실행 가이드](local-guide.md)에 모았다. 스키마는 V1~V3 SQL과 Flyway 이력으로 관리하며 임의의 외부 DB를 자동으로 복구하거나 이전하지 않는다.

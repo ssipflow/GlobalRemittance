@@ -42,7 +42,7 @@ Java 17, Docker, 저장소 Gradle wrapper를 사용한다. 실행 전 `git rev-p
 python3 -m unittest discover -s scripts/tests -v
 ```
 
-결과 XML은 `build/test-results/test`와 `build/test-results/postgresTest`에서 확인한다. k6는 실행 중인 로컬 앱과 DB가 필요하며 [README 실행 가이드](../../README.md#k6-부하-테스트)를 따른다. 재현마다 RUN_ID·앱/DB 구성·명령·요청 수·오류 분포·지연을 함께 기록하고 기존 관찰값과 새 결과를 구분한다. k6 사용자는 DB에 남으므로 개인 데이터와 섞이지 않는 DB를 쓴다.
+결과 XML은 `build/test-results/test`와 `build/test-results/postgresTest`에서 확인한다. k6는 실행 중인 로컬 앱과 DB가 필요하며 [로컬 실행 가이드](../application/local-guide.md#k6-부하-테스트)를 따른다. 재현마다 RUN_ID·앱/DB 구성·명령·요청 수·오류 분포·지연을 함께 기록하고 기존 관찰값과 새 결과를 구분한다. k6 사용자는 DB에 남으므로 개인 데이터와 섞이지 않는 DB를 쓴다.
 
 ## 아직 주장하지 않는 것
 

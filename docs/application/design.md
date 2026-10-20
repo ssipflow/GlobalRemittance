@@ -66,11 +66,11 @@ JWT 서명·만료로 확인한 사용자를 기준으로 견적 소유권을 �
 
 Flyway SQL은 스키마 변경을 명시적으로 남기는 원본이다. V1은 멱등성 도입 이전의 users·remittances와 인덱스를, V2는 idempotency_key와 사용자별 유일 제약을 만들고, V3은 기존 user_id를 소문자로 정규화한다. V3은 정규화 후 중복이 생기면 데이터를 합치지 않고 실패한다(PostgreSQL은 사전 검사로 어떤 행도 바꾸기 전에 명시적 예외, H2는 유일 제약 위반). Hibernate는 ddl-auto: validate로 컬럼·타입을 대조하고 스키마를 변경하지 않는다.
 
-새 DB는 V1부터 적용한다. 이전 앱이 만든 비어 있지 않은 DB에 Flyway 이력이 없으면 baseline-version 0으로 기준선을 잡은 뒤 V1~V3을 실행한다. 두 SQL의 IF NOT EXISTS는 기존 객체를 건너뛰기 위한 것이다(V3은 UPDATE뿐이라 멱등하다). baseline은 기존 DB가 정상이라는 검증 결과가 아니며, IF NOT EXISTS도 잘못된 컬럼·제약을 수정하지 않는다.
+두 방언 모두 새 DB는 V1부터 적용한다. H2만 baseline-on-migrate: true와 baseline-version: 0으로 이전 앱이 만든 비어 있지 않은 파일 DB에 Flyway 이력이 없을 때 기준선을 잡은 뒤 V1~V3을 실행한다. H2 V1·V2의 IF NOT EXISTS는 기존 객체를 건너뛰기 위한 것이다(V3은 UPDATE뿐이라 멱등하다). 기본 PostgreSQL은 baseline-on-migrate: false이며 이력 없는 비어 있지 않은 DB를 자동으로 인수하지 않는다. PostgreSQL V1·V2는 IF NOT EXISTS를 쓰지 않는다. baseline은 기존 DB가 정상이라는 검증 결과가 아니며, IF NOT EXISTS도 잘못된 컬럼·제약을 수정하지 않는다.
 
 적용 이력은 flyway_schema_history에 저장한다. 적용된 SQL을 수정하면 체크섬 검증에 영향을 주므로 이후 변경은 새 번호로 추가한다. validate만으로 유일 제약·인덱스·FK 이름까지 검사한다고 가정하지 않는다. MigrationTest와 API 스키마 테스트로 필요한 구조를 확인한다.
 
-MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이력만 없는 최신 스키마와 구 스키마의 기준선 적용을 확인한다. 이전 작업의 실제 파일 DB 기동·로그인·접수 확인은 [Flyway 작업 기록](https://github.com/ssipflow/Moin-GlobalRemittance/blob/f0834e1/docs/harness/tasks/flyway-migrations.md)의 수동 검증 근거이며 이번 문서 작업에서 재실행하지 않았다. 구 DB의 Hibernate 생성 FK 이름과 새 DB의 명시 이름은 다를 수 있다.
+H2의 MigrationTest는 빈 DB 생성, V1 데이터 유지와 V2 업그레이드, 이력만 없는 최신 스키마와 구 스키마의 기준선 적용을 확인한다. 이전 작업의 실제 파일 DB 기동·로그인·접수 확인은 [Flyway 작업 기록](https://github.com/ssipflow/Moin-GlobalRemittance/blob/f0834e1/docs/harness/tasks/flyway-migrations.md)의 수동 검증 근거이며 이번 문서 작업에서 재실행하지 않았다. 구 DB의 Hibernate 생성 FK 이름과 새 DB의 명시 이름은 다를 수 있다.
 
 이력만 없는 최신 스키마 테스트는 Flyway 생성 DB에서 이력만 지운 재현이며, Hibernate의 실제 DDL과 동일한지를 별도로 증명하지 않는다. 지원하지 않는 외부 스키마를 기준선 설정만으로 받아들이지 않는다. H2 ENUM·시간 타입·DDL은 다른 운영 DB에서 재검토해야 한다. 버전 지원 경고와 실패한 마이그레이션의 부분 적용 복구도 별도 확인 대상이다. 다른 시스템 데이터의 변환·이전 도구는 제공하지 않는다.
 

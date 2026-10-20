@@ -44,7 +44,7 @@
 
 FailureAnalyzer는 안내에 비밀번호·사용자명·호스트·URL 원문을 넣지 않는다. 주변 Hikari 등 라이브러리 로그까지 정제하는 장치는 아니다. 기본 설정에서도 연결 실패 WARN이 나올 수 있으므로 ‘기본 로그는 모두 안전하다’고 해석하지 않는다.
 
-`local`은 Hibernate SQL DEBUG·SqlExceptionHelper WARN·Hikari DEBUG를 켠다. 바인딩 TRACE는 기본 비활성이며 주석 처리돼 있다. SQL의 `?`와 실제 바인딩 값 출력을 구분한다. 제약 오류나 드라이버 메시지에 식별정보가 섞일 수 있어 로컬 테스트 데이터로 진단한다. `local`만 지정하면 기본 postgres가 대체돼 H2이고, PostgreSQL 진단은 `postgres,local`이다. 자세한 실행법은 [README](../../README.md#로컬-h2-콘솔과-로그h2로-실행)를 따른다.
+`local`은 Hibernate SQL DEBUG·SqlExceptionHelper WARN·Hikari DEBUG를 켠다. 바인딩 TRACE는 기본 비활성이며 주석 처리돼 있다. SQL의 `?`와 실제 바인딩 값 출력을 구분한다. 제약 오류나 드라이버 메시지에 식별정보가 섞일 수 있어 로컬 테스트 데이터로 진단한다. `local`만 지정하면 기본 postgres가 대체돼 H2이고, PostgreSQL 진단은 `postgres,local`이다. 자세한 실행법은 [로컬 실행 가이드](local-guide.md#로컬-h2-콘솔과-로그h2로-실행)를 따른다.
 
 ## 실패를 조사하는 순서
 

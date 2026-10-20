@@ -142,7 +142,7 @@ stateDiagram-v2
 
 이 그림은 업무상 상태를 나타낸다. DB에 status 컬럼이나 만료 처리 작업은 없다. `requested_time IS NULL`이고 현재 시각이 `expire_time` 이상이면 만료로 판단한다. 이미 접수된 행은 만료 시각이 지나도 접수 상태이며, 멱등 재현은 별도의 24시간 창을 적용한다. `(user_id, idempotency_key)` 복합 유일 제약이 사용자별 키 귀속을 지킨다.
 
-스키마는 `db/migration`의 Flyway SQL이 만들고 Hibernate는 `ddl-auto: validate`로 엔티티와의 일치만 확인한다. 이력이 없는 기존 파일 DB는 버전 0으로 기준선을 잡은 뒤 멱등하게 쓴 V1~V3을 적용한다.
+스키마는 방언별 Flyway SQL(H2 `db/migration`, PostgreSQL `db/postgresql/migration`)이 만들고 Hibernate는 `ddl-auto: validate`로 엔티티와의 일치만 확인한다. 이력이 없는 기존 H2 파일 DB만 baseline 0 후 V1~V3을 적용한다. 기본 PostgreSQL은 `baseline-on-migrate: false`여서 이력 없는 비어 있지 않은 DB를 자동으로 인수하지 않는다.
 
 도메인 ID는 long이고 DB ID는 순차 INT다. 영속 어댑터에서 범위를 검사하고 변환한다. 시각 저장은 UTC, 일일 한도 판정과 견적·이력 응답 표시는 KST다.
 
@@ -163,7 +163,7 @@ flowchart TD
 
 도식은 관련 기동 단계의 의존 순서를 나타내며 전체 Spring 시작 절차를 나열한 것은 아니다. LockTimeoutEnvironmentPostProcessor는 설정 로딩 이후 최종 값을 검사하고 잘못된 값이면 DB 연결 전에 시작을 거부한다. LockTimeoutFailureAnalyzer는 해당 실패에 설정 안내를 제공한다. 같은 방식으로 SocketTimeoutEnvironmentPostProcessor가 `remittance.db-socket-timeout-seconds`를 1~3600초 ASCII 정수이면서 잠금 대기 한도(ms)보다 큰지 DB 연결 전에 검사한다(잠금 대기 값이 잘못됐으면 비교를 건너뛰고 잠금 대기 검증기가 거부한다).
 
-Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별 유일 제약, V3은 기존 `users.user_id`의 소문자 정규화다(대소문자만 다른 중복이 있으면 실패). 기존 앱의 비어 있지 않은 DB에 Flyway 이력이 없으면 baseline 0 후 V1~V3을 적용한다. IF NOT EXISTS는 기존 객체를 건너뛰는 방식이고 스키마 오류 전체를 보정하지 않는다. Hibernate validate는 컬럼·타입을 검사하며 제약과 인덱스는 마이그레이션 및 스키마 테스트로 확인한다.
+Flyway의 V1은 기본 테이블·인덱스, V2는 멱등성 키와 사용자별 유일 제약, V3은 기존 `users.user_id`의 소문자 정규화다(대소문자만 다른 중복이 있으면 실패). 기존 앱의 비어 있지 않은 H2 파일 DB에 Flyway 이력이 없으면 baseline 0 후 V1~V3을 적용한다. H2 V1·V2의 IF NOT EXISTS는 기존 객체를 건너뛰는 방식이고 스키마 오류 전체를 보정하지 않는다. Hibernate validate는 컬럼·타입을 검사하며 제약과 인덱스는 마이그레이션 및 스키마 테스트로 확인한다.
 
 DatabaseConnectionFailureAnalyzer는 두 경로를 안내한다. (1) Flyway 초기화의 접속 실패(`FlywaySqlException: Unable to obtain connection from database`): 원인 연쇄의 SQLState(5자 영문 대문자·숫자 형식일 때만)로 인증 거부(`28xxx`)·DB 없음(`3D000`)·연결 불가(`08xxx`) 순으로 분류하고 그 밖은 일반 안내로 처리하며, 조치 문구는 예외 클래스명으로 H2·PostgreSQL을 구분한다. 예외 메시지는 감지 조건(접두사 비교)에만 쓰고 출력하지 않는다. 감지는 Flyway 내부 클래스와 영어 메시지 접두사에 의존하므로 Flyway를 올리면 `DatabaseConnectionFailureTest`로 다시 확인한다. (2) Hibernate의 JDBC metadata/Dialect 실패 표지(Flyway가 꺼져 있을 때 등). 출력에는 비밀번호·사용자명·호스트·URL을 넣지 않는다. 접속 실패가 아닌 Flyway 오류(마이그레이션 SQL 실패 등)와 이 표지가 없는 DB 시작 오류는 분류하지 않는다.
 
