@@ -17,7 +17,7 @@ flowchart LR
     B --> F
 ```
 
-도식은 주요 의존성을 나타낸다. 어댑터는 내부 모델을 직접 사용할 수 있지만 domain/application은 Spring·JPA·웹 어댑터를 참조하지 않는다. 웹 DTO와 JPA entity도 내부 정책의 입력으로 전달하지 않는다.
+도식은 주요 의존성을 나타낸다. 어댑터는 내부 모델을 직접 사용할 수 있지만 domain은 Spring·JPA를 참조하지 않는다. application은 `@Service`와 `@Transactional` 두 Spring 타입만 허용하고 JPA·웹 어댑터는 참조하지 않는다. 웹 DTO와 JPA entity도 내부 정책의 입력으로 전달하지 않는다.
 
 | 계층 | 책임 | 주요 클래스 |
 | --- | --- | --- |
@@ -31,17 +31,17 @@ flowchart LR
 
 API 명세(springdoc-openapi)는 adapter/web의 어노테이션과 `adapter/web/config/OpenApiConfiguration`에서만 생성한다. domain/application은 Swagger를 참조하지 않으며, 명세와 UI 경로(`/v3/api-docs`, `/swagger-ui.html`)는 보안 설정에서 인증 없이 열고 `REMITTANCE_API_DOCS_ENABLED`로 끈다. 오류 처리용 `/error`는 공개 API가 아니므로 명세에서 제외한다.
 
-웹 어댑터는 컨트롤러(`controller`), 오류 변환(`error`), 요청 필터(`filter`), 웹 설정(`config`), 요청/응답 모델(`dto`)을 하위 패키지로 나눈다. 같은 하위 패키지 안에서만 쓰는 클래스(`HistoryPaging`, `ErrorDescriptions`)는 package-private으로 두어 접근 범위를 넓히지 않았다. 예전에는 컨트롤러, 설정, 오류 처리, 필터가 `adapter/web` 한 패키지에 섞여 있었다.
+웹 어댑터는 컨트롤러(`controller`), 오류 변환(`error`), 요청 필터(`filter`), 웹 설정(`config`), 요청/응답 모델(`dto`)을 하위 패키지로 나눈다. 같은 하위 패키지 안에서만 쓰는 클래스(`HistoryPaging`, `ErrorDescriptions`)는 package-private으로 두어 접근 범위를 넓히지 않았다.
 
-구성 클래스는 책임별로 나뉜다. 어댑터 구현은 어댑터 패키지에서 스스로 등록한다(`BCryptPasswordHasher`, `AesIdentityCipher`, `JwtTokens`는 `@Component`이고 키는 생성자의 `@Value`로 받아 기동 시 검증한다). 웹 직렬화 규칙(문자열·숫자 자동 변환 차단)은 `adapter/web/config/JsonConfiguration`이, `Clock`은 `ClockConfiguration`이, 환율 공급처 선택과 허용 지연은 `RatesConfiguration`이, 트랜잭션 매니저는 `PersistenceConfiguration`이 맡는다. 설정값 파서(`ConfigValues`)는 부호·공백·소수를 허용하지 않는 ASCII 정수와 `true`/`false`만 받고 오류 메시지에는 설정 키와 허용 범위만 담는다. 예전에는 이 모두가 하나의 `ApplicationConfiguration`(약 160줄)에 있었고 BCrypt 구현이 익명 클래스로 bootstrap에 들어 있었다.
+구성 클래스는 책임별로 나뉜다. 어댑터 구현은 어댑터 패키지에서 스스로 등록한다(`BCryptPasswordHasher`, `AesIdentityCipher`, `JwtTokens`는 `@Component`이고 키는 생성자의 `@Value`로 받아 기동 시 검증한다). 웹 직렬화 규칙(문자열·숫자 자동 변환 차단)은 `adapter/web/config/JsonConfiguration`이, `Clock`은 `ClockConfiguration`이, 환율 공급처 선택과 허용 지연은 `RatesConfiguration`이, 트랜잭션 매니저는 `PersistenceConfiguration`이 맡는다. 설정값 파서(`ConfigValues`)는 부호·공백·소수를 허용하지 않는 ASCII 정수와 `true`/`false`만 받고 오류 메시지에는 설정 키와 허용 범위만 담는다.
 
-`application.port` 패키지는 외부 기술의 경계를 책임별 하위 패키지에 한 파일씩 최상위 인터페이스로 정의한다: 저장소(`port.repository`: `AccountRepository`, `QuoteRepository`와 그 조회용 값 `QuotePosition`, `DailyTotal`), 보안(`port.security`: `PasswordHasher`, `IdentityCipher`, `TokenProvider`), 환율(`port.rate`: `RateProvider`). 예전에는 하나의 `Ports` 클래스에 중첩 인터페이스로 모아 두어 주입할 때마다 `Ports.X`로 써야 했다.
+`application.port` 패키지는 외부 기술의 경계를 책임별 하위 패키지에 한 파일씩 최상위 인터페이스로 정의한다: 저장소(`port.repository`: `AccountRepository`, `QuoteRepository`와 그 조회용 값 `QuotePosition`, `DailyTotal`), 보안(`port.security`: `PasswordHasher`, `IdentityCipher`, `TokenProvider`), 환율(`port.rate`: `RateProvider`).
 
-업무 오류는 `domain.exception`의 `BusinessException`(오류 코드는 최상위 enum `ErrorCode`)으로 전달한다. 오류 코드는 운영하면서 늘어날 수 있어 예외 타입과 코드를 별도 패키지·파일로 두었다. 예전에는 `BusinessException` 안에 중첩 enum `Code`가 있었다. HTTP 상태 매핑은 도메인이 아니라 웹 어댑터의 `ApiExceptionHandler`가 맡는다.
+업무 오류는 `domain.exception`의 `BusinessException`(오류 코드는 최상위 enum `ErrorCode`)으로 전달한다. 오류 코드는 운영하면서 늘어날 수 있어 예외 타입과 코드를 별도 패키지·파일로 두었다.
 
-사용 사례(`UserUseCases`, `TransferUseCases`)는 `@Service`로 선언해 컴포넌트 스캔과 생성자 주입으로 등록한다. 예전에는 application 계층을 Spring에서 분리하려고 설정 클래스의 `@Bean` 메서드로 직접 조립했지만, `@Transactional`을 허용한 뒤로는 그 근거가 약해져 관례에 맞췄다. 환율 허용 지연처럼 타입으로 주입하기 모호한 설정값은 `RateFreshnessPolicy` 레코드로 감싸 설정 쪽에서 검증해 빈으로 만든다. Spring 없이 생성자로 직접 만들어 단위 테스트하는 것(`RatePolicyTest`)은 여전히 가능하다.
+사용 사례(`UserUseCases`, `TransferUseCases`)는 `@Service`로 선언해 컴포넌트 스캔과 생성자 주입으로 등록한다.
 
-트랜잭션은 사용 사례의 업무 메서드(`quote`, `request`, `history`, `signup`, `login`)에 붙인 `@Transactional`로 건다. application 계층에서 허용하는 Spring 의존은 `org.springframework.stereotype.Service`와 `org.springframework.transaction.annotation.Transactional` 두 타입뿐이며 `ArchitectureTest`가 그 밖의 Spring·JPA 참조(같은 패키지의 다른 타입 포함)를 계속 막는다(domain은 Spring 전체 금지). 프록시가 서브클래스를 만들므로 사용 사례 클래스는 final이 아니다. 예전의 `Work` 포트와 TransactionTemplate 구현(`TransactionalWork`)은 제거했다. 어댑터의 `RollbackSafeTransactionManager`는 롤백 자체가 실패해도 호출자가 원래 예외를 받게 한다.
+송금의 `quote`·`request`·`history`는 사용 사례의 `@Transactional`로 경계를 정한다. `signup`·`login`은 BCrypt 동안 DB 연결을 점유하지 않도록 전체 트랜잭션을 열지 않는다. 가입 중복 조회 후 해시·암호화를 수행하고 `JpaAccountRepository.saveUser`만 짧은 쓰기 트랜잭션으로 실행한다. 계정 문자열 조회는 결과 스트림을 읽는 동안만 읽기 전용 트랜잭션을 연다. 동시 가입은 DB 유일 제약이 최종 방어한다. application 계층에서 허용하는 Spring 의존은 `org.springframework.stereotype.Service`와 `org.springframework.transaction.annotation.Transactional` 두 타입뿐이며 `ArchitectureTest`가 그 밖의 Spring·JPA 참조(같은 패키지의 다른 타입 포함)를 계속 막는다(domain은 Spring 전체 금지). 프록시가 서브클래스를 만들므로 사용 사례 클래스는 final이 아니다. 어댑터의 `RollbackSafeTransactionManager`는 롤백 자체가 실패해도 호출자가 원래 예외를 받게 한다.
 
 ## 인증과 견적 생성
 
@@ -57,7 +57,7 @@ RequestIdFilter가 보안 필터보다 먼저 실행돼 요청 ID를 응답 헤�
 sequenceDiagram
     participant W as 인증된 Web 요청
     participant A as TransferUseCases
-    participant P as JpaQuoteRepository·JpaAccountRepository/H2
+    participant P as JpaQuoteRepository·JpaAccountRepository/DB
     W->>A: request(actorId, quoteId, 멱등성 키?)
     A->>P: 트랜잭션 시작, 사용자 행 잠금
     A->>P: 견적 조회
@@ -73,7 +73,7 @@ sequenceDiagram
 
 접수 규칙은 도메인에 있고 사용 사례는 조정만 한다. `Quote.replays`가 멱등성 키 재현 여부(다른 견적이면 재사용 오류, 같은 견적이면 24시간 창 안에서만 재현)를, `Quote.request`가 소유권·중복·만료를, `User.checkDailyLimit`가 일일 한도를, `BusinessDay.of`가 KST 기준일 구간을 판단한다. 사용 사례는 사용자 잠금을 먼저 잡고 저장소에서 견적·이전 접수·오늘 합계를 읽어 이 규칙들에 넘기고 결과를 저장한다. 규칙 판단은 순수 객체라 DB 없이 경계 단위 테스트(`DomainRulesTest`)가 가능하다.
 
-사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 멱등성 키 조회도 같은 잠금 안에서 하므로 같은 키의 동시 재시도는 한 번만 반영된다. 키는 접수된 견적 행의 `idempotency_key`에 저장하고 (user_id, idempotency_key) 유일 제약이 한 키를 한 견적에만 묶는다. 구체적인 경쟁 상황은 [[주요 설계]]에서 설명한다.
+사용자 잠금은 합계 조회와 한도 검사, 접수 저장을 함께 보호한다. 같은 사용자에 대한 뒤 요청은 앞 트랜잭션이 끝난 뒤 견적과 합계를 읽는다. 다른 견적을 동시에 접수해도 같은 직렬화 지점을 거친다. 멱등성 키 조회도 같은 잠금 안에서 하므로 같은 키의 동시 재시도는 한 번만 반영된다. 키는 접수된 견적 행의 `idempotency_key`에 저장하고 (user_id, idempotency_key) 유일 제약이 한 키를 한 견적에만 묶는다. 구체적인 경쟁 상황은 [동시성과 멱등성](concurrency.md)에서 설명한다.
 
 잠금 대기 한도는 H2에서는 JDBC URL의 `LOCK_TIMEOUT`, PostgreSQL(기본)에서는 연결별 `SET lock_timeout`으로 적용한다. 기본 5000ms를 넘기면 `JpaAccountRepository.lockUser`가 LOCK_TIMEOUT 업무 오류로 변환하고(판별은 `PersistenceErrors.isLockTimeout`) 웹 계층은 `Retry-After: 1` 헤더와 함께 HTTP 503을 반환한다. 설정값은 DB 연결 전에 bootstrap의 LockTimeoutEnvironmentPostProcessor가 1~30000의 ASCII 숫자 표기인지 검사(부호·공백·선행 0 불가)하며 위반하면 기동을 거부한다. 롤백 실패가 원래 업무 오류를 덮는 경우에도 RollbackSafeTransactionManager가 롤백 실패를 삼켜 원래 업무 오류가 전달된다. 이 처리가 DB 복구 상태까지 확인하는 것은 아니다.
 
@@ -95,7 +95,7 @@ sequenceDiagram
 
 정렬은 `(requestedTime desc, id desc)`다. 다음 페이지는 `requestedTime < t OR (requestedTime = t AND id < lastId)` 조건으로 읽는다. 페이지 크기보다 한 건 더 조회해 다음 페이지의 존재를 판단한다. 커서의 인코딩은 웹 계층이 담당하고 application에는 `(Instant, long)` 위치값을 전달한다.
 
-커서 인코딩/디코딩과 페이지 크기 검증은 컨트롤러가 아니라 웹 어댑터의 `HistoryPaging`이 맡는다. 커서는 `초.나노.ID`를 URL-safe Base64로 감싼 값이며, 재인코딩 결과가 입력과 같아야 하므로 비정규 표기를 거부하고 초·나노·ID 범위를 제한한다. 예전에는 요청/응답 DTO가 하나의 `ApiModels` 이름 공간 클래스에, 이 페이징 코드가 `TransferController`에 함께 있었다. DTO의 클래스 이름은 OpenAPI 스키마 이름이 되므로 분리하면서 이름을 바꾸지 않았다.
+커서 인코딩/디코딩과 페이지 크기 검증은 컨트롤러가 아니라 웹 어댑터의 `HistoryPaging`이 맡는다. 커서는 `초.나노.ID`를 URL-safe Base64로 감싼 값이며, 재인코딩 결과가 입력과 같아야 하므로 비정규 표기를 거부하고 초·나노·ID 범위를 제한한다.
 
 모든 조회에는 인증 사용자의 ID 조건을 적용한다. 커서는 조회 위치이고 접근 권한이 아니다. 인덱스 `idx_remittances_user_requested(user_id, requested_time)`는 사용자·시각 범위를 좁힌다. id를 포함한 복합 인덱스는 아니므로 동일 시각의 ID 비교·정렬까지 인덱스로 해결한다고 가정하지 않는다.
 
@@ -115,16 +115,32 @@ erDiagram
     users ||--o{ remittances : "user_id"
     users {
         int id PK
-        string user_id UK
+        string user_id UK "정규화 이메일"
+        string password "BCrypt 해시"
+        string id_type "개인 또는 법인"
+        string id_value "AES-GCM 암호문"
     }
     remittances {
         int id PK
         int user_id FK
+        decimal usd_amount "일일 한도 집계"
+        timestamp expire_time
         timestamp requested_time "미접수이면 null"
+        string idempotency_key "nullable, 사용자별 유일"
     }
 ```
 
 users는 계정·비밀번호 해시·암호화 식별번호·신원 유형을 저장한다. remittances는 사용자 FK와 견적의 금액·수수료·환율·시각을 저장하며 금액 필드는 DECIMAL(22,12)다. requestedTime이 null이면 미접수 견적이다. 접수에 성공한 요청의 멱등성 키는 같은 행의 idempotency_key(nullable, 사용자별 유일)에 남는다. 이력과 일일 집계는 접수된 항목만 조회한다.
+
+```mermaid
+stateDiagram-v2
+    [*] --> 미접수: 견적 생성
+    미접수 --> 접수: 만료 전, 소유권·한도 통과
+    미접수 --> 만료: 현재 시각이 expire_time 이상
+    접수 --> 접수: 같은 키 성공 재현, 24시간 미만
+```
+
+이 그림은 업무상 상태를 나타낸다. DB에 status 컬럼이나 만료 처리 작업은 없다. `requested_time IS NULL`이고 현재 시각이 `expire_time` 이상이면 만료로 판단한다. 이미 접수된 행은 만료 시각이 지나도 접수 상태이며, 멱등 재현은 별도의 24시간 창을 적용한다. `(user_id, idempotency_key)` 복합 유일 제약이 사용자별 키 귀속을 지킨다.
 
 스키마는 `db/migration`의 Flyway SQL이 만들고 Hibernate는 `ddl-auto: validate`로 엔티티와의 일치만 확인한다. 이력이 없는 기존 파일 DB는 버전 0으로 기준선을 잡은 뒤 멱등하게 쓴 V1~V3을 적용한다.
 
@@ -138,8 +154,8 @@ ArchitectureTest는 컴파일된 내부 계층의 프레임워크·어댑터 의
 
 ```mermaid
 flowchart TD
-    C[환경변수와 앱 인자 로딩] --> V[잠금 대기 설정 사전 검증]
-    V --> D[H2 연결]
+    C[환경변수와 앱 인자 로딩] --> V[잠금·소켓 타임아웃 설정 검증]
+    V --> D[프로파일에 따른 PostgreSQL 또는 H2 연결]
     D --> F[Flyway 버전 SQL 적용]
     F --> H[Hibernate 엔티티 검증]
     H --> S[서비스 시작]
@@ -155,8 +171,10 @@ DatabaseConnectionFailureAnalyzer는 두 경로를 안내한다. (1) Flyway 초�
 
 ## 오류 응답과 관측 경계
 
-ApiExceptionHandler는 업무 오류·MVC 입력 오류를 JSON 코드로 변환하고, 예상 밖 예외는 ErrorDescriptions의 선별 진단 정보를 ERROR로 기록한다. 단, 원인 연쇄에 DB 연결 장애(SQLState 08xxx·57P01~03, JDBC 연결 예외; `DatabaseUnavailability`)가 있으면 WARN과 `Retry-After: 1`의 503 `DB_UNAVAILABLE`로 응답한다(도메인 `ErrorCode`가 아닌 웹 어댑터의 분류). LOCK_TIMEOUT은 WARN과 Retry-After: 1, 일반 업무 오류는 DEBUG다. UNKNOWN_ERROR 업무 코드는 ERROR로 남긴다.
+ApiExceptionHandler는 업무 오류·MVC 입력 오류를 JSON 코드로 변환하고, 예상 밖 예외는 ErrorDescriptions의 선별 진단 정보를 ERROR로 기록한다. 단, 원인 연쇄에 DB 연결 장애(SQLState 08xxx(08P01 프로토콜 위반 제외)·57P01~03, JDBC 연결 예외; `DatabaseUnavailability`)가 있으면 WARN과 `Retry-After: 1`의 503 `DB_UNAVAILABLE`로 응답한다(도메인 `ErrorCode`가 아닌 웹 어댑터의 분류). LOCK_TIMEOUT은 WARN과 Retry-After: 1, 일반 업무 오류는 DEBUG다. UNKNOWN_ERROR 업무 코드는 ERROR로 남긴다.
 
 예외 메시지·요청 본문·쿼리스트링·토큰 대신 요청 ID·메서드·제한된 경로·예외 클래스 연쇄·SQLState/벤더 코드·앱 스택 프레임 일부를 사용한다. JsonErrorController와 보안 필터의 오류는 동일한 응답 형식이어도 이 예외 처리기의 관측 대상과 같지 않다.
 
 local 프로파일은 H2 콘솔과 SQL·DB 오류·연결 풀 진단을 켠다. `SPRING_PROFILES_ACTIVE`를 지정하면 기본 postgres가 대체되므로 local만 지정하면 H2로 실행되고, PostgreSQL에서 진단 로그를 쓰려면 `postgres,local`을 지정한다. 콘솔 활성화에 맞춰 SecurityConfiguration이 SAMEORIGIN 프레임 정책을 적용한다. 기본 프로파일의 개인정보 제한 로그와 로컬 확장 로그의 범위를 분리해서 사용한다.
+
+관측 정책과 진단 절차의 상세는 [Observability](observability.md)를 따른다.

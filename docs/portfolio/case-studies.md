@@ -29,7 +29,7 @@
 
 **한계.** 프록시의 한 COMMIT 지점에 주입한 TCP 리셋이다. 별도 호스트 장애나 모든 패킷 손실 형태의 검증은 아니다. 성공 응답 재현은 접수 후 24시간 미만이며 실패 응답은 저장하지 않는다. 처음부터 키 없이 보낸 요청은 이 보장을 받지 못한다.
 
-근거: [작업 기록](../harness/tasks/commit-response-loss.md), [테스트와 프록시](../../src/test/java/com/nelson/remittance/postgres/PostgresCommitResponseLossTest.java), [멱등성 설계](../application/design.md).
+근거: [작업 기록](../harness/tasks/commit-response-loss.md), [테스트와 프록시](../../src/test/java/com/nelson/remittance/postgres/PostgresCommitResponseLossTest.java), [멱등성 설계](../application/concurrency.md).
 
 ## 3. 하네스의 소유 범위 변경
 

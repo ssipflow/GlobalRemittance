@@ -5,23 +5,32 @@ from contextlib import contextmanager
 import fcntl
 import json
 import os
+import posixpath
 from pathlib import Path
 import re
 import stat
 import subprocess
 import sys
 import secrets
+from urllib.parse import quote, unquote, urlsplit
 
 START = '<!-- codex:globalremittance:start -->'
 END = '<!-- codex:globalremittance:end -->'
 REPO = r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9][A-Za-z0-9_.-]*'
 LIMIT = 131072
-# 검토된 앱 문서만 내보낸다. 하네스 작업 기억은 제품 설명 문서가 아니다.
+# 검토된 설명 문서만 명시적으로 내보낸다. 작업 기억과 임의 파일은 포함하지 않는다.
 DOCUMENTS = {
     'docs/application/overview.md': '프로젝트 개요.md',
     'docs/application/architecture.md': '아키텍처.md',
     'docs/application/api.md': 'API 문서.md',
     'docs/application/design.md': '주요 설계.md',
+    'docs/application/concurrency.md': '동시성과 멱등성.md',
+    'docs/application/observability.md': 'Observability.md',
+    'docs/portfolio/index.md': '프로젝트 안내.md',
+    'docs/portfolio/ax-workflow.md': 'AX 개발 방식.md',
+    'docs/portfolio/case-studies.md': '대표 개선 사례.md',
+    'docs/portfolio/validation.md': '검증 범위와 결과.md',
+    'docs/harness/obsidian-workflow.md': '하네스 워크플로우.md',
 }
 
 
@@ -224,6 +233,62 @@ def application_document(text):
         END, '&lt;!-- codex:globalremittance:end --&gt;')
 
 
+# 링크 경로는 원본 문서 기준으로 계산하고 저장소 밖 경로는 쓰기 전에 거부한다.
+def rewrite_links(text, relative, exported, tracked, base):
+    def destination(value):
+        parsed = urlsplit(value)
+        if parsed.scheme or parsed.netloc or not parsed.path or parsed.path.startswith('/'):
+            return value
+        decoded = unquote(parsed.path)
+        target = posixpath.normpath(posixpath.join(posixpath.dirname(relative), decoded))
+        if target == '..' or target.startswith('../') or target.startswith('/') or '\\' in decoded:
+            raise SyncError('Relative document links must stay inside the repository.')
+        # 추적되지 않은 링크는 추측해서 새 대상에 연결하지 않는다.
+        if target not in tracked:
+            return value
+        if target in exported:
+            result = quote(DOCUMENTS[target], safe='')
+        else:
+            result = base + quote(target, safe='/')
+        if parsed.query:
+            result += '?' + parsed.query
+        if parsed.fragment:
+            result += '#' + parsed.fragment
+        return result
+
+    # 인라인 코드와 fence의 예시 링크는 문서 탐색 링크가 아니므로 그대로 둔다.
+    inline = re.compile(r'(`+)(.*?)(?<!`)\1(?!`)|(!?\[[^\]\n]*\]\()(<?)([^\s<>()]+)(>?)([^\n)]*\))')
+    reference = re.compile(r'^( {0,3}\[[^\]\n]+\]:[ \t]*)(<?)([^\s<>]+)(>?)(.*)$')
+    fence = None
+    result = []
+    for line in text.splitlines(keepends=True):
+        marker = re.match(r'^ {0,3}(`{3,}|~{3,})(.*)$', line.rstrip('\r\n'))
+        if fence is not None:
+            result.append(line)
+            if marker and marker[1][0] == fence[0] and len(marker[1]) >= len(fence) and not marker[2].strip():
+                fence = None
+            continue
+        if marker:
+            fence = marker[1]
+            result.append(line)
+            continue
+        # 들여쓴 코드도 예시로 취급한다. 위키 링크는 패턴과 일치하지 않는다.
+        if line.startswith(('    ', '\t')):
+            result.append(line)
+            continue
+        def replace(match):
+            if match[1] is not None:
+                return match[0]
+            return match[3] + match[4] + destination(match[5]) + match[6] + match[7]
+        rewritten = inline.sub(replace, line)
+        match = reference.match(rewritten.rstrip('\r\n'))
+        if match:
+            ending = rewritten[len(rewritten.rstrip('\r\n')):]
+            rewritten = match[1] + match[2] + destination(match[3]) + match[4] + match[5] + ending
+        result.append(rewritten)
+    return ''.join(result)
+
+
 # 고정 문서만 렌더링하고 전후 스냅샷이 다르면 혼합 결과를 거부한다.
 
 
@@ -234,11 +299,12 @@ def render(root, config):
     revision = git(root, 'rev-parse', 'HEAD')
     base = 'https://github.com/' + config['repo'] + '/blob/' + revision + '/'
     notes = {}
-    for relative, destination in DOCUMENTS.items():
-        content = source(root, relative, tracked)
-        if content is None:
-            continue
-        body = application_document(content)
+    # 실제 내보낼 원본만 로컬 링크 대상으로 인정해 누락 원본의 끊긴 링크를 만들지 않는다.
+    contents = {relative: content for relative in DOCUMENTS
+                if (content := source(root, relative, tracked)) is not None}
+    for relative, content in contents.items():
+        destination = DOCUMENTS[relative]
+        body = application_document(rewrite_links(content, relative, contents, tracked, base))
         if not body.endswith('\n'):
             body += '\n'
         body += ('\n---\n\n' + f'[저장소 원본]({base}{relative})\n'

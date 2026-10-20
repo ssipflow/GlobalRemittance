@@ -51,7 +51,7 @@ reopen으로 내부 검증 단계를 복원해 후속 커밋을 추가한다. �
 작업 시작과 기억 갱신 시 `.codex/instructions/obsidian.md`를 읽는다.
 프로젝트 전용 폴더의 연결 설정은 Git에서 무시되는 `.harness/obsidian.json`에 둔다.
 구조·API·설계 변경 시 docs/application 문서를 갱신하고 커밋·PR 후 명시적으로 단방향 sync한다.
-옵시디언은 앱 이해용 문서이며 작업 내역·PR·검증 로그는 하네스 기억에만 남긴다.
+옵시디언은 앱 이해·AX 포트폴리오 설명 문서이며 작업 내역·PR·원시 검증 로그는 하네스 기억에만 남긴다. 내보내기는 obsidian.md의 고정 11문서만 대상으로 한다.
 실행 명령과 연결 상태는 `docs/harness/obsidian.md`를 따른다. Vault Git 작업은 하지 않는다.
 사용자가 Goals Of Project를 새 목표로 지정하고 기존 애플리케이션 전면 교체를 승인했다.
 구현 기준은 `docs/requirements/project-goals.md`, 결정은 `docs/decisions/remittance-rebuild.md`다.

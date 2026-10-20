@@ -4,6 +4,8 @@
 
 환율·수수료를 확정한 견적, 사용자별 일일 한도와 동시 접수, 성공 응답의 멱등 재현, 커서 기반 이력 조회를 구현했다. 접수는 DB에 기록하는 단계까지이며 실제 금융기관 지급과 실시간 시세 공급은 구현하지 않았다.
 
+처음 읽는다면 [프로젝트 안내](docs/portfolio/index.md)에서 핵심 성과와 추천 읽기 순서를 확인한다.
+
 ## 프로젝트에서 보여주려는 것
 
 AI 에이전트의 구현·리뷰·검증을 snapshot 기반 하네스로 관리하고, 송금 서비스의 동시성·멱등성·장애 복구를 재현 실험으로 확인한 AX 포트폴리오다. AI 활용의 초점은 코드 생성량보다 작업 범위, 검증 근거, 실패 후 재작업을 관리하는 개발 절차에 있다.
@@ -206,7 +208,9 @@ domain은 Spring·JPA·웹 구현에 의존하지 않는다. application은 유�
 - [개요](docs/application/overview.md): 기능과 실행 설정
 - [아키텍처](docs/application/architecture.md): 계층, 요청·저장·기동 흐름
 - [API 문서](docs/application/api.md): 필드, JSON 예시, 오류·헤더 계약
-- [주요 설계](docs/application/design.md): 상세 동시성·멱등성·페이지네이션·관측·마이그레이션 근거와 한계
+- [주요 설계](docs/application/design.md): 금액·시간·페이지네이션·마이그레이션 근거
+- [동시성과 멱등성](docs/application/concurrency.md): 경쟁·잠금·접수 재시도·PostgreSQL 장애 검증
+- [Observability](docs/application/observability.md): 요청 ID·로그 정책·DB 진단과 한계
 - [요구사항](docs/requirements/project-goals.md) 및 [초기 재구현 결정](docs/decisions/remittance-rebuild.md)
 
 ## 검증

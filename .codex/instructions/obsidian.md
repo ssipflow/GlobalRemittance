@@ -2,11 +2,11 @@
 
 ## 목적과 원본
 
-옵시디언은 애플리케이션을 이해하기 위한 아키텍처·API 계약·주요 설계 문서다.
+옵시디언은 앱 이해와 AX 포트폴리오 설명을 위한 문서다. 사용자 승인(2026-10-20)으로 관측·동시성·AX 사례·검증·하네스 설명을 포함한다.
 작업 내역, 브랜치 진행, 검증 로그, 커밋/PR 상태는 docs/harness와 로컬 하네스에 기록한다.
-이를 옵시디언의 기본 콘텐츠로 내보내지 않는다. 에이전트 정책 원본으로도 사용하지 않는다.
+실행 상태·원시 로그·PR 메타데이터는 내보내지 않는다. 하네스 설명은 통제 범위와 사용법이며 에이전트 정책 원본이 아니다.
 
-원본은 docs/application/overview.md, architecture.md, api.md, design.md 네 문서다.
+원본은 scripts/obsidian_sync.py의 DOCUMENTS에 고정한 11문서다: docs/application의 overview·architecture·api·design·concurrency·observability, docs/portfolio의 index·ax-workflow·case-studies·validation, docs/harness/obsidian-workflow.md.
 코드의 실제 동작과 대조해서 작성하며 미구현 기능을 구현된 것처럼 기록하지 않는다.
 API 문서에는 인증, 필드·제약, 요청/응답 JSON, 오류 계약을 적는다.
 아키텍처에는 계층 책임·의존성·처리 흐름·저장 모델을, 설계에는 선택 이유와 비용을 적는다.
@@ -26,9 +26,9 @@ Markdown 표·JSON 예시·Mermaid 다이어그램은 선별된 문서의 일부
 ## Vault와 보존
 
 연결은 Git에서 무시되는 .harness/obsidian.json에 두고 사용자가 지정한 프로젝트 폴더만 쓴다.
-노트는 프로젝트 개요.md, 아키텍처.md, API 문서.md, 주요 설계.md다.
+노트는 프로젝트 안내·프로젝트 개요·아키텍처·API 문서·주요 설계·동시성과 멱등성·Observability·AX 개발 방식·대표 개선 사례·검증 범위와 결과·하네스 워크플로우다. 상대 링크는 내보낸 노트 또는 HEAD 고정 저장소 링크로 변환한다.
 기존 관리 marker 안만 갱신하고 사용자 작성 내용은 보존한다. marker가 없거나 잘못되면 실패한다.
 과거 작업/결정 노트는 신규 export 대상에서 제외하며 자동 삭제하지 않는다.
-Goals Of Project 원본을 덮어쓰지 않는다. Vault 전체 검색·양방향 동기화·watcher·Vault Git 작업은 하지 않는다.
+Goals Of Project 원본을 덮어쓰지 않는다. 원 요구사항과 추가 정책의 구분은 프로젝트 안내에 둔다. 미관리 기존 노트는 이름 지정·원문 백업·변경 없음 확인 후 명시적으로 관리 전환하며 sync가 임의로 입양하지 않는다. Vault 전체 검색·양방향 동기화·watcher·Vault Git 작업은 하지 않는다.
 파일 쓰기 후 읽기 확인과 재실행 멱등성을 확인한다. 경로·symlink 검사는 OS 접근 격리를 대신하지 않는다.
 연결/명령은 docs/harness/obsidian.md를 따른다.

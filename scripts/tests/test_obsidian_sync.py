@@ -40,6 +40,9 @@ class ObsidianSyncTests(unittest.TestCase):
         }
         for name, content in self.documents.items():
             self.write(f'docs/application/{name}.md', content)
+        for relative in sync.DOCUMENTS:
+            if not (self.root / relative).exists():
+                self.write(relative, '# 설명 문서\n\n검토한 고정 문서의 본문.\n')
         self.write('docs/harness/state.md', '# TASK-LOG-PRIVATE\n- 실행 로그\n')
         self.write('docs/harness/tasks/obsidian-sync.md', '# TASK-RECORD-PRIVATE\n')
         self.write('docs/decisions/001-documentation.md', '# HARNESS-DECISION-PRIVATE\n')
@@ -79,7 +82,7 @@ class ObsidianSyncTests(unittest.TestCase):
     def test_dry_run_no_vault_creation_and_repeat_idempotent(self):
         status, report = self.cli('dry-run')
         self.assertEqual(status, 0)
-        self.assertEqual(report['planned_notes'], 4)
+        self.assertEqual(report['planned_notes'], 11)
         self.assertFalse(self.project.exists())
         self.assertEqual(self.cli('sync')[0], 0)
         contents = {p.name: p.read_bytes() for p in self.project.glob('*.md')}
@@ -122,9 +125,74 @@ class ObsidianSyncTests(unittest.TestCase):
     # 허용 목록에 있어도 미추적 문서는 내보내지 않는지 확인한다.
     def test_untracked_allowlisted_file_is_not_exported(self):
         self.run_git('rm', '--cached', '-q', 'docs/application/api.md')
-        self.assertEqual(self.cli('sync')[1]['planned_notes'], 3)
+        self.assertEqual(self.cli('sync')[1]['planned_notes'], 10)
         self.assertFalse((self.project / 'API 문서.md').exists())
         self.assertTrue((self.root / 'docs/application/api.md').exists())
+
+    # 확장한 모든 명시 대상이 실제 노트 이름으로 내보내지는지 확인한다.
+    def test_expanded_mapping_exports_all_eleven_notes(self):
+        self.assertEqual(len(sync.DOCUMENTS), 11)
+        self.assertEqual(self.cli('sync')[1]['planned_notes'], 11)
+        self.assertEqual(set(sync.DOCUMENTS.values()), {p.name for p in self.project.glob('*.md')})
+        self.assertIn('검토한 고정 문서의 본문.', (self.project / 'AX 개발 방식.md').read_text())
+
+    # 같은 노트 폴더의 링크와 HEAD 고정 저장소 링크를 원본 경로로 구분한다.
+    def test_relative_links_rewrite_local_notes_and_pinned_repository_documents(self):
+        self.write('docs/application/overview.md',
+                   '[설계](design.md#선택)\n'
+                   '[검증](../portfolio/validation.md#범위)\n'
+                   '[결정](../decisions/001-documentation.md#이유)\n'
+                   '[참조][검증]\n[검증]: ../portfolio/validation.md#범위 "제목"\n'
+                   '[각도](<../portfolio/ax-workflow.md#역할>)\n'
+                   '[없음](missing.md)\n')
+        revision = self.run_git('rev-parse', 'HEAD')
+        self.assertEqual(self.cli('sync')[0], 0)
+        content = (self.project / '프로젝트 개요.md').read_text()
+        self.assertIn('[설계](%EC%A3%BC%EC%9A%94%20%EC%84%A4%EA%B3%84.md#선택)', content)
+        self.assertIn('[검증](' + sync.quote('검증 범위와 결과.md', safe='') + '#범위)', content)
+        self.assertIn('[검증]: ' + sync.quote('검증 범위와 결과.md', safe='') + '#범위 "제목"', content)
+        self.assertIn('[각도](<' + sync.quote('AX 개발 방식.md', safe='') + '#역할>)', content)
+        self.assertIn('https://github.com/ssipflow/Moin-GlobalRemittance/blob/' + revision
+                      + '/docs/decisions/001-documentation.md#이유', content)
+        self.assertIn('[없음](missing.md)', content)
+
+    # 인코딩된 원본 경로를 해석하고 누락된 내보내기 대상은 저장소 링크로 남긴다.
+    def test_encoded_paths_and_missing_export_target_use_repository_fallback(self):
+        self.write('docs/decisions/한글 결정.md', '# 결정\n')
+        self.run_git('add', 'docs/decisions/한글 결정.md')
+        self.run_git('commit', '-qm', 'decision fixture')
+        self.write('docs/application/overview.md',
+                   '[결정](../decisions/%ED%95%9C%EA%B8%80%20%EA%B2%B0%EC%A0%95.md#anchor)\n'
+                   '[API](api.md#request)\n')
+        (self.root / 'docs/application/api.md').unlink()
+        self.assertEqual(self.cli('sync')[0], 0)
+        content = (self.project / '프로젝트 개요.md').read_text()
+        revision = self.run_git('rev-parse', 'HEAD')
+        base = 'https://github.com/ssipflow/Moin-GlobalRemittance/blob/' + revision + '/'
+        self.assertIn(base + 'docs/decisions/%ED%95%9C%EA%B8%80%20%EA%B2%B0%EC%A0%95.md#anchor', content)
+        self.assertIn('[API](' + base + 'docs/application/api.md#request)', content)
+        self.assertFalse((self.project / 'API 문서.md').exists())
+
+    # 코드 예시·외부 주소·앵커·위키 링크를 탐색 링크로 잘못 바꾸지 않는다.
+    def test_external_anchor_wiki_and_code_examples_are_unchanged(self):
+        original = ('[외부](https://example.invalid/design.md)\n[메일](mailto:a@example.invalid)\n'
+                    '[앵커](#선택)\n[[주요 설계#선택]]\n'
+                    '`[인라인](design.md)` [실제](design.md)\n'
+                    '```markdown\n[코드](../../../outside.md)\n```\n'
+                    '~~~markdown\n[코드](design.md)\n~~~\n'
+                    '    [코드](design.md)\n')
+        self.write('docs/application/overview.md', original)
+        self.assertEqual(self.cli('sync')[0], 0)
+        content = (self.project / '프로젝트 개요.md').read_text()
+        self.assertIn(original.replace('[실제](design.md)', '[실제](' + sync.quote('주요 설계.md', safe='') + ')'), content)
+
+    # 저장소 밖 상대 경로는 읽거나 공개 링크로 바꾸지 않고 전체 쓰기를 거부한다.
+    def test_relative_link_escape_refuses_export_before_writing(self):
+        for target in ('../../../private.md', '%2e%2e/%2e%2e/%2e%2e/private.md', '..\\private.md'):
+            with self.subTest(target=target):
+                self.write('docs/application/overview.md', '[탈출](' + target + ')\n')
+                self.assertEqual(self.cli('sync')[0], 1)
+                self.assertFalse(self.project.exists())
 
     # 사용자 작성 영역과 개인 Vault 파일을 보존하는지 확인한다.
     def test_manual_content_preserved_and_personal_vault_files_untouched(self):
@@ -220,7 +288,7 @@ class ObsidianSyncTests(unittest.TestCase):
         self.cli('sync')
         previous = (self.project / 'API 문서.md').read_bytes()
         self.run_git('rm', '-q', 'docs/application/api.md')
-        self.assertEqual(self.cli('sync')[1]['planned_notes'], 3)
+        self.assertEqual(self.cli('sync')[1]['planned_notes'], 10)
         self.assertEqual((self.project / 'API 문서.md').read_bytes(), previous)
         personal = self.base / 'personal'
         personal.mkdir()
@@ -230,7 +298,7 @@ class ObsidianSyncTests(unittest.TestCase):
         self.assertEqual(self.cli('sync')[0], 0)
         self.assertEqual(legacy.read_text(), 'LEGACY-PRIVATE')
         self.run_git('rm', '-qr', 'docs/application')
-        self.assertEqual(self.cli('sync')[1]['planned_notes'], 0)
+        self.assertEqual(self.cli('sync')[1]['planned_notes'], 5)
         self.assertEqual((self.project / 'API 문서.md').read_bytes(), previous)
 
     # 상태 출력에서 개인 정보가 빠지고 동시 실행은 잠금으로 거부되는지 확인한다.
