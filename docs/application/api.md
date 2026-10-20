@@ -274,5 +274,5 @@ curl "http://localhost:8080/transfer/list?size=20&cursor=<nextCursor>" -H "Autho
 | 500 | UNKNOWN_ERROR | 모든 곳 | 내부 오류. 원시 예외와 개인정보는 노출하지 않음 |
 | 503 | RATE_UNAVAILABLE | 견적 | 환율 조회 실패. 발급된 견적의 접수에는 영향이 없다 |
 | 503 | RATE_STALE | 견적 | 환율 기준 시각이 허용 지연(기본 60초)을 벗어남 |
-| 503 | DB_UNAVAILABLE | 모든 DB 사용 요청 | DB 연결이 끊겼거나 풀이 연결을 얻지 못한 일시 장애(SQLState 08xxx·57P01~03 또는 JDBC 연결 예외). `Retry-After: 1`이 붙으며 연결이 죽은 트랜잭션은 DB가 롤백하므로 같은 `Idempotency-Key`로 재시도할 수 있다. 다만 DB 무응답이 JDBC 소켓 타임아웃(기본 60초)으로 끊긴 경우를 포함해 커밋 도중 끊기면 결과가 불확실할 수 있어(검증하지 않음) 키 없이 재시도하면 ALREADY_REQUESTED가 될 수 있으니 같은 키로 재시도하거나 이력으로 확인한다 |
+| 503 | DB_UNAVAILABLE | 모든 DB 사용 요청 | DB 연결이 끊겼거나 풀이 연결을 얻지 못한 일시 장애(SQLState 08xxx·57P01~03 또는 JDBC 연결 예외). `Retry-After: 1`이 붙으며 503만으로 롤백 여부를 판단할 수 없다. COMMIT 미도달이면 연결 종료 후 롤백되지만 커밋 후 응답 유실이면 이미 반영돼 있다. 테스트용 프록시로 두 경우를 나눠 같은 키 재시도 시 접수·합계 1회를 확인했다. DB 무응답의 JDBC 소켓 타임아웃(기본 60초)을 포함해 결과를 모르면 처음부터 사용한 같은 `Idempotency-Key`·견적으로 재시도한다(성공 재현은 24시간 미만). 키가 없었다면 이력으로 확인한다 |
 | 503 | LOCK_TIMEOUT | 접수, 견적 | 사용자 행 잠금 대기 한도 초과(견적은 저장 시 외래키 공유 잠금 대기). `Retry-After: 1`(초) 헤더가 붙는다. 기본 5000ms, REMITTANCE_LOCK_TIMEOUT_MS(1~30000)로 설정 |

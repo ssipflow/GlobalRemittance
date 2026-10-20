@@ -4,6 +4,18 @@
 
 환율·수수료를 확정한 견적, 사용자별 일일 한도와 동시 접수, 성공 응답의 멱등 재현, 커서 기반 이력 조회를 구현했다. 접수는 DB에 기록하는 단계까지이며 실제 금융기관 지급과 실시간 시세 공급은 구현하지 않았다.
 
+## 프로젝트에서 보여주려는 것
+
+AI 에이전트의 구현·리뷰·검증을 snapshot 기반 하네스로 관리하고, 송금 서비스의 동시성·멱등성·장애 복구를 재현 실험으로 확인한 AX 포트폴리오다. AI 활용의 초점은 코드 생성량보다 작업 범위, 검증 근거, 실패 후 재작업을 관리하는 개발 절차에 있다.
+
+| 대표 사례 | 확인한 결과 | 상세 근거 |
+| --- | --- | --- |
+| DB 무응답으로 요청이 끝나지 않는 결함 | 풀 연결 획득 제한으로는 쿼리 대기를 제한할 수 없음을 재현하고 JDBC 소켓 타임아웃 도입 | [문제·수정·검증](docs/portfolio/case-studies.md#1-db-무응답과-타임아웃) |
+| DB 커밋 뒤 성공 응답 유실 | COMMIT 전·후를 나눠 결함을 주입하고 같은 키 재시도의 접수·한도 반영이 1회임을 DB로 확인 | [멱등성 검증](docs/portfolio/case-studies.md#2-커밋-응답-유실과-멱등성) |
+| AI 작업 중 소유 파일 범위 변경 | 수동 상태 편집 대신 `own` 명령을 추가하고 기존 snapshot 리뷰·검증 게이트 유지 | [개발 절차 개선](docs/portfolio/case-studies.md#3-하네스의-소유-범위-변경) |
+
+처음 읽는다면 [AI 역할과 통제 범위](docs/portfolio/ax-workflow.md) → [대표 사례 3개](docs/portfolio/case-studies.md) → [검증 범위와 한계](docs/portfolio/validation.md) 순서로 보면 된다. 각 설명은 코드·테스트·작업 기록으로 연결된다. 생산성 향상률이나 운영 성능을 측정한 프로젝트는 아니다.
+
 ## 먼저 실행하기
 
 Java 17 이상, Docker(Compose v2), 저장소의 Gradle wrapper를 사용한다. AES 키는 Base64 32바이트, JWT 키는 Base64 32바이트 이상이어야 한다.
@@ -37,6 +49,7 @@ AES 키로 암호화한 식별번호를 읽으려면 처음 사용한 AES 키를
 | REMITTANCE_RATES_MAX_AGE_SECONDS | 환율 기준 시각 허용 지연(초, 1~3600). 넘으면 견적 503 `RATE_STALE` | 60 |
 | REMITTANCE_RATES_SOURCE | `configured`(설정 환율) 또는 `simulated`(지연·장애를 주입하는 모의 공급처, 운영 사용 금지) | configured |
 | REMITTANCE_RATES_SIMULATED_AGE_SECONDS / _UNAVAILABLE | 모의 공급처의 지연(초)과 장애 여부 | 0 / false |
+| REMITTANCE_DB_SOCKET_TIMEOUT_SECONDS | PostgreSQL JDBC 소켓 읽기 대기 한도(초, 1~3600). 잠금 대기 한도보다 커야 한다 | 60 |
 | REMITTANCE_LOCK_TIMEOUT_MS | 잠금 대기 한도(ms). PostgreSQL은 `SET lock_timeout`, H2는 URL `LOCK_TIMEOUT` | 5000 |
 | REMITTANCE_API_DOCS_ENABLED | Swagger UI·OpenAPI 노출 | true |
 | SPRING_PROFILES_ACTIVE | 지정하지 않으면 `postgres`. `h2`는 H2 파일 DB, `local`은 H2 콘솔·SQL 진단(H2로 실행). PostgreSQL에서 진단 로그를 쓰려면 `postgres,local` | 지정하지 않음 |
@@ -109,8 +122,9 @@ DB가 떠 있지 않으면 앱은 기동 시 Flyway 접속 실패로 종료하�
 - 검증은 Docker가 필요한 `./gradlew postgresTest`로 따로 실행한다. 기본 `check`에는 포함되지 않아 Docker 없이도 통과한다.
 - `postgresTest`가 PostgreSQL 16에서 검증하는 것: 스키마·Hibernate validate·기동·기본 API 흐름·`lock_timeout` 설정, 같은 견적/다른 견적(일일 한도)/같은 멱등성 키의 동시 접수(6스레드),
   잠금 대기 초과의 503 `LOCK_TIMEOUT`(`Retry-After: 1`)과 해제 후 성공, 잠금 중에도 막히지 않는 이력 조회, DB가 연결을 모두 끊은 뒤의 풀 복구, 트랜잭션 도중 연결이 끊겨 롤백이 실패해도 원래 업무 오류가 보존되고 쓰기가 남지 않으며 풀이 복구됨.
-- **검증하지 않은 것**: 다중 앱 인스턴스, 고부하·장시간 경쟁, DB 재시작·네트워크 분리, 연결 종료 외의 롤백 실패 원인, 다른 PostgreSQL 버전·관리형 서비스.
-  DB가 연결을 끊은 직후의 첫 요청은 풀이 끊긴 연결을 집어 실패할 수 있으며, 이는 500이 아니라 `Retry-After: 1`이 붙은 503 `DB_UNAVAILABLE`로 응답한다. 같은 `Idempotency-Key`로 재시도하면 복구되고 접수는 한 번만 반영된다(키 없이 재시도하거나 커밋 도중 끊긴 경우는 이력으로 확인한다).
+- 후속 검증: 같은 JVM의 독립 앱 컨텍스트 2개(별도 HTTP 서버·풀)에서 분산 동시 접수, 풀 3개·32스레드 폭주, DB 정상 재시작·강제 종료·pause, Toxiproxy 블랙홀·리셋·지연, COMMIT 전·후 응답 유실을 확인했다. 구체적인 구성과 한계는 [검증 범위](docs/portfolio/validation.md)에 구분했다.
+- DB 연결 장애는 `Retry-After: 1`이 붙은 503 `DB_UNAVAILABLE`로 응답한다. 503만으로 커밋 여부를 알 수 없으므로 처음부터 같은 `Idempotency-Key`·견적으로 재시도한다. COMMIT 전·후 결함 주입에서 접수와 집계가 1회로 수렴함을 확인했다. 재현 창은 24시간 미만이며 키 없는 재시도는 이력으로 확인한다.
+- **남은 한계**: 별도 앱 프로세스·호스트 장애, 교착, 다른 PostgreSQL 버전·관리형 서비스·운영 규모는 검증하지 않았다. 소켓 타임아웃은 개별 읽기 대기 제한이며 HTTP 전체 처리 시간의 상한이 아니다.
 
 ## API 사용
 
@@ -179,7 +193,7 @@ DURATION=5m VUS=20 k6 run k6/soak.js            # 지속 부하(기본 5m, 20 VU
 | RUN_ID, LOAD_USER_PASSWORD | 사용자 이메일 접두사, 예시 비밀번호 | 현재 시각(VU마다 달라 실행 단위 구분엔 직접 지정 권장) / 예시 값 |
 
 결과 해석: 종료 시 `THRESHOLDS`의 모든 항목이 체크(통과)여야 한다. 핵심은 `unexpected_responses`(계약 밖 응답, 500 `UNKNOWN_ERROR`·401 등)가 0건이고 `invariant_violations`(같은 키 재시도의 200 재현, 키 없는 재시도의 409)가 0건인 것이다.
-`ALREADY_REQUESTED`·`LIMIT_EXCESS`(`expected_rejections`)와 정의된 503(`defined_503`, 코드별 태그)은 계약상 정상 응답이라 실패로 세지 않고 따로 집계한다. spike는 `phase:recovery`, soak는 `early/mid/late` 구간별 지연으로 급증 뒤 회복과 시간에 따른 급격한 악화를 본다(상한이 관찰값보다 넉넉해 완만한 악화는 놓칠 수 있다).
+`ALREADY_REQUESTED`·`LIMIT_EXCESS`(`expected_rejections`)와 정의된 503(`defined_503`, 코드별 태그)은 계약에 정의된 응답으로 별도 집계한다. 정의된 503은 `unexpected_responses`·`http_req_failed`에서는 제외하지만 `server_error_rate`에 포함되고 `flow_healthy_rate`에서는 실패로 센다. spike는 `phase:recovery`, soak는 `early/mid/late` 구간별 지연으로 급증 뒤 회복과 시간에 따른 급격한 악화를 본다(상한이 관찰값보다 넉넉해 완만한 악화는 놓칠 수 있다).
 `DURATION=2h`로 20 VU 소크를 1회 돌린 결과(오류 0, 지연·메모리·연결 수 평탄)는 `docs/harness/tasks/postgres-failure-modes.md`에 있다.
 임계값은 이 Mac에서 관찰한 값에 여유를 둔 것이며(근거: `docs/harness/tasks/k6-load-test.md`), 로컬 단일 인스턴스·단일 PostgreSQL 컨테이너에서 측정한 값이다. 운영 성능이나 용량을 보증하지 않는다.
 
@@ -217,6 +231,6 @@ check는 JUnit 테스트, Spotless, main/test Checkstyle을 실행한다. 포맷
 | 스키마 신규 생성·업그레이드 | MigrationTest |
 | 내부 계층 의존성 | ArchitectureTest |
 
-현재 검증은 H2와 단일 프로세스 대상 PostgreSQL 16(Testcontainers) 범위다. 다중 인스턴스·지급 기관 장애·외부 로그 수집과 알림은 별도 과제다. 실제 배포·CI/CD는 구성하지 않는다.
+현재 검증은 H2, PostgreSQL 16(Testcontainers), 로컬 k6 범위다. 다중 인스턴스는 같은 JVM의 독립 컨텍스트 2개로 확인했으며 별도 프로세스·호스트 검증은 아니다. [검증 문서](docs/portfolio/validation.md)에서 자동 단언과 과거 관찰값을 구분한다. 지급 기관 장애·외부 로그 수집과 알림·실제 배포·CI/CD는 구성하지 않았다.
 
 에이전트 실행은 [AGENTS.md](AGENTS.md), 옵시디언 연결은 [문서화 사용법](docs/harness/obsidian.md)을 따른다. 일반 작업은 dev PR 생성에서 끝나며 승인·병합은 사람이 한다.

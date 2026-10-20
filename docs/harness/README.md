@@ -69,7 +69,7 @@ python3 scripts/harness.py attest-review --snapshot '<status의 snapshot>' \
   --evidence '<reviewer 결과 요약과 참조; 미해결 블로킹 결함 없음>'
 python3 scripts/harness.py verify
 python3 scripts/harness.py finish --message 'test: isolate remittance test environment'
-python3 scripts/harness.py publish --repo ssipflow/Moin-GlobalRemittance \
+python3 scripts/harness.py publish --repo ssipflow/GlobalRemittance \
   --title 'test: isolate remittance test environment' --body-file /tmp/pr-body.md
 ```
 
@@ -126,5 +126,4 @@ Git 커밋 훅이 파일을 수정하면 생성된 커밋 tree와 작업 트리�
 python3 -m unittest discover -s scripts/tests -v
 ```
 
-애플리케이션 테스트와는 별도다. 초기 상태의 애플리케이션 검증을 통과했다고
-간주하지 않는다. 테스트 환경 격리가 다음 백로그 작업이다.
+애플리케이션 테스트와는 별도다. 기본 앱 테스트는 격리된 메모리 H2, PostgreSQL 검증은 Docker 기반 `postgresTest`를 사용한다. 하네스 테스트 통과가 앱 테스트 통과를 대신하지 않는다. [현재 검증 범위](../portfolio/validation.md)를 참고한다.
