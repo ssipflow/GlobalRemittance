@@ -36,4 +36,4 @@ flowchart LR
 
 state·작업 기록·결정 문서는 다음 세션의 출발점이고 실제 상태는 코드·Git·PR과 다시 대조한다. 전체 대화와 비밀 값은 기억에 넣지 않는다. 작업 기록은 과거 시점의 근거라 당시의 미검증 항목이 남을 수 있으며, 현재 검증 범위는 [검증 문서](validation.md)를 따른다.
 
-시간 절감률·비용 대비 생산성·AI 없이 수행한 대조군은 측정하지 않았다. 효과는 생성 코드량 대신 재현된 결함, 수정 전후 검증, 오래된 snapshot의 커밋 거부 같은 확인 가능한 결과로 제시한다. 사용 절차는 [하네스 README](../harness/README.md), 정책 원본은 [workflow](../../.codex/instructions/workflow.md)다.
+시간 절감률·비용 대비 생산성·AI 없이 수행한 대조군은 측정하지 않았다. 효과는 생성 코드량 대신 재현된 결함, 수정 전후 검증, 오래된 snapshot의 커밋 거부 같은 확인 가능한 결과로 제시한다. 사용 절차는 [하네스 워크플로우](../harness/obsidian-workflow.md), 정책 원본은 [workflow](../../.codex/instructions/workflow.md)다.
