@@ -74,6 +74,23 @@ python3 -m unittest discover -s scripts/tests -v
 
 `spotlessApply`는 파일을 수정하는 [선택적 포맷 명령](docs/application/local-guide.md#포맷-수정)이다. 검증 결과는 실행 커밋·환경과 함께 하네스·PR 기록에서 확인한다. [검증 범위](docs/portfolio/validation.md)는 자동 단언과 과거 부하 관찰값을 구분하며 이 문서 자체가 새 테스트 통과를 뜻하지 않는다.
 
+## k6 부하 테스트
+
+실행 중인 로컬 앱·PostgreSQL과 k6가 필요하다(v1.1.0에서 확인). 기본 대상은 `http://localhost:8080`이며 `BASE_URL`로 바꿀 수 있다. 테스트 계정을 생성하므로 개인 데이터와 분리된 로컬 DB에서 실행한다.
+
+```sh
+k6 run k6/transfer-flow.js                    # 약 2분, 최대 30 VU 점진 증가
+k6 run k6/spike.js                            # 5 → 100 VU 급증 후 복귀
+DURATION=5m VUS=20 k6 run k6/soak.js           # 20 VU 지속 부하
+# 2시간 소크 재현: DURATION=2h VUS=20 k6 run k6/soak.js
+```
+
+`THRESHOLDS` 통과와 `unexpected_responses`·`invariant_violations` 0건을 확인한다. 정의된 거절과 503은 별도 집계하며, 503은 `server_error_rate`에 포함되고 `flow_healthy_rate`에서는 실패다. 재시도 검사는 응답 계약 중심이고 DB 중복·한도 직접 검증은 통합 테스트에서 수행한다.
+
+과거 로컬 단일 앱·PostgreSQL 16·20 VU의 2시간 소크 1회에서 895,364요청(약 124/s), 전체 p95 10.4ms, 예상 밖 응답·재시도 불변식 위반 0건을 관찰했다. 사용자 think time이 있는 결과이며 최대 처리량이나 운영 안정성을 보장하지 않는다. 이번 문서 수정에서 새로 실행한 수치가 아니다.
+
+전체 변수와 결과 해석은 [k6 실행 가이드](docs/application/local-guide.md#k6-부하-테스트), 실험 환경·최대 지연·자원 관찰·한계는 [검증 결과](docs/portfolio/validation.md#과거-실행에서-관찰한-수치)에 있다.
+
 ## 상세 문서
 
 | 문서 | 내용 |
