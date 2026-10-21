@@ -20,12 +20,11 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/readme-run-args-restore. README 먼저 실행하기에 export 대안인 bootRun --args 예시를 복원한다.
-- 기준: 2026-10-21 dev fe1225e(PR #61 병합), 사용자 변경 없는 작업 트리.
-- 범위: README·작업 기억만. Compose의 명령 단위 비밀번호 전달과 앱 AES/JWT·DB 비밀번호·환율 인자를 구분한다. 앱·설정·API 코드 변경 없음.
-- 완료 기준: 설정 속성명·인자 우선순위·Compose 별도 환경 전달 설명 대조, 최종 독립 리뷰·등록 diff 검증·커밋·dev PR.
-- 검증: git diff --check 및 문서 예시 정적 검토. 앱·DB 기동과 회귀 테스트는 새로 실행하지 않는다.
-- 작업 기록: [README 인자 복원](tasks/readme-run-args-restore.md).
+- 현재 작업: feature/readme-k6-restore. 상세 가이드로 이동한 k6 실행 안내와 기존 결과 요약을 README에 복원한다.
+- 기준: 2026-10-21 dev cf15df7(PR #62 병합), 사용자 변경 없는 작업 트리.
+- 범위: README·작업 기억만. 램프업·스파이크·소크 명령, 전제·지표 해석·2시간 과거 관찰과 한계를 적는다. 코드·API·부하 스크립트 변경 없음.
+- 완료 기준: k6 소스·과거 기록과 일치, 최종 독립 리뷰·등록 diff·문서 검사 후 커밋·dev PR. 실제 부하는 새로 실행하지 않는다.
+- 작업 기록: [README k6 복원](tasks/readme-k6-restore.md).
 
 ## 남은 한계
 
