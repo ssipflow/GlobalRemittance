@@ -20,13 +20,12 @@
 
 ## 현재 작업과 다음 행동
 
-- 현재 작업: feature/readme-portfolio. README를 포트폴리오 입구로 축약하고 상세 실행 안내를 local-guide로 분리한다.
-- 시작 기준: origin/dev b3e84ae(PR #60 머지 반영), git fetch로 확인한 깨끗한 작업 트리. 로컬 dev 기준을 포함하는 원격 dev에서 분기했다.
-- 범위: README·로컬 실행 안내·변경된 링크의 참조 문서, H2와 PostgreSQL 마이그레이션 설명 정정. 앱·하네스 코드 변경 없음.
-- 작성: README 83행·상세 가이드 176행으로 분리, 설정·SQL 대조와 작성자 링크/공백 자체검사 완료.
-- 완료 기준: V1~V3·H2 기준선과 PostgreSQL 거부 정책 정확, 검증과 포맷 수정 명령 분리, 링크·앵커·EOF 확인, 최종 독립 리뷰·verify·커밋·dev PR·11노트 동기화.
-- 검증: 등록 `git diff --check`, 별도 문서 링크·앵커·공백과 설정/SQL 대조. 코드 변경이 없어 앱·PG·k6·Python 회귀 테스트를 새로 실행하지 않는다.
-- 작업 기록: [README 정리](tasks/readme-portfolio.md).
+- 현재 작업: feature/readme-run-args-restore. README 먼저 실행하기에 export 대안인 bootRun --args 예시를 복원한다.
+- 기준: 2026-10-21 dev fe1225e(PR #61 병합), 사용자 변경 없는 작업 트리.
+- 범위: README·작업 기억만. Compose의 명령 단위 비밀번호 전달과 앱 AES/JWT·DB 비밀번호·환율 인자를 구분한다. 앱·설정·API 코드 변경 없음.
+- 완료 기준: 설정 속성명·인자 우선순위·Compose 별도 환경 전달 설명 대조, 최종 독립 리뷰·등록 diff 검증·커밋·dev PR.
+- 검증: git diff --check 및 문서 예시 정적 검토. 앱·DB 기동과 회귀 테스트는 새로 실행하지 않는다.
+- 작업 기록: [README 인자 복원](tasks/readme-run-args-restore.md).
 
 ## 남은 한계
 
