@@ -15,6 +15,7 @@
 | 네트워크 장애 형태 | [기록](../harness/tasks/network-partition.md), `PostgresNetworkPartitionTest` | Toxiproxy 블랙홀·reset·disable·지연·응답 방향 블랙홀. 로컬 TCP 프록시 범위 |
 | 커밋 결과 불확실성 | [기록](../harness/tasks/commit-response-loss.md), `PostgresCommitResponseLossTest` | COMMIT 전 폐기·서버 커밋 후 응답 폐기, DB 반영과 재시도 효과 직접 확인 |
 | 부하와 시간 경과 | [k6 기록](../harness/tasks/k6-load-test.md), [2시간 소크 기록](../harness/tasks/postgres-failure-modes.md) | 로컬 단일 앱·단일 DB. 응답 중심 검사, 최대 처리량 탐색 아님 |
+| 처리량 한계 탐색 | [기록](../harness/tasks/capacity-test.md), `k6/capacity.js` | 한 머신(부하 발생기·Docker 포함), 시나리오별 1~2회. 가입·로그인은 CPU 바운드로 초당 20~30회 사이에서 무너졌고 접수 흐름은 반복 약 800~1000/s 사이에서 꺾임(원인은 머신 전체 포화로, 앱 단독 한계 아님). 운영 환산 아님 |
 | 하네스 게이트 | `scripts/tests/test_harness.py` 등 Python unittest | snapshot 변경·소유 범위·실패·publish 상태 처리. 리뷰 판단 품질 인증 아님 |
 
 `postgresTest`는 Docker가 필요하고 기본 `check`에서 제외된다. 기본 검증 통과만으로 PostgreSQL 장애 시나리오까지 실행했다고 볼 수 없다. 로컬 다중 인스턴스 검증과 단일 앱 k6를 합쳐 다중 호스트 고부하 검증이라고 주장하지 않는다.

@@ -155,6 +155,10 @@ LOCK_TIMEOUT과 DB_UNAVAILABLE만 `Retry-After: 1`을 반환한다. 고정 1초�
 k6 run k6/transfer-flow.js                      # 점진 램프업 접수 흐름(약 2분, 최대 30 VU)
 k6 run k6/spike.js                              # 5 -> 100 VU 급증 후 복귀(약 95초)
 DURATION=5m VUS=20 k6 run k6/soak.js            # 지속 부하(기본 5m, 20 VU)
+SCENARIO=transfer k6 run k6/capacity.js         # 한계 탐색: 초당 요청 수 계단식 증가(접수 흐름)
+SCENARIO=auth k6 run k6/capacity.js             # 한계 탐색: 로그인(BCrypt) 처리량
+SCENARIO=signup k6 run k6/capacity.js           # 한계 탐색: 가입(BCrypt·AES·DB 쓰기) 처리량
+SCENARIO=list k6 run k6/capacity.js             # 한계 탐색: 이력 조회(읽기) 처리량
 ```
 
 | 환경변수 | 의미 | 기본값 |
@@ -163,11 +167,14 @@ DURATION=5m VUS=20 k6 run k6/soak.js            # 지속 부하(기본 5m, 20 VU
 | VUS | transfer-flow 최대 VU, soak VU | 30 / 20 |
 | BASE_VUS, SPIKE_VUS | spike의 기준·급증 VU | 5 / 100 |
 | DURATION | soak 지속 시간(`90s`, `5m`, `1h`) | `5m` |
+| SCENARIO, STEPS, STEP_SECONDS, RAMP_SECONDS | capacity의 시나리오(`auth`/`transfer`/`signup`/`list`), 계단별 초당 반복 수(쉼표 목록), 단계 유지·증가 초 | `transfer`, 시나리오별 기본 목록(transfer `50,100,200,300,400,600`, auth·signup `5,10,15,20,30,40,60`, list `100,200,400,600,800,1000`), 30, 5 |
+| USERS, PRE_VUS, MAX_VUS | capacity의 사전 가입 사용자 수(signup은 쓰지 않음, list는 사용자당 접수 3건을 미리 만듦), 사전 할당·최대 VU | 1000(auth·list 100), 200, 1500. transfer는 사용자당 일일 한도(소액도 약 250건)가 소진되지 않게 총 반복 수/250보다 크게 둔다 |
 | RUN_ID, LOAD_USER_PASSWORD | 사용자 이메일 접두사, 예시 비밀번호 | 현재 시각(VU마다 달라 실행 단위 구분엔 직접 지정 권장) / 예시 값 |
 
 결과 해석: 종료 시 `THRESHOLDS`의 모든 항목이 체크(통과)여야 한다. 핵심은 `unexpected_responses`(계약 밖 응답, 500 `UNKNOWN_ERROR`·401 등)가 0건이고 `invariant_violations`(같은 키 재시도의 200 재현, 키 없는 재시도의 409)가 0건인 것이다.
 `ALREADY_REQUESTED`·`LIMIT_EXCESS`(`expected_rejections`)와 정의된 503(`defined_503`, 코드별 태그)은 계약에 정의된 응답으로 별도 집계한다. 정의된 503은 `unexpected_responses`·`http_req_failed`에서는 제외하지만 `server_error_rate`에 포함되고 `flow_healthy_rate`에서는 실패로 센다. spike는 `phase:recovery`, soak는 `early/mid/late` 구간별 지연으로 급증 뒤 회복과 시간에 따른 급격한 악화를 본다(상한이 관찰값보다 넉넉해 완만한 악화는 놓칠 수 있다).
 `DURATION=2h`로 20 VU 소크를 1회 돌린 과거 관찰값과 한계는 [검증 결과](../portfolio/validation.md#과거-실행에서-관찰한-수치)와 [작업 기록](../harness/tasks/postgres-failure-modes.md)에 있다. 넉넉한 절대 임계값에서 통과했다는 것이 완만한 악화나 메모리 누수를 배제하지는 않는다.
+스크립트는 한 번에 하나씩 단독으로 실행한다. 동시에 돌리면 BCrypt(가입·로그인) 지연이 급증해 임계값이 실패한다(같은 코드를 단독 실행하면 가입·로그인 p95가 약 0.4초). `capacity.js`는 임계값 통과가 아니라 단계별 결과(`http_req_duration{step:rN}`, `dropped_iterations`)를 읽어 한계를 찾는 탐색용이며, 모든 임계값이 항상 참이라 실패로 끝나지 않는다.
 임계값은 이 Mac에서 관찰한 값에 여유를 둔 것이며(근거: [k6 작업 기록](../harness/tasks/k6-load-test.md)), 로컬 단일 인스턴스·단일 PostgreSQL 컨테이너에서 측정한 값이다. 운영 성능이나 용량을 보증하지 않는다.
 
 
