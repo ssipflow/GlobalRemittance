@@ -78,12 +78,29 @@ python3 -m unittest discover -s scripts/tests -v
 
 실행 중인 로컬 앱·PostgreSQL과 k6가 필요하다(v1.1.0에서 확인). 기본 대상은 `http://localhost:8080`이며 `BASE_URL`로 바꿀 수 있다. 테스트 계정을 생성하므로 개인 데이터와 분리된 로컬 DB에서 실행한다.
 
+스크립트마다 묻는 질문이 다르다. `transfer-flow`·`spike`·`soak`은 견적→접수→재시도 흐름을 돌리며 응답이 계약대로인지(`unexpected_responses`, `invariant_violations` 0건)를 함께 확인한다. `capacity`는 시나리오별로 한 API(또는 `transfer` 흐름)만 부하를 올린다.
+
+| 스크립트 | 부하 모델 | 답하려는 질문 | 판정 |
+| --- | --- | --- | --- |
+| `transfer-flow.js` | VU를 0→30으로 약 2분 점진 증가 | 보통 부하에서 흐름이 정확하고 지연 기준을 지키는가(기준선) | 임계값 통과/실패 |
+| `spike.js` | 5→100 VU 급증 후 복귀 | 갑작스러운 폭주에서 계약 밖 응답 없이 버티고 복귀 구간이 정상으로 돌아오는가 | 임계값 통과/실패 |
+| `soak.js` | 20 VU 장시간(기본 5분, 2시간까지) | 오래 돌려도 지연이 악화되거나 자원(메모리·스레드·연결)이 새지 않는가 | 임계값 통과/실패, 자원은 별도 관찰 |
+| `capacity.js` | 초당 요청 수를 계단식으로 증가(`SCENARIO`: `auth`·`signup`·`transfer`·`list`) | 어느 처리량에서 지연·오류가 무너지는가(최대 처리량·병목) | 판정 없음, 단계별 수치 해석 |
+
+앞의 세 개는 VU 기반(폐쇄 모델)이라 서버가 느려지면 요청도 줄어드는 방식이어서 "이 부하를 견디는가"를 확인한다. `capacity.js`는 도착률을 고정해 서버가 못 따라가면 `dropped_iterations`와 지연이 바로 드러나므로 "어디서 무너지는가"를 찾는 데 쓴다.
+
 ```sh
 k6 run k6/transfer-flow.js                    # 약 2분, 최대 30 VU 점진 증가
 k6 run k6/spike.js                            # 5 → 100 VU 급증 후 복귀
 DURATION=5m VUS=20 k6 run k6/soak.js           # 20 VU 지속 부하
 # 2시간 소크 재현: DURATION=2h VUS=20 k6 run k6/soak.js
+SCENARIO=transfer k6 run k6/capacity.js        # 한계 탐색: 초당 요청 수를 계단식으로 올림(접수 흐름)
+SCENARIO=auth k6 run k6/capacity.js            # 한계 탐색: 로그인(BCrypt) 처리량
+SCENARIO=signup k6 run k6/capacity.js          # 한계 탐색: 가입(BCrypt·AES·DB 쓰기) 처리량
+SCENARIO=list k6 run k6/capacity.js            # 한계 탐색: 이력 조회(읽기) 처리량
 ```
+
+스크립트는 한 번에 하나씩, 다른 부하가 없는 상태에서 실행한다. 같은 머신에서 동시에 돌리면 가입·로그인(BCrypt, CPU 바운드) 지연이 급증해 임계값이 실패한다. `capacity.js`는 통과·실패 판정이 아니라 단계별(`step` 태그) 지연·오류·`dropped_iterations`로 처리량 한계와 병목을 찾는 탐색용이다.
 
 `THRESHOLDS` 통과와 `unexpected_responses`·`invariant_violations` 0건을 확인한다. 정의된 거절과 503은 별도 집계하며, 503은 `server_error_rate`에 포함되고 `flow_healthy_rate`에서는 실패다. 재시도 검사는 응답 계약 중심이고 DB 중복·한도 직접 검증은 통합 테스트에서 수행한다.
 
