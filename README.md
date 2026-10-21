@@ -47,6 +47,16 @@ docker compose up -d --wait
 
 AES 키는 Base64 32바이트, JWT 키는 Base64 32바이트 이상이며 DB 비밀번호는 필수다. **기존 암호화 데이터를 읽으려면 AES 키를 유지하고, 기존 DB에는 처음 설정한 비밀번호를 사용한다.** 위 생성 예시를 매번 실행하지 않는다. `secret.local`에 export 구문을 두고 `source ./secret.local`로 읽을 수 있다. 이 파일은 Git에서 제외되며 실제 값을 문서·PR에 기록하지 않는다.
 
+`export` 대신 앱 실행 인자로 전달할 수도 있다. PostgreSQL을 사용할 때는 DB를 먼저 준비하고, Compose에는 비밀번호를 별도로 전달한다. 아래 자리표시자는 기존 키·DB 비밀번호로 바꾼다.
+
+```sh
+# 이 명령에만 DB 비밀번호 전달(export 없이 Compose 실행)
+REMITTANCE_DB_PASSWORD='<DB 비밀번호>' docker compose up -d --wait
+./gradlew bootRun --args="--remittance.aes-key='<Base64 AES 키>' --remittance.jwt-secret='<Base64 JWT 키>' --spring.datasource.password='<DB 비밀번호>' --remittance.usd-to-krw=1350"
+```
+
+앱 인자는 같은 속성의 환경변수보다 우선한다. `-Dremittance.aes-key=...`는 Gradle JVM 속성이어서 앱에 자동 전달되지 않는다. 인자 값은 셸 기록·프로세스 목록에 보일 수 있으므로 로컬 개발에서 사용한다.
+
 실행 후 [Swagger UI](http://localhost:8080/swagger-ui.html)에서 회원가입·로그인하고 token을 **Authorize**에 넣는다. OpenAPI JSON은 `/v3/api-docs`이며 두 경로는 기본 공개다. `REMITTANCE_API_DOCS_ENABLED=false`로 함께 끈다.
 
 Docker 없이 `SPRING_PROFILES_ACTIVE=h2 ./gradlew bootRun`으로 H2 파일 DB를 쓸 수 있다. 환경변수, DB 볼륨·비밀번호, 시작 실패, H2 콘솔, 방언별 마이그레이션과 k6는 [로컬 실행 가이드](docs/application/local-guide.md)에 모았다.
